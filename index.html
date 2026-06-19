@@ -1378,6 +1378,9 @@ function riskReasons(p) {
 
 function stripMarkdown(v) {
   return String(v || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>\s*<p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
     .replace(/\*\*\*([^*]+)\*\*\*/g, '$1')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/___([^_]+)___/g, '$1')
@@ -1386,6 +1389,47 @@ function stripMarkdown(v) {
     .replace(/_([^_]+)_/g, '$1')
     .replace(/`([^`]+)`/g, '$1')
     .replace(/\*+/g, '');
+}
+
+function normalizeSummaryHeading(line) {
+  const cleaned = stripMarkdown(line)
+    .replace(/^>\s*/, '')
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/^\d+[.)]\s+/, '')
+    .replace(/[:：]\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const known = /^(weekly movement|weekly progress|portfolio movement|project movement|executive summary|key updates|management ask|management asks|management request|decision needed|executive ask|support needed)$/i;
+  if (known.test(cleaned)) return cleaned;
+  if (cleaned.length <= 48 && /^[A-Z][A-Za-z0-9&/() -]+$/.test(cleaned)) return cleaned;
+  if (cleaned.length <= 32 && /[\u4e00-\u9fff]/.test(cleaned) && !/[.!?。！？]$/.test(cleaned)) return cleaned;
+  return '';
+}
+
+function splitInlineSummaryHeading(line) {
+  const clean = stripMarkdown(line).replace(/^[-*+]\s+/, '').replace(/^\d+[.)]\s+/, '').trim();
+  const known = clean.match(/^(Weekly Movement|Weekly Progress|Portfolio Movement|Project Movement|Executive Summary|Key Updates|Management Ask|Management Asks|Management Request|Decision Needed|Executive Ask|Support Needed)[:：]\s*(.+)$/i);
+  if (known) return { heading: known[1], body: known[2] };
+  const cjk = clean.match(/^([\u4e00-\u9fffA-Za-z0-9&/() -]{2,24})[:：]\s*(.+)$/);
+  if (cjk && /[\u4e00-\u9fff]/.test(cjk[1])) return { heading: cjk[1], body: cjk[2] };
+  return null;
+}
+
+function isLikelySummaryHeading(line) {
+  const raw = String(line || '').trim();
+  if (!raw) return false;
+  if (/^#{1,6}\s+/.test(raw)) return true;
+  if (/^\d+[.)]\s+/.test(raw) && normalizeSummaryHeading(raw)) return true;
+  if (/^(\*\*|__)[^*_]+(\*\*|__)\s*[:：]?$/.test(raw)) return true;
+  return /[:：]\s*$/.test(raw) && normalizeSummaryHeading(raw);
+}
+
+function normalizeSummaryBullet(line) {
+  return String(line || '')
+    .replace(/^[•‣▪▫◦]\s*/, '- ')
+    .replace(/^[–—]\s+/, '- ')
+    .replace(/^\d+[.)]\s+/, '- ')
+    .replace(/^[-*+]\s+/, '- ');
 }
 
 function sanitizeSummaryInput(text) {
@@ -1399,7 +1443,17 @@ function sanitizeSummaryInput(text) {
       if (cells.length) out.push(`- ${cells.join(': ')}`);
       return;
     }
-    line = line.replace(/^>\s*/, '').replace(/^#{1,6}\s*/, '## ').replace(/^\d+[.)]\s+/, '- ').replace(/^[-*+]\s+/, '- ');
+    const inlineHeading = splitInlineSummaryHeading(line);
+    if (inlineHeading) {
+      out.push(`## ${inlineHeading.heading}`);
+      out.push(inlineHeading.body);
+      return;
+    }
+    if (isLikelySummaryHeading(line)) {
+      out.push(`## ${normalizeSummaryHeading(line)}`);
+      return;
+    }
+    line = normalizeSummaryBullet(line).replace(/^>\s*/, '');
     line = stripMarkdown(line).replace(/\s+/g, ' ').trim();
     if (line) out.push(line);
   });
@@ -2310,6 +2364,7 @@ window.openWeekManagement = () => {
   
   document.getElementById('wm_current_title').textContent = `Editing: ${week.weekLabel}`;
   document.getElementById('wm_summary').value = week.summary || '';
+  bindWeeklySummaryCleaner();
   
   const sel = document.getElementById('wm_nw_label');
   sel.innerHTML = '';
@@ -2370,6 +2425,21 @@ window.copyCopilotPrompt = async () => {
   }
 };
 
+function cleanWeeklySummaryTextarea() {
+  const field = document.getElementById('wm_summary');
+  if (!field) return;
+  const cleaned = sanitizeSummaryInput(field.value);
+  if (cleaned && cleaned !== field.value) field.value = cleaned;
+}
+
+function bindWeeklySummaryCleaner() {
+  const field = document.getElementById('wm_summary');
+  if (!field || field.dataset.cleanerBound === 'true') return;
+  field.dataset.cleanerBound = 'true';
+  field.addEventListener('paste', () => setTimeout(cleanWeeklySummaryTextarea, 0));
+  field.addEventListener('blur', cleanWeeklySummaryTextarea);
+}
+
 window.saveWeekSummary = async () => {
   closeModal('weekManageOverlay');
   showLoader("Updating Summary...");
@@ -2377,6 +2447,7 @@ window.saveWeekSummary = async () => {
   const week = allWeeks[currentIdx];
   const id = week.weekLabel.replace(/\s+/g, '-');
   
+  cleanWeeklySummaryTextarea();
   week.summary = sanitizeSummaryInput(document.getElementById('wm_summary').value);
   document.getElementById('wm_summary').value = week.summary;
   week.lastModifiedBy = currentUser.email;
