@@ -467,8 +467,19 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .risk-control { display:flex; gap:8px; align-items:flex-start; border:1px solid var(--border); border-radius:8px; padding:8px; background:#fff; }
 .risk-control input { margin-top:2px; }
 .risk-control b { display:block; font-size:11px; }
-.qms-row { display:grid; grid-template-columns:.65fr 1.7fr .8fr .8fr 34px; gap:8px; margin-bottom:8px; align-items:center; }
+.qms-row { display:grid; grid-template-columns:28px .65fr 1.7fr .8fr .8fr 34px; gap:8px; margin-bottom:8px; align-items:center; padding:4px; border-radius:4px; background:var(--s1); }
 .qms-row.dragging { opacity:.5; background:var(--s3); }
+.qms-row:hover { background:var(--s2); }
+.qms-handle { cursor:grab; color:var(--muted); text-align:center; user-select:none; font-size:18px; line-height:1; }
+.qms-handle:active { cursor:grabbing; }
+.detail-qms-list { display:grid; gap:10px; }
+.detail-qms-item { border:1px solid var(--border); border-left:4px solid var(--blue); border-radius:8px; background:#fff; padding:10px 12px; }
+.detail-qms-item.done { border-left-color:var(--green); background:#F3FBF6; }
+.detail-qms-item.at-risk { border-left-color:var(--yellow); background:#FFFAF0; }
+.detail-qms-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
+.detail-qms-quarter { font-size:12px; font-weight:800; color:var(--text); }
+.detail-qms-goal { font-size:12px; line-height:1.5; color:var(--text-light); word-break:break-word; }
+.detail-qms-meta { margin-top:6px; font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--muted); }
 .copilot-prompt-box { font-family:'IBM Plex Mono', monospace; font-size:11px; line-height:1.55; min-height:220px; background:#FBFDFF; }
 .ai-assist-box { background:var(--s2); border:1px solid var(--border); border-radius:8px; padding:18px; margin-bottom:18px; }
 .ai-assist-head { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:12px; }
@@ -679,6 +690,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       </div>
       <div class="info-lbl" style="margin-bottom:16px;">Milestones Roadmap</div>
       <div class="ms-container" id="pd_milestones"></div>
+      <div class="info-lbl" style="margin:24px 0 12px;">Quarterly Milestones</div>
+      <div class="detail-qms-list" id="pd_quarterly_milestones"></div>
     </div>
   </div>
 </div>
@@ -1570,6 +1583,21 @@ function formatExecProjectMilestones(milestones) {
     </div>`).join('') + `</div></div>`;
 }
 
+function formatDetailQuarterlyMilestones(project) {
+  const list = getQuarterlyMilestones(project);
+  if (!list.length) return '<div class="exec-note">No quarterly milestones yet.</div>';
+  return list.map(m => `
+    <div class="detail-qms-item ${escHtml(m.status || 'planned')}">
+      <div class="detail-qms-top">
+        <span class="detail-qms-quarter">${escHtml(m.quarter || 'No quarter')}</span>
+        <span class="exec-ms-badge ${escHtml(m.status || 'to-do')}">${escHtml(getStatusLabel(m.status || 'planned'))}</span>
+      </div>
+      <div class="detail-qms-goal">${escHtml(m.goal || '-')}</div>
+      <div class="detail-qms-meta">${escHtml(m.window || '-')}</div>
+    </div>
+  `).join('');
+}
+
 function renderQuarterlyBoard(projs) {
   const preferred = ['Q2 2026', 'Q3 2026', 'Q4 2026', 'Q1 2027'];
   const quarters = [...new Set([...preferred, ...projs.flatMap(p => getQuarterlyMilestones(p).map(q => q.quarter).filter(Boolean))])];
@@ -1735,6 +1763,7 @@ window.openProjDetail = (code) => {
       <div class="ms-status ${m.status || 'to-do'}" style="flex-shrink: 0; white-space: nowrap;">${m.status || 'to-do'}</div>
     </div>
   `).join('');
+  document.getElementById('pd_quarterly_milestones').innerHTML = formatDetailQuarterlyMilestones(p);
   
   document.getElementById('projDetailOverlay').classList.add('open');
 };
@@ -2319,10 +2348,8 @@ window.addMilestoneRow = (name='', status='to-do', dateStr='') => {
 window.addQuarterlyMilestoneRow = (quarter='Q3 2026', goal='', windowText='', status='planned') => {
   const div = document.createElement('div');
   div.className = "qms-row";
-  div.draggable = true;
-  div.ondragstart = e => { e.dataTransfer.setData('text/plain', ''); e.target.classList.add('dragging'); };
-  div.ondragend = e => e.target.classList.remove('dragging');
   div.innerHTML = `
+    <span class="qms-handle" draggable="true" title="Drag to reorder">&#9776;</span>
     <input class="fi qms-quarter" value="${escHtml(quarter || '')}" placeholder="Q3 2026">
     <input class="fi qms-goal" value="${escHtml(goal || '')}" placeholder="Quarterly target / business objective">
     <input class="fi qms-window" value="${escHtml(windowText || '')}" placeholder="Aug 2026">
@@ -2333,6 +2360,13 @@ window.addQuarterlyMilestoneRow = (quarter='Q3 2026', goal='', windowText='', st
     </select>
     <button onclick="this.parentElement.remove();" style="border:none; background:none; cursor:pointer;">x</button>
   `;
+  const handle = div.querySelector('.qms-handle');
+  handle.ondragstart = e => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    div.classList.add('dragging');
+  };
+  handle.ondragend = () => div.classList.remove('dragging');
   document.getElementById('qmsListContainer').appendChild(div);
 }
 
@@ -2360,7 +2394,8 @@ qmsCont.addEventListener('dragover', e => {
 });
 
 function getDragAfterElement(container, y) {
-  const draggableElements = [...container.querySelectorAll('.ms-row:not(.dragging), .qms-row:not(.dragging)')];
+  const rowSelector = container.id === 'qmsListContainer' ? '.qms-row:not(.dragging)' : '.ms-row:not(.dragging)';
+  const draggableElements = [...container.querySelectorAll(rowSelector)];
   return draggableElements.reduce((closest, child) => {
     const box = child.getBoundingClientRect();
     const offset = y - box.top - box.height / 2;
