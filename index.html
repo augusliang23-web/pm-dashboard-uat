@@ -420,6 +420,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-summary-render li { margin:6px 0; }
 .exec-summary-render p { margin:0; }
 .exec-summary-render p + p { margin-top:8px; }
+.exec-summary-project-item { padding:2px 0; }
+.exec-summary-project-item + .exec-summary-project-item { margin-top:14px; padding-top:16px; border-top:1px dashed var(--border); }
+.exec-summary-project-name { display:block; margin-bottom:5px; font-size:14px; font-weight:800; line-height:1.35; color:var(--text); }
+.exec-summary-project-body { display:block; line-height:1.72; color:var(--text-light); }
 .exec-empty-summary { border:1px dashed var(--border2); background:var(--s2); border-radius:10px; padding:13px 14px; color:var(--muted); font-size:12px; }
 .quarter-board { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
 .quarter-col { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#FBFDFF; }
@@ -1460,11 +1464,28 @@ function sanitizeSummaryInput(text) {
   return out.join('\n');
 }
 
-function renderSummaryContent(summary) {
+function renderSummaryContent(summary, projects = []) {
   const text = sanitizeSummaryInput(summary || '').trim();
   if (!text) return '<div class="exec-empty-summary">No weekly summary has been saved yet. Use Week Management to copy the AI prompt, paste the generated output, and save it.</div>';
   const lines = textLines(text);
   const isBullet = line => /^[-*]\s+/.test(line) || /^\d+[.)]\s+/.test(line);
+  const projectKeys = (projects || []).flatMap(p => [p.name, p.code].filter(Boolean).map(v => String(v).trim())).sort((a, b) => b.length - a.length);
+  const parseProjectLine = line => {
+    const clean = line.replace(/^[-*]\s+/, '').replace(/^\d+[.)]\s+/, '').trim();
+    const lower = clean.toLowerCase();
+    for (const key of projectKeys) {
+      const prefix = `${key.toLowerCase()}:`;
+      if (lower.startsWith(prefix)) {
+        return { name: key, body: clean.slice(key.length + 1).trim() };
+      }
+    }
+    return null;
+  };
+  const renderProjectItem = item => `
+    <div class="exec-summary-project-item">
+      <strong class="exec-summary-project-name">${escHtml(item.name)}</strong>
+      <span class="exec-summary-project-body">${escHtml(item.body)}</span>
+    </div>`;
   const isHeading = (line, idx) => {
     if (/^#{1,3}\s+/.test(line)) return true;
     const clean = line.replace(/:$/, '').trim();
@@ -1486,18 +1507,29 @@ function renderSummaryContent(summary) {
     if (isHeading(line, idx)) {
       html += openSection(line);
     } else if (isBullet(line)) {
+      const projectItem = parseProjectLine(line);
       if (!inSection) {
         html += '<section class="exec-summary-section">';
         inSection = true;
       }
+      if (projectItem) {
+        if (inList) { html += '</ul>'; inList = false; }
+        html += renderProjectItem(projectItem);
+        return;
+      }
       if (!inList) { html += '<ul>'; inList = true; }
       html += `<li>${escHtml(line.replace(/^[-*]\s+/, '').replace(/^\d+[.)]\s+/, ''))}</li>`;
     } else {
+      const projectItem = parseProjectLine(line);
       if (!inSection) {
         html += '<section class="exec-summary-section">';
         inSection = true;
       }
       if (inList) { html += '</ul>'; inList = false; }
+      if (projectItem) {
+        html += renderProjectItem(projectItem);
+        return;
+      }
       html += `<p>${escHtml(line)}</p>`;
     }
   });
@@ -1969,7 +2001,7 @@ function renderExec(projs, summary) {
           <div class="exec-summary-title">Weekly Executive Summary</div>
           <div class="exec-summary-sub">Management ready</div>
         </div>
-        ${renderSummaryContent(summary)}
+        ${renderSummaryContent(summary, projs)}
       </div>
     </div>
 
