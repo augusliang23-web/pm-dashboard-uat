@@ -1761,6 +1761,10 @@ function currentQuarterIndex() {
   return d.getFullYear() * 4 + Math.floor(d.getMonth() / 3);
 }
 
+function currentYearStartQuarterIndex() {
+  return new Date().getFullYear() * 4;
+}
+
 function quarterMonthOptions(quarter) {
   const parsed = parseQuarterLabel(quarter);
   if (!parsed) return [];
@@ -1781,8 +1785,10 @@ function nextQuarterLabelFromRows() {
 
 function quarterSelectOptions(selectedQuarter) {
   const current = currentQuarterIndex();
+  const currentYearStart = currentYearStartQuarterIndex();
   const selected = parseQuarterLabel(selectedQuarter);
-  const indices = new Set(Array.from({length: 12}, (_, i) => current + i));
+  const indices = new Set(Array.from({length: 16}, (_, i) => currentYearStart + i));
+  indices.add(current);
   if (selected) indices.add(selected.index);
   return [...indices].sort((a, b) => a - b).map(i => quarterLabelFromIndex(i));
 }
