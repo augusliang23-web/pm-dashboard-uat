@@ -994,6 +994,48 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .risk-action-panel thead {
     display: table-row-group !important;
   }
+
+  /* Final PDF pagination contract: each report section owns its page. */
+  .exec-overview,
+  .weekly-trend-panel,
+  .exec-summary-grid,
+  .attention-map-panel,
+  .risk-action-panel,
+  .quarterly-roadmap-panel,
+  .project-portfolio-panel {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+  .attention-map-panel,
+  .risk-action-panel,
+  .quarterly-roadmap-panel,
+  .project-portfolio-panel {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+  .exec-decision-head,
+  .exec-board-head,
+  .project-portfolio-head {
+    break-after: avoid-page !important;
+    page-break-after: avoid !important;
+  }
+  .project-portfolio-panel {
+    margin-top: 0 !important;
+  }
+  .project-portfolio-panel .project-portfolio-head {
+    margin: 0 1px 3mm !important;
+  }
+  .project-portfolio-panel .project-portfolio-grid {
+    break-before: avoid-page !important;
+    page-break-before: avoid !important;
+  }
+  .project-portfolio-panel .project-portfolio-grid .exec-project-card {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+  .project-portfolio-panel .project-portfolio-grid .exec-project-card + .exec-project-card {
+    margin-top: 0 !important;
+  }
 }
 </style>
 </head>
@@ -3012,64 +3054,66 @@ function renderExec(projs, summary) {
       ${renderQuarterlyBoard(projs, strategyLayer, activeTrack, roadmapYear)}
     </div>
 
-    <div class="exec-board-head project-portfolio-head">
-      <div>
-        <div class="exec-board-title">Project portfolio</div>
-        <div class="exec-board-sub">Status, progress, updates and milestones in one scan</div>
+    <section class="project-portfolio-panel">
+      <div class="exec-board-head project-portfolio-head">
+        <div>
+          <div class="exec-board-title">Project portfolio</div>
+          <div class="exec-board-sub">Status, progress, updates and milestones in one scan</div>
+        </div>
+        <div class="exec-board-legend">
+          <span><i class="exec-health-dot green"></i>On Track</span>
+          <span><i class="exec-health-dot yellow"></i>At Risk</span>
+          <span><i class="exec-health-dot red"></i>Critical</span>
+        </div>
       </div>
-      <div class="exec-board-legend">
-        <span><i class="exec-health-dot green"></i>On Track</span>
-        <span><i class="exec-health-dot yellow"></i>At Risk</span>
-        <span><i class="exec-health-dot red"></i>Critical</span>
+
+      <div class="exec-projects project-portfolio-grid">
+        ${projs.map(p => `
+          <article class="exec-project-card ${p.status}" ondblclick="openProjDetail('${p.code}')" title="Double click for details">
+            <div class="exec-project-top">
+              <div class="exec-project-identity">
+                <div class="exec-project-name">${p.name}${p.visibility && p.visibility !== 'active' ? ` <span style="color:var(--red); font-size:10px; font-weight:700;">[${p.visibility.toUpperCase()}]</span>` : ''}</div>
+                <div class="exec-project-meta">
+                  <span class="exec-status-chip ${p.status}">${statusMap[p.status] || p.status}</span>
+                  <span class="exec-owner-chip">${p.owner || '-'}</span>
+                  <span class="exec-code-chip">${p.code}</span>
+                </div>
+              </div>
+
+              <div class="exec-progress-block">
+                <div class="exec-progress-head">
+                  <span class="exec-progress-label">Progress</span>
+                  <span class="exec-progress-number">${p.progress || 0}%</span>
+                </div>
+                <div class="exec-progress-track">
+                  <div class="exec-progress-fill ${p.status}" style="width:${p.progress || 0}%"></div>
+                </div>
+              </div>
+
+              <div class="exec-project-signals">
+                <div class="exec-signal">
+                  <div class="exec-signal-label">Highlight</div>
+                  <div class="stext">${formatBullets(p.highlight)}</div>
+                </div>
+                <div class="exec-signal risk">
+                  <div class="exec-signal-label">Risk / Blocker</div>
+                  <div class="stext">${formatBullets(p.risk)}</div>
+                </div>
+                <div class="exec-signal next">
+                  <div class="exec-signal-label">Weekly Actions</div>
+                  <div class="stext">${formatBullets(p.weeklyActions || p.weeklyAction || 'No weekly actions yet.')}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="exec-project-milestones">
+              <div class="exec-milestone-label">Milestone roadmap</div>
+              ${formatExecProjectMilestones(p.milestones)}
+            </div>
+          </article>
+        `).join('')}
       </div>
-    </div>
-
-    <div class="exec-projects project-portfolio-grid">
-      ${projs.map(p => `
-        <article class="exec-project-card ${p.status}" ondblclick="openProjDetail('${p.code}')" title="Double click for details">
-          <div class="exec-project-top">
-            <div class="exec-project-identity">
-              <div class="exec-project-name">${p.name}${p.visibility && p.visibility !== 'active' ? ` <span style="color:var(--red); font-size:10px; font-weight:700;">[${p.visibility.toUpperCase()}]</span>` : ''}</div>
-              <div class="exec-project-meta">
-                <span class="exec-status-chip ${p.status}">${statusMap[p.status] || p.status}</span>
-                <span class="exec-owner-chip">${p.owner || '-'}</span>
-                <span class="exec-code-chip">${p.code}</span>
-              </div>
-            </div>
-
-            <div class="exec-progress-block">
-              <div class="exec-progress-head">
-                <span class="exec-progress-label">Progress</span>
-                <span class="exec-progress-number">${p.progress || 0}%</span>
-              </div>
-              <div class="exec-progress-track">
-                <div class="exec-progress-fill ${p.status}" style="width:${p.progress || 0}%"></div>
-              </div>
-            </div>
-
-            <div class="exec-project-signals">
-              <div class="exec-signal">
-                <div class="exec-signal-label">Highlight</div>
-                <div class="stext">${formatBullets(p.highlight)}</div>
-              </div>
-              <div class="exec-signal risk">
-                <div class="exec-signal-label">Risk / Blocker</div>
-                <div class="stext">${formatBullets(p.risk)}</div>
-              </div>
-              <div class="exec-signal next">
-                <div class="exec-signal-label">Weekly Actions</div>
-                <div class="stext">${formatBullets(p.weeklyActions || p.weeklyAction || 'No weekly actions yet.')}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="exec-project-milestones">
-            <div class="exec-milestone-label">Milestone roadmap</div>
-            ${formatExecProjectMilestones(p.milestones)}
-          </div>
-        </article>
-      `).join('')}
-    </div>
+    </section>
   `;
   bindDecisionControls(editableDecisionView);
 }
