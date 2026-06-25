@@ -469,6 +469,16 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .risk-control { display:flex; gap:8px; align-items:flex-start; border:1px solid var(--border); border-radius:8px; padding:8px; background:#fff; }
 .risk-control input { margin-top:2px; }
 .risk-control b { display:block; font-size:11px; }
+.risk-pair-editor { display:grid; gap:8px; }
+.risk-pair-note { border:1px dashed var(--border2); background:var(--s2); border-radius:8px; padding:8px 10px; font-size:11px; line-height:1.45; color:var(--text-light); }
+.risk-pair-head, .risk-pair-row { display:grid; grid-template-columns:96px minmax(0,1fr) minmax(0,1fr) 34px; gap:8px; align-items:start; }
+.risk-pair-head { font-family:'IBM Plex Mono', monospace; font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.risk-pair-row { border:1px solid var(--border); border-radius:8px; background:#fff; padding:8px; }
+.risk-primary-control { display:flex; align-items:center; gap:6px; min-height:36px; font-size:11px; font-weight:800; color:var(--text-light); }
+.risk-primary-control input { margin:0; }
+.risk-pair-delete { border:none; background:none; cursor:pointer; font-size:16px; line-height:1; min-height:36px; }
+.action-list { margin:0; padding-left:18px; }
+.action-list li { margin:0 0 5px; }
 .qms-row { display:grid; grid-template-columns:.65fr 1.7fr .8fr .8fr 34px; gap:8px; margin-bottom:8px; align-items:center; padding:4px; border-radius:4px; background:var(--s1); }
 .qms-row:hover { background:var(--s2); }
 .qms-delete { border:none; background:none; cursor:pointer; font-size:16px; line-height:1; }
@@ -993,9 +1003,16 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div class="fg"><label class="fl">Attention Matrix</label><select class="fs" id="pe_attention"></select></div>
   </div>
   <div class="fg"><label class="fl">Highlight (Press Enter for new bullet point)</label><textarea class="ft" id="pe_highlight" rows="3"></textarea></div>
-  <div style="display:flex; gap:16px;">
-    <div class="fg"><label class="fl">Risk / Blocker (Press Enter for new bullet point)</label><textarea class="ft" id="pe_risk" rows="3"></textarea></div>
-    <div class="fg"><label class="fl">Next Steps (Press Enter for new bullet point)</label><textarea class="ft" id="pe_next" rows="3"></textarea></div>
+  <div class="fg">
+    <label class="fl">Risk Action Pairs (maps directly to Overview Risk Action Table)</label>
+    <div class="risk-pair-editor">
+      <div class="risk-pair-note"><b>Primary</b> marks the main executive risk shown first in Overview. Each Risk / Blocker must have its own Required Action so the table stays decision-oriented.</div>
+      <div class="risk-pair-head"><span>Primary</span><span>Risk / Blocker</span><span>Required Action</span><span></span></div>
+      <div id="riskActionPairContainer"></div>
+      <button class="btn btn-ghost" onclick="addRiskActionPairRow()" style="width:100%;">+ Add Risk / Action Pair</button>
+    </div>
+    <textarea class="ft" id="pe_risk" rows="3" style="display:none;"></textarea>
+    <textarea class="ft" id="pe_next" rows="3" style="display:none;"></textarea>
   </div>
 
   <details id="pe_details" style="margin-top: 24px;">
@@ -1914,8 +1931,33 @@ function renderStrategicTrackFilter(projs, layer, editable) {
   </section>`;
 }
 
-function riskItems(p) {
+function rawRiskItems(p) {
   return textLines(p.risk).filter(l => l && !/^no risk\b/i.test(l));
+}
+
+function getRiskActionPairs(p) {
+  const saved = Array.isArray(p?.riskActions) ? p.riskActions : [];
+  const structured = saved.map((item, index) => ({
+    risk: String(item?.risk || '').trim(),
+    action: String(item?.action || '').trim(),
+    primary: item?.primary === true || item?.isPrimary === true || index === 0 && saved.every(x => !x?.primary && !x?.isPrimary)
+  })).filter(item => item.risk || item.action);
+  if (structured.length) {
+    if (!structured.some(item => item.primary)) structured[0].primary = true;
+    return structured.sort((a, b) => Number(b.primary) - Number(a.primary));
+  }
+  const risks = rawRiskItems(p);
+  const actions = textLines(p?.next);
+  const max = Math.max(risks.length, actions.length);
+  return Array.from({ length: max }, (_, index) => ({
+    risk: risks[index] || '',
+    action: actions[index] || '',
+    primary: index === 0
+  })).filter(item => item.risk || item.action);
+}
+
+function riskItems(p) {
+  return getRiskActionPairs(p).map(item => item.risk).filter(Boolean);
 }
 
 function hasRiskMilestone(p) {
@@ -2200,10 +2242,13 @@ function renderRiskActionTable(projs, editable) {
   const rows = projs.filter(shouldIncludeRisk);
   return `<div class="risk-rule"><b>Rule:</b> projects are included when they are At Risk/Critical, need executive action or close monitoring, contain blocker text, or have a milestone marked at risk. PM/Admin can manually include or exclude a project for this week's executive list.</div>
   <table class="risk-action-table"><thead><tr><th>Project</th><th>Risk / Blockers</th><th>Why Escalated</th><th>Owner</th><th>Required Action</th><th>Checkpoint</th></tr></thead><tbody>
-    ${rows.map(p => `<tr><td><b>${escHtml(p.name)}</b><br><span class="proj-code">${escHtml(p.code)}</span></td>
-      <td>${riskItems(p).length ? `<ul class="risk-list">${riskItems(p).map((r,i) => `<li>${i===0 ? '<span class="reason-pill">Primary</span> ' : ''}${escHtml(r)}</li>`).join('')}</ul>` : '-'}</td>
+    ${rows.map(p => {
+      const pairs = getRiskActionPairs(p);
+      return `<tr><td><b>${escHtml(p.name)}</b><br><span class="proj-code">${escHtml(p.code)}</span></td>
+      <td>${pairs.length ? `<ul class="risk-list">${pairs.map(item => `<li>${item.primary ? '<span class="reason-pill">Primary</span> ' : ''}${escHtml(item.risk || '-')}</li>`).join('')}</ul>` : '-'}</td>
       <td><div class="reason-stack">${(p.riskManual ? ['Manually escalated'] : riskReasons(p)).map(r => `<span class="reason-pill ${r === 'Manually escalated' ? 'manual' : ''}">${escHtml(r)}</span>`).join('')}</div></td>
-      <td>${escHtml(p.owner || '-')}</td><td>${escHtml(textLines(p.next)[0] || '-')}</td><td>${escHtml((p.milestones || []).find(m => m.status === 'at-risk')?.date || p.milestones?.[0]?.date || '-')}</td></tr>`).join('')}
+      <td>${escHtml(p.owner || '-')}</td><td>${pairs.length ? `<ul class="action-list">${pairs.map(item => `<li>${item.primary ? '<span class="reason-pill">Primary</span> ' : ''}${escHtml(item.action || '-')}</li>`).join('')}</ul>` : '-'}</td><td>${escHtml((p.milestones || []).find(m => m.status === 'at-risk')?.date || p.milestones?.[0]?.date || '-')}</td></tr>`;
+    }).join('')}
   </tbody></table>
   ${editable ? `<div class="risk-controls">${projs.map(p => `<label class="risk-control"><input class="risk-toggle" type="checkbox" data-code="${escHtml(p.code)}" ${shouldIncludeRisk(p) ? 'checked' : ''}><span><b>${escHtml(p.name)}</b><span class="proj-code">${escHtml(p.code)} | ${p.riskManual ? 'Manual' : 'Suggested'} | ${escHtml(riskReasons(p).join(' / '))}</span></span></label>`).join('')}</div>` : ''}`;
 }
@@ -2901,11 +2946,48 @@ window.navWeek = (dir) => {
 window.closeModal = (id) => document.getElementById(id).classList.remove('open');
 
 // ── PROJECT COMBINED EDIT ──
+function ensurePrimaryRiskActionPair() {
+  const rows = Array.from(document.querySelectorAll('.risk-pair-row'));
+  if (!rows.length) return;
+  const hasPrimary = rows.some(row => row.querySelector('.rap-primary')?.checked);
+  if (!hasPrimary) rows[0].querySelector('.rap-primary').checked = true;
+}
+
+function collectRiskActionPairs() {
+  const rows = Array.from(document.querySelectorAll('.risk-pair-row'));
+  const pairs = rows.map(row => ({
+    primary: row.querySelector('.rap-primary')?.checked === true,
+    risk: row.querySelector('.rap-risk')?.value.trim() || '',
+    action: row.querySelector('.rap-action')?.value.trim() || ''
+  })).filter(item => item.risk || item.action);
+  if (pairs.length && !pairs.some(item => item.primary)) pairs[0].primary = true;
+  return pairs.sort((a, b) => Number(b.primary) - Number(a.primary));
+}
+
+window.ensurePrimaryRiskActionPair = ensurePrimaryRiskActionPair;
+
+window.addRiskActionPairRow = (risk = '', action = '', primary = false) => {
+  const container = document.getElementById('riskActionPairContainer');
+  if (!container) return;
+  const isFirst = !container.querySelector('.risk-pair-row');
+  const row = document.createElement('div');
+  row.className = 'risk-pair-row';
+  row.innerHTML = `
+    <label class="risk-primary-control"><input type="radio" name="riskActionPrimary" class="rap-primary" ${primary || isFirst ? 'checked' : ''}> Primary</label>
+    <textarea class="ft rap-risk" rows="2" placeholder="Risk / Blocker shown in Overview">${escHtml(risk)}</textarea>
+    <textarea class="ft rap-action" rows="2" placeholder="Required Action shown in Overview">${escHtml(action)}</textarea>
+    <button class="risk-pair-delete" onclick="this.parentElement.remove(); ensurePrimaryRiskActionPair();" title="Delete risk/action pair">&#128465;&#65039;</button>
+  `;
+  container.appendChild(row);
+  row.querySelector('.rap-primary').addEventListener('change', ensurePrimaryRiskActionPair);
+  ensurePrimaryRiskActionPair();
+};
+
 window.openProjEdit = (code, isNew = false) => {
   isCreatingNew = isNew;
   editingProjCode = code;
   const week = allWeeks[currentIdx];
-  let p = isNew ? {name:'', code:'', owner:'', deputy:'', customer:'', location:'', visibility:'active', milestones:[], quarterlyMilestones:[], status:'green', progress:0, attention:'watch', highlight:'', risk:'', next:''} : week.projects.find(x => x.code === code);
+  let p = isNew ? {name:'', code:'', owner:'', deputy:'', customer:'', location:'', visibility:'active', milestones:[], quarterlyMilestones:[], status:'green', progress:0, attention:'watch', highlight:'', risk:'', next:'', riskActions:[]} : week.projects.find(x => x.code === code);
   
   document.getElementById('peTitle').textContent = isNew ? "New Project" : "Edit Project";
   
@@ -2915,6 +2997,10 @@ window.openProjEdit = (code, isNew = false) => {
   document.getElementById('pe_highlight').value = p.highlight || '';
   document.getElementById('pe_risk').value = p.risk || '';
   document.getElementById('pe_next').value = p.next || '';
+  const riskPairCont = document.getElementById('riskActionPairContainer');
+  riskPairCont.innerHTML = '';
+  const pairs = getRiskActionPairs(p);
+  (pairs.length ? pairs : [{ risk:'', action:'', primary:true }]).forEach(item => addRiskActionPairRow(item.risk, item.action, item.primary));
   
   document.getElementById('pe_name').value = p.name || '';
   document.getElementById('pe_code').value = p.code || '';
@@ -2964,6 +3050,9 @@ window.saveProjEdit = async () => {
     window: div.querySelector('.qms-window').value,
     status: div.querySelector('.qms-status').value
   })).filter(m => m.quarter || m.goal || m.window);
+  const riskActions = collectRiskActionPairs();
+  const riskText = riskActions.map(item => item.risk).filter(Boolean).join('\n');
+  const nextText = riskActions.map(item => item.action).filter(Boolean).join('\n');
   
   const pData = {
     name: document.getElementById('pe_name').value,
@@ -2980,8 +3069,9 @@ window.saveProjEdit = async () => {
     attention: document.getElementById('pe_attention').value,
     attentionManual: true,
     highlight: document.getElementById('pe_highlight').value.trim(),
-    risk: document.getElementById('pe_risk').value.trim(),
-    next: document.getElementById('pe_next').value.trim()
+    riskActions: riskActions,
+    risk: riskText,
+    next: nextText
   };
 
   if(isCreatingNew) {
