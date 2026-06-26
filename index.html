@@ -569,6 +569,20 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-quarter-col:last-child { border-right:0; }
 .exec-quarter-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:9px; }
 .exec-quarter-title { font-size:15px; font-weight:850; color:var(--text); }
+.dcdc-timeline { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#fff; }
+.dcdc-title { padding:16px 18px; font-size:23px; font-weight:900; color:#124A80; background:#F7FBFE; border-bottom:1px solid var(--border); }
+.dcdc-grid { display:grid; grid-template-columns:150px repeat(4,minmax(0,1fr)); }
+.dcdc-cell { min-width:0; padding:14px 14px; border-right:1px solid #C8DDEB; border-bottom:1px solid #DCE6EF; background:#fff; }
+.dcdc-cell:nth-child(5n) { border-right:0; }
+.dcdc-quarter { padding:11px 14px; background:#005BAA; color:#fff; text-align:center; font-size:15px; font-weight:900; border-right:1px solid rgba(255,255,255,.25); border-bottom:0; }
+.dcdc-corner { background:#fff; border-bottom:0; }
+.dcdc-row-label { font-size:14px; font-weight:900; line-height:1.25; color:var(--text); background:#F8FBFD; }
+.dcdc-list { margin:0; padding-left:18px; color:var(--text); }
+.dcdc-list li { margin:0 0 7px; font-size:13px; line-height:1.36; font-weight:700; }
+.dcdc-phase-row { display:grid; grid-template-columns:150px repeat(4,minmax(0,1fr)); align-items:stretch; background:#F1F7FB; }
+.dcdc-phase-spacer { border-right:1px solid #C8DDEB; }
+.dcdc-phase { padding:12px 10px; text-align:center; color:#005BAA; font-size:15px; line-height:1.15; font-weight:900; border-right:1px solid #C8DDEB; }
+.dcdc-phase:last-child { border-right:0; }
 .project-quarter-matrix { display:grid; grid-template-columns:minmax(190px,.72fr) repeat(4,minmax(170px,1fr)); border-top:1px solid var(--border); border-left:1px solid var(--border); }
 .pqm-cell { min-width:0; border-right:1px solid var(--border); border-bottom:1px solid var(--border); padding:10px 12px; background:#fff; }
 .pqm-head { background:#EDF5FB; font-size:12px; font-weight:850; color:var(--text); text-transform:uppercase; letter-spacing:.04em; }
@@ -1013,6 +1027,15 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .exec-quarter-board { grid-template-columns:repeat(4,minmax(0,1fr)) !important; }
   .exec-quarter-col { padding:7px !important; break-inside:avoid-page !important; page-break-inside:avoid !important; }
   .exec-quarter-title { font-size:11px !important; }
+  .dcdc-title { padding:8px 10px !important; font-size:15px !important; }
+  .dcdc-grid { grid-template-columns:28mm repeat(4,minmax(0,1fr)) !important; }
+  .dcdc-cell { padding:6px 7px !important; }
+  .dcdc-quarter { padding:6px 7px !important; font-size:10.5px !important; }
+  .dcdc-row-label { font-size:9px !important; }
+  .dcdc-list { padding-left:12px !important; }
+  .dcdc-list li { margin-bottom:3px !important; font-size:7.8px !important; line-height:1.2 !important; }
+  .dcdc-phase-row { grid-template-columns:28mm repeat(4,minmax(0,1fr)) !important; }
+  .dcdc-phase { padding:6px !important; font-size:9px !important; line-height:1.15 !important; }
   .project-quarter-matrix { grid-template-columns:minmax(34mm,.7fr) repeat(4,minmax(0,1fr)) !important; }
   .pqm-cell { padding:5px 6px !important; break-inside:avoid-page !important; page-break-inside:avoid !important; }
   .pqm-head { font-size:8px !important; }
@@ -1993,6 +2016,46 @@ const HEALTH_OPTIONS = [
   ['red', 'Blocked']
 ];
 
+const DCDC_EXECUTIVE_MILESTONE_TIMELINE = {
+  title: 'Selected 2026 DCDC Milestone Timeline',
+  quarters: ['Q1', 'Q2', 'Q3', 'Q4'],
+  rows: [
+    {
+      label: 'Solution & ecosystem',
+      cells: [
+        ['33 kW container shipped to Plano'],
+        ['33kW container integration Complete in Plano', '10 kW Micro Edge design', 'Beta version of PMS software', 'POC with Zettabyte Phase1 complete (2 sites)'],
+        ['33kW container shipped to Aston Labs', 'Beta version of energy optimization software', 'POC with Zettabyte Phase1 complete (5 sites)', '325kW Test Phase1 start (ToP + AI server)'],
+        ['33kW container fully operating with PMS and energy optimization (PV + Fuel cell + battery)', '325kW Test Phase2 complete (Fuel cell and SST)']
+      ]
+    },
+    {
+      label: 'Customers & GTM',
+      cells: [
+        ['Joint announcement with STT GDC on DCDC infra'],
+        ['Telco CO transformation to data center whitepaper'],
+        ['Micro Edge LOI with one lighthouse customer', 'Telco partnership LOI'],
+        ['Ultra Edge Prototype deployment']
+      ]
+    },
+    {
+      label: 'Investors & Others',
+      cells: [
+        ['EDB program secured'],
+        ['Investor engagements', 'NewCo creation'],
+        ['Investment term sheet and cap table discussion', 'Charger assembly to partner (e.g. TECO)'],
+        ['External investment', 'Sale or closing of UPS business']
+      ]
+    }
+  ],
+  phases: [
+    'Foundation & Initial Deployment',
+    'Solution Refinement & Market Readiness',
+    'Scale & Customer Engagement',
+    'Commercialization & Investment'
+  ]
+};
+
 function trackClassName(trackId) {
   const safeId = String(trackId || 'all').toLowerCase().replace(/[^a-z0-9-]/g, '');
   return `track-${safeId || 'all'}`;
@@ -2109,6 +2172,7 @@ function getStrategyLayer(week = allWeeks[currentIdx]) {
     activeTrack: saved.activeTrack || activeStrategicTrack || 'all',
     tracks,
     quarterGoals: saved.quarterGoals || {},
+    executiveMilestoneTimeline: saved.executiveMilestoneTimeline || DCDC_EXECUTIVE_MILESTONE_TIMELINE,
     projectMap: saved.projectMap || {}
   };
 }
@@ -2642,22 +2706,31 @@ function formatDetailQuarterlyMilestones(project) {
 }
 
 function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
-  const quarters = getQuarterLabelsForYear(year);
+  const timeline = layer.executiveMilestoneTimeline || DCDC_EXECUTIVE_MILESTONE_TIMELINE;
+  const quarters = timeline.quarters || ['Q1', 'Q2', 'Q3', 'Q4'];
   return `<section class="roadmap-block executive-milestone-block">
     <div class="roadmap-block-head">
       <div>
         <div class="roadmap-block-title">Executive milestones</div>
-        <div class="roadmap-block-note">Leadership-level quarterly targets, separated from PM project milestone input.</div>
+        <div class="roadmap-block-note">Leadership-level DCDC milestone timeline, separated from PM project milestone input.</div>
       </div>
       <span class="reason-pill">${year}</span>
     </div>
-    <div class="exec-quarter-board">${quarters.map(q => {
-      const goals = getQuarterGoalList(q, layer, activeTrack).filter(g => g.summary.trim());
-      return `<section class="exec-quarter-col">
-        <div class="exec-quarter-head"><div class="exec-quarter-title">${escHtml(q)}</div><span class="reason-pill">${goals.length}</span></div>
-        ${renderQuarterExecutiveGoals(q, layer, activeTrack)}
-      </section>`;
-    }).join('')}</div>
+    <div class="dcdc-timeline">
+      <div class="dcdc-title">${escHtml(timeline.title || 'Selected 2026 DCDC Milestone Timeline')}</div>
+      <div class="dcdc-grid">
+        <div class="dcdc-cell dcdc-corner"></div>
+        ${quarters.map(q => `<div class="dcdc-cell dcdc-quarter">${escHtml(q)}</div>`).join('')}
+        ${(timeline.rows || []).map(row => `
+          <div class="dcdc-cell dcdc-row-label">${escHtml(row.label)}</div>
+          ${(row.cells || []).map(items => `<div class="dcdc-cell"><ul class="dcdc-list">${(items || []).map(item => `<li>${escHtml(item)}</li>`).join('')}</ul></div>`).join('')}
+        `).join('')}
+      </div>
+      <div class="dcdc-phase-row">
+        <div class="dcdc-phase-spacer"></div>
+        ${(timeline.phases || []).map(phase => `<div class="dcdc-phase">${escHtml(phase)}</div>`).join('')}
+      </div>
+    </div>
   </section>`;
 }
 
