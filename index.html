@@ -633,6 +633,13 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .quarter-goal-add { width:100%; margin-top:4px; }
 .qg-delete { border:none; background:none; cursor:pointer; font-size:15px; line-height:1; }
 .project-map-row { grid-template-columns:1.1fr .9fr 1.4fr .9fr; }
+.exec-timeline-editor { display:grid; gap:10px; }
+.exec-timeline-title-row { display:grid; grid-template-columns:1fr; gap:8px; }
+.exec-timeline-head, .exec-timeline-row, .exec-timeline-phase-row { display:grid; grid-template-columns:150px repeat(4,minmax(0,1fr)); gap:8px; align-items:start; }
+.exec-timeline-head { font-family:'IBM Plex Mono', monospace; font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.exec-timeline-row, .exec-timeline-phase-row { padding:8px; border:1px solid var(--border); border-radius:8px; background:#fff; }
+.exec-timeline-row-label { font-weight:800; }
+.exec-timeline-cell { min-height:86px; resize:vertical; }
 .copilot-prompt-box { font-family:'IBM Plex Mono', monospace; font-size:11px; line-height:1.55; min-height:220px; background:#FBFDFF; }
 .ai-assist-box { background:var(--s2); border:1px solid var(--border); border-radius:8px; padding:18px; margin-bottom:18px; }
 .ai-assist-head { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:12px; }
@@ -1423,11 +1430,11 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div class="modal-hdr"><h3>Strategic Layer Management</h3><button class="modal-x" onclick="closeModal('strategyOverlay')">×</button></div>
   <div class="strategy-modal-grid">
     <section class="strategy-section">
-      <div class="strategy-section-title">Strategic Tracks</div>
+      <div class="strategy-section-title">Strategic Tracks / Project Mapping Support</div>
       <div id="strategyTrackEditor"></div>
     </section>
     <section class="strategy-section">
-      <div class="strategy-section-title">Quarterly Executive Goals</div>
+      <div class="strategy-section-title">Executive Milestone Timeline</div>
       <div id="quarterGoalEditor"></div>
     </section>
     <section class="strategy-section">
@@ -2056,6 +2063,25 @@ const DCDC_EXECUTIVE_MILESTONE_TIMELINE = {
   ]
 };
 
+function normalizeExecutiveMilestoneTimeline(raw = {}) {
+  const source = raw && raw.rows ? raw : DCDC_EXECUTIVE_MILESTONE_TIMELINE;
+  const quarters = (source.quarters || ['Q1', 'Q2', 'Q3', 'Q4']).slice(0, 4);
+  const rows = (source.rows || []).map(row => ({
+    label: String(row.label || ''),
+    cells: Array.from({ length: 4 }, (_, index) => {
+      const cell = row.cells?.[index] || [];
+      return Array.isArray(cell) ? cell.map(String).filter(Boolean) : textLines(cell);
+    })
+  })).filter(row => row.label || row.cells.some(cell => cell.length));
+  const phases = Array.from({ length: 4 }, (_, index) => String(source.phases?.[index] || ''));
+  return {
+    title: String(source.title || 'Selected 2026 DCDC Milestone Timeline'),
+    quarters,
+    rows: rows.length ? rows : DCDC_EXECUTIVE_MILESTONE_TIMELINE.rows,
+    phases: phases.some(Boolean) ? phases : DCDC_EXECUTIVE_MILESTONE_TIMELINE.phases
+  };
+}
+
 function trackClassName(trackId) {
   const safeId = String(trackId || 'all').toLowerCase().replace(/[^a-z0-9-]/g, '');
   return `track-${safeId || 'all'}`;
@@ -2172,7 +2198,7 @@ function getStrategyLayer(week = allWeeks[currentIdx]) {
     activeTrack: saved.activeTrack || activeStrategicTrack || 'all',
     tracks,
     quarterGoals: saved.quarterGoals || {},
-    executiveMilestoneTimeline: saved.executiveMilestoneTimeline || DCDC_EXECUTIVE_MILESTONE_TIMELINE,
+    executiveMilestoneTimeline: normalizeExecutiveMilestoneTimeline(saved.executiveMilestoneTimeline),
     projectMap: saved.projectMap || {}
   };
 }
@@ -2706,7 +2732,7 @@ function formatDetailQuarterlyMilestones(project) {
 }
 
 function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
-  const timeline = layer.executiveMilestoneTimeline || DCDC_EXECUTIVE_MILESTONE_TIMELINE;
+  const timeline = normalizeExecutiveMilestoneTimeline(layer.executiveMilestoneTimeline);
   const quarters = timeline.quarters || ['Q1', 'Q2', 'Q3', 'Q4'];
   return `<section class="roadmap-block executive-milestone-block">
     <div class="roadmap-block-head">
@@ -3122,7 +3148,7 @@ function renderExec(projs, summary) {
   const statusMap = { 'green': 'On Track', 'yellow': 'At Risk', 'red': 'Critical' };
   const editableDecisionView = currentRole !== 'vip' && !isWeekReleased(allWeeks[currentIdx]);
   const strategyLayer = getStrategyLayer(allWeeks[currentIdx]);
-  const activeTrack = activeStrategicTrack || strategyLayer.activeTrack || 'all';
+  const activeTrack = 'all';
   const roadmapYear = getDefaultRoadmapYear(projs, strategyLayer);
 
   const total = projs.length;
@@ -3242,8 +3268,8 @@ function renderExec(projs, summary) {
         </div>
         <div class="exec-panel-note">Executive view of what each project is targeting by quarter</div>
         ${renderRoadmapYearSelector(projs, strategyLayer)}
+        ${editableDecisionView ? `<button class="btn btn-primary no-print" onclick="openStrategyLayerModal()">Manage Strategy</button>` : ''}
       </div>
-      ${renderStrategicTrackFilter(projs, strategyLayer, editableDecisionView, true)}
       ${renderQuarterlyBoard(projs, strategyLayer, activeTrack, roadmapYear)}
     </div>
 
@@ -3329,6 +3355,56 @@ window.setRoadmapYear = (year) => {
   render();
 };
 
+function renderExecutiveMilestoneEditor(timeline) {
+  const data = normalizeExecutiveMilestoneTimeline(timeline);
+  return `<div class="exec-timeline-editor">
+    <div class="exec-timeline-title-row">
+      <label class="fl">Timeline Title</label>
+      <input class="fi etm-title" value="${escHtml(data.title)}">
+    </div>
+    <div class="exec-timeline-head"><span>Category</span>${data.quarters.map(q => `<span>${escHtml(q)}</span>`).join('')}</div>
+    <div id="execTimelineRows">
+      ${data.rows.map(row => `
+        <div class="exec-timeline-row">
+          <input class="fi etm-row-label" value="${escHtml(row.label)}" placeholder="Category">
+          ${Array.from({ length: 4 }, (_, index) => `<textarea class="ft exec-timeline-cell etm-cell" rows="4" placeholder="${escHtml(data.quarters[index] || `Q${index + 1}`)}">${escHtml((row.cells[index] || []).join('\n'))}</textarea>`).join('')}
+        </div>
+      `).join('')}
+    </div>
+    <button class="btn btn-ghost" onclick="addExecutiveTimelineRow()" style="width:100%;">+ Add Timeline Category</button>
+    <div class="exec-timeline-head"><span>Phase</span>${data.quarters.map(q => `<span>${escHtml(q)}</span>`).join('')}</div>
+    <div class="exec-timeline-phase-row">
+      <span class="fl" style="padding-top:9px;">Bottom phase labels</span>
+      ${Array.from({ length: 4 }, (_, index) => `<input class="fi etm-phase" value="${escHtml(data.phases[index] || '')}" placeholder="${escHtml(data.quarters[index] || `Q${index + 1}`)} phase">`).join('')}
+    </div>
+  </div>`;
+}
+
+window.addExecutiveTimelineRow = () => {
+  const rows = document.getElementById('execTimelineRows');
+  if (!rows) return;
+  const row = document.createElement('div');
+  row.className = 'exec-timeline-row';
+  row.innerHTML = `<input class="fi etm-row-label" placeholder="Category">
+    ${[1,2,3,4].map(q => `<textarea class="ft exec-timeline-cell etm-cell" rows="4" placeholder="Q${q} milestones"></textarea>`).join('')}`;
+  rows.appendChild(row);
+};
+
+function collectExecutiveMilestoneTimeline() {
+  const title = document.querySelector('.etm-title')?.value.trim() || 'Selected 2026 DCDC Milestone Timeline';
+  const rows = Array.from(document.querySelectorAll('#execTimelineRows .exec-timeline-row')).map(row => ({
+    label: row.querySelector('.etm-row-label')?.value.trim() || '',
+    cells: Array.from(row.querySelectorAll('.etm-cell')).map(cell => textLines(cell.value))
+  })).filter(row => row.label || row.cells.some(cell => cell.length));
+  const phases = Array.from(document.querySelectorAll('.etm-phase')).map(input => input.value.trim());
+  return normalizeExecutiveMilestoneTimeline({
+    title,
+    quarters: ['Q1', 'Q2', 'Q3', 'Q4'],
+    rows,
+    phases
+  });
+}
+
 window.openStrategyLayerModal = () => {
   const week = allWeeks[currentIdx];
   if (!week) return;
@@ -3343,18 +3419,7 @@ window.openStrategyLayerModal = () => {
     </div>
   `).join('');
 
-  document.getElementById('quarterGoalEditor').innerHTML = quarters.map(q => `
-    <div class="quarter-goal-group" data-quarter="${escHtml(q)}">
-      <div class="quarter-goal-group-title">${escHtml(q)}</div>
-      <div class="strategy-editor-head quarter-goal-head"><span>Executive Goal</span><span>Track</span><span>Schedule</span><span>Resource</span><span>Risk</span><span></span></div>
-      <div class="quarter-goal-rows"></div>
-      <button class="btn btn-ghost quarter-goal-add" onclick="addQuarterExecutiveGoalRow('${escHtml(q)}')">+ Add Executive Goal</button>
-    </div>
-  `).join('');
-  quarters.forEach(q => {
-    const goals = getQuarterGoalList(q, layer, 'all');
-    (goals.length ? goals : [normalizeQuarterGoalEntry({})]).forEach(goal => addQuarterExecutiveGoalRow(q, goal, layer));
-  });
+  document.getElementById('quarterGoalEditor').innerHTML = renderExecutiveMilestoneEditor(layer.executiveMilestoneTimeline);
 
   const trackOptions = layer.tracks.filter(t => t.id !== 'all').map(t => `<option value="${escHtml(t.id)}">${escHtml(t.label)}</option>`).join('');
   const checkpointOptions = UNIVERSAL_CHECKPOINTS.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
@@ -3402,19 +3467,7 @@ window.saveStrategyLayer = async () => {
     const row = document.querySelector(`.strategy-track-row[data-track="${track.id}"]`);
     return row ? {...track, label: row.querySelector('.st-label').value.trim() || track.label, description: row.querySelector('.st-desc').value.trim()} : track;
   });
-  const quarterGoals = {};
-  document.querySelectorAll('.quarter-goal-group').forEach(group => {
-    const goals = Array.from(group.querySelectorAll('.quarter-goal-row')).map(row => ({
-      summary: row.querySelector('.qg-summary').value.trim(),
-      trackId: row.querySelector('.qg-track').value || 'all',
-      health: {
-        schedule: row.querySelector('.qg-schedule').value,
-        resource: row.querySelector('.qg-resource').value,
-        risk: row.querySelector('.qg-risk').value
-      }
-    })).filter(goal => goal.summary);
-    if (goals.length) quarterGoals[group.dataset.quarter] = { goals };
-  });
+  const executiveMilestoneTimeline = collectExecutiveMilestoneTimeline();
   const projectMap = {};
   document.querySelectorAll('.project-map-row').forEach(row => {
     const trackId = row.querySelector('.pm-track').value;
@@ -3427,7 +3480,8 @@ window.saveStrategyLayer = async () => {
   week.strategyLayer = {
     activeTrack: activeStrategicTrack || 'all',
     tracks,
-    quarterGoals,
+    quarterGoals: base.quarterGoals || {},
+    executiveMilestoneTimeline,
     projectMap
   };
   week.lastModifiedBy = currentUser.email;
