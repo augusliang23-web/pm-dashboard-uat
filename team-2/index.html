@@ -265,6 +265,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .usage-card-label { font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
 .usage-card-value { font-family:'IBM Plex Mono', monospace; font-size:18px; font-weight:800; color:var(--text); margin-top:5px; }
 .usage-card-note { font-size:10px; color:var(--muted); margin-top:4px; line-height:1.35; }
+.usage-section-title { font-size:11px; font-weight:800; color:var(--text); margin:2px 0 10px; }
+.usage-history-note { font-size:10px; color:var(--muted); line-height:1.5; margin:-8px 0 18px; }
 .usage-table { width:100%; border-collapse:collapse; font-size:11px; }
 .usage-table th { text-align:left; padding:9px 8px; background:var(--s2); color:var(--text-light); font-size:9px; text-transform:uppercase; letter-spacing:.05em; }
 .usage-table td { padding:9px 8px; border-bottom:1px solid var(--border); color:var(--text-light); }
@@ -617,12 +619,14 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 }
 @media (max-width: 860px) {
   .proj-grid { grid-template-columns: 1fr; }
+  .usage-summary-grid { grid-template-columns:repeat(2, 1fr); }
   .card-summary { flex-direction: column; padding-right: 0; }
   .card-summary-right { width: 100%; flex-direction: row; justify-content: space-between; align-items: center; text-align: left; }
   .card-meta-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .main { padding: 20px 16px 28px; }
+  .usage-summary-grid { grid-template-columns:1fr; }
   .exec-health-body { grid-template-columns:1fr; justify-items:center; }
   .exec-health-legend { width:100%; }
   .exec-project-top { grid-template-columns:1fr; }
@@ -1351,6 +1355,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <h3>Presence Usage Counter</h3>
     <button class="modal-x" onclick="closeModal('presenceUsageOverlay')">×</button>
   </div>
+  <div class="usage-section-title">Firestore actual usage · Past 6 weeks</div>
+  <div class="usage-summary-grid" id="firestoreHistoricalSummary"></div>
+  <div class="usage-history-note" id="firestoreHistoricalNote"></div>
+  <div class="usage-section-title">Presence writes recorded after counter activation</div>
   <div class="usage-summary-grid" id="presenceUsageSummary"></div>
   <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
     <div style="font-size:11px; color:var(--muted); line-height:1.45;">12-hour aggregates from user presence records. Quota distance uses 10,000 free writes per 12-hour bucket.</div>
@@ -1421,6 +1429,13 @@ const PRESENCE_USAGE_FLUSH_MS = 12 * 60 * 60 * 1000;
 const PRESENCE_USAGE_LOOKBACK_BUCKETS = 112;
 const FIRESTORE_FREE_WRITES_PER_DAY = 20000;
 const FIRESTORE_FREE_WRITES_PER_12H = FIRESTORE_FREE_WRITES_PER_DAY / 2;
+const FIRESTORE_SIX_WEEK_BASELINE = {
+  startDate: "2026-05-16",
+  endDate: "2026-06-27",
+  reads: 69,
+  writes: 6882,
+  freeWriteQuota: 42 * FIRESTORE_FREE_WRITES_PER_DAY
+};
 let weeksUnsub = null;
 let presenceUsageFlushTimer = null;
 
@@ -1618,6 +1633,22 @@ function fmtUsageNumber(value) {
   return Math.round(Number(value || 0)).toLocaleString();
 }
 
+function renderFirestoreHistoricalSummary() {
+  const data = FIRESTORE_SIX_WEEK_BASELINE;
+  const usedPct = (data.writes / data.freeWriteQuota) * 100;
+  const remaining = Math.max(0, data.freeWriteQuota - data.writes);
+  document.getElementById('firestoreHistoricalSummary').innerHTML = `
+    <div class="usage-card"><div class="usage-card-label">Firestore writes</div><div class="usage-card-value">${fmtUsageNumber(data.writes)}</div><div class="usage-card-note">All database writes in the selected period</div></div>
+    <div class="usage-card"><div class="usage-card-label">Firestore reads</div><div class="usage-card-value">${fmtUsageNumber(data.reads)}</div><div class="usage-card-note">All database reads in the selected period</div></div>
+    <div class="usage-card"><div class="usage-card-label">Free writes used</div><div class="usage-card-value">${usedPct.toFixed(2)}%</div><div class="usage-card-note">${fmtUsageNumber(data.writes)} of ${fmtUsageNumber(data.freeWriteQuota)}</div></div>
+    <div class="usage-card"><div class="usage-card-label">Free quota gap</div><div class="usage-card-value">${fmtUsageNumber(remaining)}</div><div class="usage-card-note">Aggregate writes remaining across 42 days</div></div>
+  `;
+  document.getElementById('firestoreHistoricalNote').textContent =
+    `${data.startDate} to ${data.endDate} · Source: Google Cloud Firestore Usage Insights. ` +
+    `The free quota resets daily, so the 42-day comparison does not identify a single-day peak. ` +
+    `Historical writes cannot be reliably separated into active, idle, logout, or other dashboard writes because those event types were not recorded before the counter was enabled.`;
+}
+
 function renderPresenceUsageStats(rows) {
   const totals = rows.reduce((acc, row) => {
     acc.active += row.activeWrites || 0;
@@ -1628,7 +1659,7 @@ function renderPresenceUsageStats(rows) {
     return acc;
   }, { active: 0, idle: 0, logout: 0, presence: 0, flush: 0 });
   const totalEstimated = totals.presence + totals.flush;
-  const quota = Math.max(rows.length, 1) * FIRESTORE_FREE_WRITES_PER_12H;
+  const quota = rows.length * FIRESTORE_FREE_WRITES_PER_12H;
   const usedPct = quota ? (totalEstimated / quota) * 100 : 0;
   const remaining = Math.max(0, quota - totalEstimated);
 
@@ -1636,7 +1667,7 @@ function renderPresenceUsageStats(rows) {
     <div class="usage-card"><div class="usage-card-label">Presence writes</div><div class="usage-card-value">${fmtUsageNumber(totals.presence)}</div><div class="usage-card-note">Active + idle + logout</div></div>
     <div class="usage-card"><div class="usage-card-label">Active writes</div><div class="usage-card-value">${fmtUsageNumber(totals.active)}</div><div class="usage-card-note">Heartbeat and resume activity</div></div>
     <div class="usage-card"><div class="usage-card-label">Idle / logout</div><div class="usage-card-value">${fmtUsageNumber(totals.idle + totals.logout)}</div><div class="usage-card-note">Idle ${fmtUsageNumber(totals.idle)} · Logout ${fmtUsageNumber(totals.logout)}</div></div>
-    <div class="usage-card"><div class="usage-card-label">Free quota gap</div><div class="usage-card-value">${usedPct.toFixed(2)}%</div><div class="usage-card-note">${fmtUsageNumber(remaining)} writes remaining in loaded buckets</div></div>
+    <div class="usage-card"><div class="usage-card-label">Free quota used</div><div class="usage-card-value">${usedPct.toFixed(2)}%</div><div class="usage-card-note">${rows.length ? `${fmtUsageNumber(remaining)} writes remaining in loaded buckets` : 'No completed buckets yet'}</div></div>
   `;
 
   if (!rows.length) {
@@ -1716,6 +1747,7 @@ window.loadPresenceUsageStats = async () => {
 window.openPresenceUsage = async () => {
   if (currentRole !== 'admin') return;
   document.getElementById('presenceUsageOverlay').classList.add('open');
+  renderFirestoreHistoricalSummary();
   await loadPresenceUsageStats();
 };
 
