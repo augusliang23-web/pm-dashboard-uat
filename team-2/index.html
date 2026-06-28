@@ -3670,13 +3670,17 @@ function formatDetailQuarterlyMilestones(project) {
 function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
   const timeline = normalizeExecutiveMilestoneTimeline(layer.executiveMilestoneTimeline);
   const quarters = timeline.quarters || ['Q1', 'Q2', 'Q3', 'Q4'];
+  const editable = currentRole !== 'vip';
   return `<section class="roadmap-block executive-milestone-block">
     <div class="roadmap-block-head">
       <div>
         <div class="roadmap-block-title">Executive milestones</div>
         <div class="roadmap-block-note">Leadership-level DCDC milestone timeline, separated from PM project milestone input.</div>
       </div>
-      <span class="reason-pill">${year}</span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="reason-pill">${year}</span>
+        ${editable ? `<button class="btn btn-ghost no-print" onclick="openExecutiveTimelineEditor()">Edit Timeline</button>` : ''}
+      </div>
     </div>
     <div class="dcdc-timeline">
       <div class="dcdc-title">${escHtml(timeline.title || 'Selected 2026 DCDC Milestone Timeline')}</div>
@@ -4398,6 +4402,15 @@ window.openStrategyLayerModal = () => {
   });
 
   document.getElementById('strategyOverlay').classList.add('open');
+};
+
+window.openExecutiveTimelineEditor = () => {
+  openStrategyLayerModal();
+  requestAnimationFrame(() => {
+    const editor = document.getElementById('quarterGoalEditor');
+    editor?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    editor?.querySelector('.etm-title')?.focus();
+  });
 };
 
 window.addQuarterExecutiveGoalRow = (quarter, goal = {}, layer = getStrategyLayer()) => {
