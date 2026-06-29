@@ -1389,21 +1389,21 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     </div>
   </div>
 
-  <div id="normalView">
-    <div class="portfolio-toolbar no-print" aria-label="Portfolio filters">
-      <div class="portfolio-scope" id="portfolioScope" aria-label="Project scope">
-        <button type="button" data-scope="all">All</button>
-        <button type="button" data-scope="system">System</button>
-        <button type="button" data-scope="hardware-module">Hardware Module</button>
-      </div>
-      <div class="portfolio-controls">
-        <input class="fi portfolio-search" id="projectSearch" type="search" placeholder="Search project name or code">
-        <select class="fs" id="filterPm" aria-label="Project manager filter"><option value="all">All PMs</option></select>
-        <select class="fs" id="filterRag" aria-label="RAG filter"><option value="all">All RAG</option><option value="green">On Track</option><option value="yellow">At Risk</option><option value="red">Critical</option></select>
-        <select class="fs" id="filterLifecycle" aria-label="Lifecycle filter"><option value="all">All Lifecycles</option><option value="active">Active</option><option value="on-hold">On Hold</option><option value="completed">Completed</option></select>
-        <select class="fs" id="filterProductFamily" aria-label="Product family filter"><option value="all">All Product Families</option></select>
-      </div>
+  <div class="portfolio-toolbar no-print" aria-label="Portfolio filters">
+    <div class="portfolio-scope" id="portfolioScope" aria-label="Project scope">
+      <button type="button" data-scope="all">All</button>
+      <button type="button" data-scope="system">System</button>
+      <button type="button" data-scope="hardware-module">Hardware Module</button>
     </div>
+    <div class="portfolio-controls">
+      <input class="fi portfolio-search" id="projectSearch" type="search" placeholder="Search project name or code">
+      <select class="fs" id="filterPm" aria-label="Project manager filter"><option value="all">All PMs</option></select>
+      <select class="fs" id="filterRag" aria-label="RAG filter"><option value="all">All RAG</option><option value="green">On Track</option><option value="yellow">At Risk</option><option value="red">Critical</option></select>
+      <select class="fs" id="filterLifecycle" aria-label="Lifecycle filter"><option value="all">All Lifecycles</option><option value="active">Active</option><option value="on-hold">On Hold</option><option value="completed">Completed</option></select>
+      <select class="fs" id="filterProductFamily" aria-label="Product family filter"><option value="all">All Product Families</option></select>
+    </div>
+  </div>
+  <div id="normalView">
     <div class="proj-grid" id="projGrid"></div>
   </div>
   <div id="execView" class="exec-view"></div>

@@ -78,4 +78,8 @@ test('exposes portfolio scope, filter, and project editor controls', () => {
   for (const id of requiredIds) {
     assert.match(dashboard, new RegExp(`id=["']${id}["']`));
   }
+
+  const toolbarPosition = dashboard.indexOf('id="portfolioScope"');
+  assert.ok(toolbarPosition < dashboard.indexOf('id="normalView"'));
+  assert.ok(toolbarPosition < dashboard.indexOf('id="execView"'));
 });
