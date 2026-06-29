@@ -157,6 +157,17 @@ test('resource editor retains existing project authorization for admin, PM, and 
   assert.ok(dashboard.includes("if (currentRole === 'vip') return false;"));
 });
 
+test('admin role setup reveals the admin-only new project control', () => {
+  assert.match(dashboard, /id="addProjectBtn"[^>]+class="btn-icon admin-only"/);
+  const adminSetupStart = dashboard.indexOf("if(currentRole === 'admin') {");
+  const adminSetupEnd = dashboard.indexOf("else if (currentRole === 'pm')", adminSetupStart);
+  assert.ok(
+    dashboard.slice(adminSetupStart, adminSetupEnd).includes(
+      "document.getElementById('addProjectBtn').style.display = 'inline-flex';",
+    ),
+  );
+});
+
 test('project detail renders resource values without modifying RAG status', () => {
   assert.match(dashboard, /id="pd_resources"/);
   assert.ok(dashboard.includes("formatResourceValue(entry.actual)"));
