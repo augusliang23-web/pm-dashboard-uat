@@ -104,6 +104,17 @@ test('schedule editor supports dropping a workstream at the end of the list', ()
   assert.ok(dashboard.includes('container.insertBefore(dragging, destination)'));
 });
 
+test('dragover marks a reordered new-project schedule as touched before drop', () => {
+  const dragoverStart = dashboard.indexOf("container.addEventListener('dragover', event =>");
+  const dragoverEnd = dashboard.indexOf("container.addEventListener('drop', event =>", dragoverStart);
+  const dragoverSource = dashboard.slice(dragoverStart, dragoverEnd);
+  const insertionPosition = dragoverSource.indexOf('container.insertBefore(dragging, destination)');
+  const touchedPosition = dragoverSource.indexOf('newProjectScheduleUntouched = false', insertionPosition);
+
+  assert.ok(insertionPosition >= 0);
+  assert.ok(touchedPosition > insertionPosition);
+});
+
 test('schedule editor exposes keyboard reorder controls and announcements', () => {
   const scheduleStart = dashboard.indexOf('window.addWorkstreamRow');
   const scheduleEnd = dashboard.indexOf('function replaceWorkstreamTemplate', scheduleStart);

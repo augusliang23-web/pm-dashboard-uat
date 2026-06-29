@@ -5005,7 +5005,11 @@ window.addWorkstreamRow = (source = {}, untouched = false) => {
       const rows = Array.from(container.querySelectorAll('.schedule-edit-row:not(.dragging)'));
       const dropIndex = calculateDropIndex(event.clientY, rows.map(row => row.getBoundingClientRect()));
       const destination = rows[dropIndex] || null;
+      const previousIndex = Array.from(container.children).indexOf(dragging);
       container.insertBefore(dragging, destination);
+      if (Array.from(container.children).indexOf(dragging) !== previousIndex) {
+        newProjectScheduleUntouched = false;
+      }
       syncWorkstreamSortOrder();
     });
     container.addEventListener('drop', event => {
