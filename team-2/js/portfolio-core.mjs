@@ -60,19 +60,60 @@ export function normalizeWorkstream(source = {}, index = 0) {
   };
 }
 
-export function validateWorkstreams(rows = []) {
+export function parseIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day
+    ? date
+    : null;
+}
+
+export function createTimelineTicks(start, end, scale = 'month', maxTicks = 60) {
+  if (!(start instanceof Date) || !(end instanceof Date) || start > end) return [];
+  const candidates = [new Date(start)];
+  const cursor = new Date(start);
+  while (cursor < end) {
+    if (scale === 'week') cursor.setUTCDate(cursor.getUTCDate() + 7);
+    else cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    if (cursor < end) candidates.push(new Date(cursor));
+  }
+  candidates.push(new Date(end));
+  if (candidates.length <= maxTicks) return candidates;
+  const stride = Math.ceil((candidates.length - 1) / (maxTicks - 1));
+  const ticks = candidates.filter((_, index) => index === 0 || index % stride === 0);
+  if (ticks.at(-1).getTime() !== end.getTime()) ticks.push(new Date(end));
+  return ticks;
+}
+
+export function calculateDropIndex(pointerY, rowBounds = []) {
+  const index = rowBounds.findIndex(bounds => pointerY < (bounds.top + bounds.bottom) / 2);
+  return index < 0 ? rowBounds.length : index;
+}
+
+export function validateWorkstreams(rows = [], milestoneIds) {
   if (!Array.isArray(rows)) return [];
+  const validMilestones = Array.isArray(milestoneIds) ? new Set(milestoneIds) : null;
   const errors = [];
 
   rows.forEach((source, index) => {
     const row = normalizeWorkstream(source, index);
     const fields = {};
     if (!row.name) fields.name = 'Name is required.';
-    if (row.startDate && row.endDate && row.endDate < row.startDate) {
+    const start = row.startDate ? parseIsoDate(row.startDate) : null;
+    const end = row.endDate ? parseIsoDate(row.endDate) : null;
+    if (row.startDate && !start) fields.startDate = 'Enter a valid date.';
+    if (row.endDate && !end) fields.endDate = 'Enter a valid date.';
+    if (start && end && end < start) {
       fields.endDate = 'End date cannot be before start date.';
     }
     if (row.progress < 0 || row.progress > 100) {
       fields.progress = 'Progress must be between 0 and 100.';
+    }
+    if (validMilestones && row.milestoneId && !validMilestones.has(row.milestoneId)) {
+      fields.milestoneId = 'Select an existing milestone.';
     }
     if (Object.keys(fields).length) errors.push({ index, fields });
   });

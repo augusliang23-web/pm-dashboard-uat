@@ -53,6 +53,7 @@ const DASHBOARD_BASE_COMMIT = 'ddc0e5f';
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+.sr-only { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 body { 
   font-family: 'Noto Sans TC', sans-serif; 
   background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; 
@@ -683,8 +684,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .proto-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
 .proto-editor-section { margin-top:20px; padding:16px; border:1px solid var(--border); border-radius:10px; background:var(--s2); }
 .schedule-editor-list { display:grid; gap:8px; margin-top:10px; padding-bottom:18px; overflow-x:auto; }
-.schedule-edit-row { display:grid; grid-template-columns:24px minmax(130px,1.4fr) 125px 125px 120px 80px minmax(130px,1fr) 34px; gap:7px; align-items:start; min-width:850px; padding:8px; border:1px solid var(--border); border-radius:8px; background:#fff; }
-.schedule-edit-row .drag-handle { cursor:grab; color:var(--muted); padding-top:9px; text-align:center; }
+.schedule-edit-row { display:grid; grid-template-columns:30px minmax(130px,1.4fr) 125px 125px 120px 80px minmax(130px,1fr) 30px 30px 34px; gap:7px; align-items:start; min-width:920px; padding:8px; border:1px solid var(--border); border-radius:8px; background:#fff; }
+.schedule-edit-row .drag-handle { cursor:grab; color:var(--muted); min-height:32px; border:1px solid var(--border); border-radius:5px; background:#fff; }
 .schedule-edit-row.has-error { border-color:var(--red); background:#fff8f8; }
 .schedule-field-error { border-color:var(--red) !important; outline:1px solid var(--red); }
 .schedule-error-summary { display:none; color:var(--red); font-size:11px; margin-top:8px; }
@@ -698,8 +699,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .gantt-axis, .gantt-row { display:grid; grid-template-columns:150px minmax(500px,1fr); }
 .gantt-axis { border-bottom:1px solid var(--border); }
 .gantt-axis-label, .gantt-name { padding:8px 10px; font-size:10px; color:var(--muted); }
-.gantt-ticks { display:flex; min-height:32px; position:relative; }
-.gantt-tick { flex:1; min-width:42px; border-left:1px solid var(--border); padding:8px 4px; font-size:9px; color:var(--muted); white-space:nowrap; }
+.gantt-ticks { min-height:32px; position:relative; }
+.gantt-tick { position:absolute; top:0; bottom:0; border-left:1px solid var(--border); padding:8px 4px; font-size:9px; color:var(--muted); white-space:nowrap; }
 .gantt-row { border-bottom:1px solid var(--border); }
 .gantt-row:last-child { border-bottom:0; }
 .gantt-name { font-size:11px; font-weight:700; color:var(--text); }
@@ -1569,6 +1570,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
           <button type="button" class="btn btn-ghost" onclick="addWorkstreamRow()">+ Add</button>
         </div>
         <div id="workstreamListContainer" class="schedule-editor-list" aria-label="Workstreams; drop below the final row to move an item to the end"></div>
+        <div id="workstreamAnnouncements" class="sr-only" aria-live="polite"></div>
         <div id="workstreamErrors" class="schedule-error-summary" role="alert"></div>
       </section>
       <section class="proto-editor-section">
@@ -1750,7 +1752,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 
 <script type="module">
-import { createDefaultWorkstreams, filterProjects, normalizeProject, normalizeWorkstream, validateWorkstreams } from "./js/portfolio-core.mjs";
+import { calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, filterProjects, normalizeProject, normalizeWorkstream, parseIsoDate, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -4039,9 +4041,7 @@ window.setGanttScale = scale => {
 };
 
 function ganttDate(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
-  const date = new Date(`${value}T00:00:00Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return parseIsoDate(value);
 }
 
 function renderProjectGantt(project) {
@@ -4058,14 +4058,7 @@ function renderProjectGantt(project) {
   const max = new Date(Math.max(...ends));
   const day = 86400000;
   const total = Math.max(day, max.getTime() - min.getTime() + day);
-  const ticks = [];
-  const cursor = new Date(min);
-  if (ganttScale === 'month') cursor.setUTCDate(1);
-  else cursor.setUTCDate(cursor.getUTCDate() - cursor.getUTCDay());
-  while (cursor <= max && ticks.length < 60) {
-    ticks.push(new Date(cursor));
-    ganttScale === 'month' ? cursor.setUTCMonth(cursor.getUTCMonth() + 1) : cursor.setUTCDate(cursor.getUTCDate() + 7);
-  }
+  const ticks = createTimelineTicks(min, max, ganttScale, 60);
   const milestones = new Map((project.milestones || []).map((item, index) => [item.planId || item.id || `milestone-${index + 1}`, item]));
   const pct = date => ((date.getTime() - min.getTime()) / total) * 100;
   const today = new Date();
@@ -4074,7 +4067,7 @@ function renderProjectGantt(project) {
   target.innerHTML = `
     <div class="gantt-toolbar"><span>${rows.length} workstream${rows.length === 1 ? '' : 's'}</span>${toggle}</div>
     <div class="gantt-chart" role="region" aria-label="Project Gantt schedule" tabindex="0"><div class="gantt-grid">
-      <div class="gantt-axis"><div class="gantt-axis-label">Workstream</div><div class="gantt-ticks">${ticks.map(tick => `<span class="gantt-tick">${ganttScale === 'month' ? tick.toLocaleDateString(undefined,{month:'short',year:'2-digit',timeZone:'UTC'}) : tick.toLocaleDateString(undefined,{month:'short',day:'numeric',timeZone:'UTC'})}</span>`).join('')}</div></div>
+      <div class="gantt-axis"><div class="gantt-axis-label">Workstream</div><div class="gantt-ticks">${ticks.map(tick => `<span class="gantt-tick" style="left:${Math.min(100,pct(tick))}%">${ganttScale === 'month' ? tick.toLocaleDateString(undefined,{month:'short',year:'2-digit',timeZone:'UTC'}) : tick.toLocaleDateString(undefined,{month:'short',day:'numeric',timeZone:'UTC'})}</span>`).join('')}</div></div>
       ${rows.map(row => {
         const start = ganttDate(row.startDate);
         const end = ganttDate(row.endDate);
@@ -4989,22 +4982,37 @@ window.refreshWorkstreamMilestoneOptions = () => {
   });
 };
 
+window.removeMilestoneRow = button => {
+  const row = button.closest('.ms-row');
+  const planId = row?.dataset.planId || '';
+  const links = Array.from(document.querySelectorAll('.ws-milestone')).filter(select => select.value === planId);
+  if (links.length && !confirm('This milestone is linked to schedule workstreams. Delete it and unlink those workstreams?')) return;
+  links.forEach(select => { select.value = ''; });
+  row?.remove();
+  checkMsDates();
+  refreshWorkstreamMilestoneOptions();
+};
+
 window.addWorkstreamRow = (source = {}, untouched = false) => {
   const container = document.getElementById('workstreamListContainer');
   if (!container) return;
   if (!container.dataset.dropReady) {
     container.dataset.dropReady = 'true';
     container.addEventListener('dragover', event => {
-      if (event.target === container) event.preventDefault();
+      const dragging = container.querySelector('.dragging');
+      if (!dragging) return;
+      event.preventDefault();
+      const rows = Array.from(container.querySelectorAll('.schedule-edit-row:not(.dragging)'));
+      const dropIndex = calculateDropIndex(event.clientY, rows.map(row => row.getBoundingClientRect()));
+      const destination = rows[dropIndex] || null;
+      container.insertBefore(dragging, destination);
+      syncWorkstreamSortOrder();
     });
     container.addEventListener('drop', event => {
-      if (event.target !== container) return;
       event.preventDefault();
       const dragging = container.querySelector('.dragging');
-      if (dragging) {
-        container.appendChild(dragging);
-        newProjectScheduleUntouched = false;
-      }
+      if (dragging) announceWorkstreamMove(dragging);
+      newProjectScheduleUntouched = false;
     });
   }
   const index = container.children.length;
@@ -5013,9 +5021,9 @@ window.addWorkstreamRow = (source = {}, untouched = false) => {
   const div = document.createElement('div');
   div.className = 'schedule-edit-row';
   div.dataset.workstreamId = row.id;
-  div.draggable = true;
+  div.dataset.sortOrder = row.sortOrder;
   div.innerHTML = `
-    <span class="drag-handle" title="Drag to reorder">☰</span>
+    <button type="button" class="drag-handle" draggable="true" title="Drag to reorder" aria-label="Drag ${escHtml(row.name || 'workstream')} to reorder">☰</button>
     <input class="fi ws-name" value="${escHtml(row.name)}" placeholder="Workstream name" aria-label="Workstream name">
     <input class="fi ws-start" type="date" value="${escHtml(row.startDate)}" aria-label="Start date">
     <input class="fi ws-end" type="date" value="${escHtml(row.endDate)}" aria-label="End date">
@@ -5024,18 +5032,48 @@ window.addWorkstreamRow = (source = {}, untouched = false) => {
     </select>
     <input class="fi ws-progress" type="number" min="0" max="100" value="${row.progress}" aria-label="Progress percent">
     <select class="fs ws-milestone" aria-label="Linked milestone">${editorMilestoneOptions(row.milestoneId)}</select>
+    <button type="button" class="row-move" title="Move up" aria-label="Move workstream up" onclick="moveWorkstreamRow(this, -1)">↑</button>
+    <button type="button" class="row-move" title="Move down" aria-label="Move workstream down" onclick="moveWorkstreamRow(this, 1)">↓</button>
     <button type="button" class="row-delete" title="Remove workstream" onclick="this.parentElement.remove(); newProjectScheduleUntouched=false;">🗑️</button>`;
   div.addEventListener('input', () => { newProjectScheduleUntouched = false; clearWorkstreamErrors(); });
-  div.ondragstart = () => div.classList.add('dragging');
-  div.ondragend = () => div.classList.remove('dragging');
-  div.ondragover = event => {
-    event.preventDefault();
-    const dragging = container.querySelector('.dragging');
-    if (dragging && dragging !== div) container.insertBefore(dragging, div);
-    newProjectScheduleUntouched = false;
+  const handle = div.querySelector('.drag-handle');
+  handle.ondragstart = event => {
+    div.classList.add('dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', div.dataset.workstreamId);
+  };
+  handle.ondragend = () => {
+    div.classList.remove('dragging');
+    announceWorkstreamMove(div);
   };
   container.appendChild(div);
+  syncWorkstreamSortOrder();
   if (!untouched) newProjectScheduleUntouched = false;
+};
+
+function announceWorkstreamMove(row) {
+  const rows = Array.from(document.querySelectorAll('.schedule-edit-row'));
+  const position = rows.indexOf(row) + 1;
+  const name = row.querySelector('.ws-name')?.value || 'Workstream';
+  document.getElementById('workstreamAnnouncements').textContent = `${name} moved to position ${position} of ${rows.length}.`;
+}
+
+function syncWorkstreamSortOrder() {
+  document.querySelectorAll('.schedule-edit-row').forEach((row, index) => {
+    row.dataset.sortOrder = index;
+  });
+}
+
+window.moveWorkstreamRow = (button, direction) => {
+  const row = button.closest('.schedule-edit-row');
+  const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+  if (!sibling) return;
+  if (direction < 0) row.parentElement.insertBefore(row, sibling);
+  else row.parentElement.insertBefore(sibling, row);
+  syncWorkstreamSortOrder();
+  newProjectScheduleUntouched = false;
+  announceWorkstreamMove(row);
+  button.focus();
 };
 
 function replaceWorkstreamTemplate(level) {
@@ -5070,7 +5108,7 @@ function clearWorkstreamErrors() {
 
 function showWorkstreamErrors(errors) {
   clearWorkstreamErrors();
-  const fieldSelectors = { name: '.ws-name', startDate: '.ws-start', endDate: '.ws-end', progress: '.ws-progress' };
+  const fieldSelectors = { name: '.ws-name', startDate: '.ws-start', endDate: '.ws-end', progress: '.ws-progress', milestoneId: '.ws-milestone' };
   errors.forEach(error => {
     const row = document.querySelectorAll('.schedule-edit-row')[error.index];
     row?.classList.add('has-error');
@@ -5184,7 +5222,8 @@ window.saveProjEdit = async () => {
   const week = allWeeks[currentIdx];
   const previousProject = isCreatingNew ? null : week.projects.find(x => x.code === editingProjCode);
   const ganttWorkstreams = collectWorkstreams();
-  const workstreamErrors = validateWorkstreams(ganttWorkstreams);
+  const milestoneIds = Array.from(document.querySelectorAll('.ms-row')).map(row => row.dataset.planId).filter(Boolean);
+  const workstreamErrors = validateWorkstreams(ganttWorkstreams, milestoneIds);
   if (workstreamErrors.length) {
     showWorkstreamErrors(workstreamErrors);
     return;
@@ -5291,7 +5330,7 @@ window.addMilestoneRow = (name='', status='to-do', dateStr='', planData = null) 
       <option ${status==='at-risk'?'selected':''}>at-risk</option>
       <option ${status==='done'?'selected':''}>done</option>
     </select>
-    <button onclick="this.parentElement.remove(); checkMsDates(); refreshWorkstreamMilestoneOptions();" style="border:none; background:none; cursor:pointer;">🗑️</button>
+    <button onclick="removeMilestoneRow(this)" style="border:none; background:none; cursor:pointer;">🗑️</button>
   `;
   div.insertAdjacentHTML('beforeend', milestoneHistoryHtml(normalized));
   document.getElementById('msListContainer').appendChild(div);

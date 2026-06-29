@@ -4,10 +4,13 @@ import assert from 'node:assert/strict';
 import {
   PROJECT_LEVEL,
   PROJECT_LIFECYCLE,
+  calculateDropIndex,
+  createTimelineTicks,
   createDefaultWorkstreams,
   filterProjects,
   normalizeProject,
   normalizeWorkstream,
+  parseIsoDate,
   validateWorkstreams,
 } from '../team-2/js/portfolio-core.mjs';
 
@@ -168,4 +171,46 @@ test('validateWorkstreams reports invalid fields per row', () => {
     },
   ]);
   assert.deepEqual(validateWorkstreams([{ name: 'Design', progress: 0 }]), []);
+});
+
+test('parseIsoDate rejects malformed and impossible calendar dates', () => {
+  assert.equal(parseIsoDate('2026-02-31'), null);
+  assert.equal(parseIsoDate('2026-2-01'), null);
+  assert.equal(parseIsoDate('not-a-date'), null);
+  assert.equal(parseIsoDate('2026-02-28').toISOString(), '2026-02-28T00:00:00.000Z');
+});
+
+test('validateWorkstreams rejects invalid dates and missing milestone links', () => {
+  assert.deepEqual(validateWorkstreams([{
+    name: 'Design',
+    startDate: '2026-02-31',
+    endDate: 'bad',
+    milestoneId: 'deleted',
+  }], ['kept']), [{
+    index: 0,
+    fields: {
+      startDate: 'Enter a valid date.',
+      endDate: 'Enter a valid date.',
+      milestoneId: 'Select an existing milestone.',
+    },
+  }]);
+});
+
+test('createTimelineTicks coarsens long ranges while preserving both endpoints', () => {
+  const start = parseIsoDate('2020-01-01');
+  const end = parseIsoDate('2035-12-31');
+  const ticks = createTimelineTicks(start, end, 'week', 60);
+
+  assert.ok(ticks.length <= 60);
+  assert.equal(ticks[0].getTime(), start.getTime());
+  assert.equal(ticks.at(-1).getTime(), end.getTime());
+  assert.ok(ticks.every((tick, index) => index === 0 || tick > ticks[index - 1]));
+});
+
+test('calculateDropIndex supports before, between, and after all rows', () => {
+  const bounds = [{ top: 0, bottom: 40 }, { top: 50, bottom: 90 }, { top: 100, bottom: 140 }];
+
+  assert.equal(calculateDropIndex(-1, bounds), 0);
+  assert.equal(calculateDropIndex(75, bounds), 2);
+  assert.equal(calculateDropIndex(200, bounds), 3);
 });

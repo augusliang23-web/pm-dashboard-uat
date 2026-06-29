@@ -100,7 +100,23 @@ test('builds portfolio facets from role-visible projects and uses neutral execut
 });
 
 test('schedule editor supports dropping a workstream at the end of the list', () => {
-  assert.ok(dashboard.includes("container.addEventListener('dragover', event =>"));
-  assert.ok(dashboard.includes("container.addEventListener('drop', event =>"));
-  assert.ok(dashboard.includes('container.appendChild(dragging);'));
+  assert.ok(dashboard.includes('calculateDropIndex(event.clientY'));
+  assert.ok(dashboard.includes('container.insertBefore(dragging, destination)'));
+});
+
+test('schedule editor exposes keyboard reorder controls and announcements', () => {
+  const scheduleStart = dashboard.indexOf('window.addWorkstreamRow');
+  const scheduleEnd = dashboard.indexOf('function replaceWorkstreamTemplate', scheduleStart);
+  const scheduleSource = dashboard.slice(scheduleStart, scheduleEnd);
+  assert.match(dashboard, /id="workstreamAnnouncements"[^>]+aria-live="polite"/);
+  assert.ok(scheduleSource.includes('class="drag-handle"'));
+  assert.ok(scheduleSource.includes('onclick="moveWorkstreamRow(this, -1)"'));
+  assert.ok(scheduleSource.includes('onclick="moveWorkstreamRow(this, 1)"'));
+  assert.ok(!scheduleSource.includes("div.draggable = true"));
+});
+
+test('milestone deletion confirms linked schedule updates', () => {
+  assert.ok(dashboard.includes('removeMilestoneRow(this)'));
+  assert.ok(dashboard.includes("confirm('This milestone is linked"));
+  assert.ok(dashboard.includes('validateWorkstreams(ganttWorkstreams, milestoneIds)'));
 });
