@@ -87,11 +87,15 @@ test('supports long-form lead aliases and warns while normalizing invalid volume
     'Project Name': 'Aliases',
     'Lead Mechanical Eng.': 'Mech',
     'Lead Electrical/System Engineer': 'Sys',
+    'Lead Hardware Engineer': 'Hard',
+    'Lead Firmware Engineer': 'Firm',
     'PII MYS Volume': '#DIV/0!',
   }, 6);
 
   assert.equal(result.project.leads.mechanical, 'Mech');
   assert.equal(result.project.leads.systemElectrical, 'Sys');
+  assert.equal(result.project.leads.hardware, 'Hard');
+  assert.equal(result.project.leads.firmware, 'Firm');
   assert.equal(result.project.piiMysVolume, 0);
   assert.ok(result.warnings.some(message => /PII MYS Volume/.test(message)));
 });
@@ -168,4 +172,31 @@ test('every file selection resets pending plan, rows, counts, and status before 
   assert.ok(dashboard.includes("document.getElementById('excelImportError').textContent = '';"));
   assert.ok(dashboard.includes("document.getElementById('excelImportPreview').replaceChildren();"));
   assert.ok(dashboard.includes("document.getElementById(id).textContent = '0';"));
+});
+
+test('workbook integration locks first-sheet parsing and all bounded error paths', () => {
+  const blockStart = dashboard.indexOf('// EXCEL IMPORT');
+  const handlerStart = dashboard.indexOf('window.handleExcelImportFile', blockStart);
+  const end = dashboard.indexOf('// END EXCEL IMPORT', handlerStart);
+  const importBlock = dashboard.slice(blockStart, end);
+  const handler = dashboard.slice(handlerStart, end);
+
+  assert.ok(handler.indexOf('resetExcelImportPreview();') < handler.indexOf('const file ='));
+  assert.ok(handler.includes('if (!file) return;'));
+  assert.ok(importBlock.includes('MAX_IMPORT_FILE_BYTES = 10 * 1024 * 1024'));
+  assert.ok(handler.includes('File is too large. Select a file no larger than 10 MB.'));
+  assert.ok(handler.includes("if (!window.XLSX?.read || !window.XLSX?.utils?.sheet_to_json)"));
+  assert.ok(handler.includes('Excel parser is unavailable. Reload the page and try again.'));
+  assert.ok(handler.includes('const firstSheetName = workbook.SheetNames?.[0];'));
+  assert.ok(handler.includes('workbook.Sheets[firstSheetName]'));
+  assert.ok(handler.includes("throw new Error('Workbook has no sheets.')"));
+  assert.ok(handler.includes("throw new Error('The first sheet has no data rows.')"));
+  assert.ok(importBlock.includes('MAX_IMPORT_ROWS = 5000'));
+  assert.ok(handler.includes('The first sheet exceeds the ${MAX_IMPORT_ROWS}-row limit.'));
+
+  const catchStart = handler.indexOf('} catch (parseError) {');
+  const catchSource = handler.slice(catchStart);
+  assert.ok(catchStart >= 0);
+  assert.ok(catchSource.includes('pendingExcelImportPlan = null;'));
+  assert.ok(catchSource.includes("error.textContent = parseError instanceof Error ? parseError.message : 'Could not parse this workbook.';"));
 });
