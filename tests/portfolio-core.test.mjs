@@ -8,6 +8,7 @@ import {
   createTimelineTicks,
   createDefaultWorkstreams,
   filterProjects,
+  formatStatusDate,
   mergeResourceEntry,
   normalizeProject,
   normalizeResourceEntry,
@@ -16,6 +17,18 @@ import {
   validateResourceInput,
   validateWorkstreams,
 } from '../team-2/js/portfolio-core.mjs';
+
+test('formatStatusDate accepts Firestore, ISO, and Date values without inventing a date', () => {
+  const expected = 'Jun 28, 2026';
+  const instant = new Date('2026-06-28T12:34:56.000Z');
+
+  assert.equal(formatStatusDate(instant), expected);
+  assert.equal(formatStatusDate('2026-06-28T12:34:56.000Z'), expected);
+  assert.equal(formatStatusDate({ toDate: () => instant }), expected);
+  assert.equal(formatStatusDate({ seconds: 1782650096, nanoseconds: 0 }), expected);
+  assert.equal(formatStatusDate(), 'Not available');
+  assert.equal(formatStatusDate('not-a-date'), 'Not available');
+});
 
 test('normalizeResourceEntry keeps a blank actual unknown and does not calculate remaining', () => {
   assert.deepEqual(normalizeResourceEntry({ estimated: 12, actual: '  ', updatedAt: ' 2026-06-28T12:00:00Z ' }), {

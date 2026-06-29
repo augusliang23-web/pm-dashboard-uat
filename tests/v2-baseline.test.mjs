@@ -187,6 +187,19 @@ test('project detail renders resource values without modifying RAG status', () =
   assert.ok(!dashboard.slice(resourceRenderStart, resourceRenderEnd).includes('.status'));
 });
 
+test('one-page project status view is present and accessible to every project role', () => {
+  assert.match(dashboard, /id="onePageStatusModal"/);
+  assert.match(dashboard, /id="onePageStatusModal"[^>]+role="dialog"[^>]+aria-modal="true"[^>]+aria-labelledby="onePageTitle"/);
+  assert.match(dashboard, /function renderOnePageStatus\(/);
+  assert.ok(dashboard.includes('One-page Status'));
+  assert.ok(dashboard.includes("openOnePageStatus(document.getElementById('projDetailOverlay').dataset.projectCode)"));
+  assert.ok(dashboard.includes("renderProjectGantt(normalized, 'onePageGantt')"));
+  assert.ok(dashboard.includes('normalized.highlight'));
+  assert.ok(dashboard.includes('normalized.weeklyActions || normalized.weeklyAction'));
+  assert.ok(dashboard.includes('normalized.riskActions || normalized.riskPairs'));
+  assert.ok(dashboard.includes("formatStatusDate(normalized.statusDate ?? normalized.updatedAt ?? normalized.lastUpdatedAt)"));
+});
+
 test('project writes re-authorize at the mutation boundary', () => {
   assert.ok(dashboard.includes("if (isCreatingNew && currentRole !== 'admin') {"));
   assert.ok(dashboard.includes('const targetProject = week.projects.find(project => project.code === editingProjCode);'));

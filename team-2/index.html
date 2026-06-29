@@ -254,6 +254,23 @@ body {
 .modal { background: var(--s1); border-radius: 12px; width: 800px; max-width: 90vw; max-height: 90vh; overflow-y: auto; padding: 32px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
 .modal-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .modal-x { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted); }
+#onePageStatusModal .modal { width: min(1120px, 94vw); padding: 24px; overflow-x: hidden; }
+.one-page-status { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+.one-page-status-header, .one-page-status-gantt, .one-page-status-footer { grid-column: 1 / -1; }
+.one-page-status-header { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+.one-page-status-header h2 { margin: 0 0 6px; overflow-wrap: anywhere; }
+.one-page-status-section { min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--s2); }
+.one-page-status-section h3 { margin: 0 0 10px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.one-page-status-content { white-space: normal; overflow-wrap: anywhere; }
+.one-page-status-list { margin: 0; padding-left: 20px; }
+.one-page-status-list li + li { margin-top: 6px; }
+.one-page-status-empty { color: var(--muted); font-style: italic; }
+.one-page-status-footer { color: var(--muted); text-align: right; }
+@media (max-width: 720px) {
+  .one-page-status { grid-template-columns: minmax(0, 1fr); }
+  .one-page-status-header, .one-page-status-gantt, .one-page-status-footer { grid-column: 1; }
+  .one-page-status-header { flex-direction: column; }
+}
 .fg { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; flex: 1; }
 .fl { font-size: 11px; font-weight: 700; color: var(--text-light); }
 .fi, .fs, .ft { padding: 10px; border: 1px solid var(--border2); border-radius: 6px; outline: none; font-family: inherit; }
@@ -1448,7 +1465,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <div class="modal">
   <div class="modal-hdr">
     <h3 id="pd_title" style="font-size:22px; color:var(--text);">Project Name</h3>
-    <button class="modal-x" onclick="closeModal('projDetailOverlay')">×</button>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button type="button" class="btn btn-ghost" onclick="openOnePageStatus(document.getElementById('projDetailOverlay').dataset.projectCode)">One-page Status</button>
+      <button class="modal-x" aria-label="Close project detail" onclick="closeModal('projDetailOverlay')">×</button>
+    </div>
   </div>
   <div class="detail-grid">
     <div class="detail-left">
@@ -1498,6 +1518,23 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     </div>
   </div>
 </div>
+</div>
+
+<div class="overlay" id="onePageStatusModal" role="dialog" aria-modal="true" aria-labelledby="onePageTitle">
+  <div class="modal">
+    <article class="one-page-status">
+      <header class="one-page-status-header">
+        <div><h2 id="onePageTitle"></h2><div id="onePagePm"></div></div>
+        <button type="button" class="modal-x" aria-label="Close one-page status" onclick="closeModal('onePageStatusModal')">×</button>
+      </header>
+      <section class="one-page-status-section"><h3>Accomplishments</h3><div class="one-page-status-content" id="onePageAccomplishments"></div></section>
+      <section class="one-page-status-section"><h3>Future Activities</h3><div class="one-page-status-content" id="onePageFutureActivities"></div></section>
+      <section class="one-page-status-section one-page-status-gantt"><h3>Workstream Schedule</h3><div id="onePageGantt"></div></section>
+      <section class="one-page-status-section"><h3>Risks</h3><div class="one-page-status-content" id="onePageRisks"></div></section>
+      <section class="one-page-status-section"><h3>Mitigations / Actions</h3><div class="one-page-status-content" id="onePageMitigations"></div></section>
+      <footer class="one-page-status-footer" id="onePageStatusDate"></footer>
+    </article>
+  </div>
 </div>
 
 <div class="overlay" id="changePwdOverlay">
@@ -1772,7 +1809,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 
 <script type="module">
-import { RESOURCE_DISCIPLINES, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, filterProjects, mergeResourceEntry, normalizeProject, normalizeResourceEntry, normalizeWorkstream, parseIsoDate, validateResourceInput, validateWorkstreams } from "./js/portfolio-core.mjs";
+import { RESOURCE_DISCIPLINES, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, filterProjects, formatStatusDate, mergeResourceEntry, normalizeProject, normalizeResourceEntry, normalizeWorkstream, parseIsoDate, validateResourceInput, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -4058,15 +4095,21 @@ window.setGanttScale = scale => {
   ganttScale = scale === 'week' ? 'week' : 'month';
   const code = document.getElementById('projDetailOverlay')?.dataset.projectCode;
   const project = allWeeks[currentIdx]?.projects?.find(item => item.code === code);
-  if (project) renderProjectGantt(normalizeProject(project));
+  if (project) {
+    const normalized = normalizeProject(project);
+    renderProjectGantt(normalized);
+    if (document.getElementById('onePageStatusModal').classList.contains('open')) {
+      renderProjectGantt(normalized, 'onePageGantt');
+    }
+  }
 };
 
 function ganttDate(value) {
   return parseIsoDate(value);
 }
 
-function renderProjectGantt(project) {
-  const target = document.getElementById('pd_schedule');
+function renderProjectGantt(project, targetId = 'pd_schedule') {
+  const target = document.getElementById(targetId);
   const rows = (project.ganttWorkstreams || []).map(normalizeWorkstream).filter(row => ganttDate(row.startDate) && ganttDate(row.endDate) && row.endDate >= row.startDate);
   const toggle = `<div class="gantt-toggle" aria-label="Schedule scale"><button type="button" class="${ganttScale === 'week' ? 'active' : ''}" onclick="setGanttScale('week')">Week</button><button type="button" class="${ganttScale === 'month' ? 'active' : ''}" onclick="setGanttScale('month')">Month</button></div>`;
   if (!rows.length) {
@@ -4180,6 +4223,68 @@ window.openProjDetail = (code) => {
   `;
   
   document.getElementById('projDetailOverlay').classList.add('open');
+};
+
+function renderOnePageList(targetId, value, emptyMessage) {
+  const target = document.getElementById(targetId);
+  const items = textLines(value);
+  target.replaceChildren();
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'one-page-status-empty';
+    empty.textContent = emptyMessage;
+    target.append(empty);
+    return;
+  }
+  const list = document.createElement('ul');
+  list.className = 'one-page-status-list';
+  items.forEach(item => {
+    const li = document.createElement('li');
+    li.textContent = item;
+    list.append(li);
+  });
+  target.append(list);
+}
+
+function onePageRiskPairs(project) {
+  const stored = project.riskActions || project.riskPairs;
+  if (Array.isArray(stored) && stored.length) {
+    return stored.map(item => ({
+      risk: String(item?.risk || item?.description || '').trim(),
+      action: textLines(item?.action || item?.actions || item?.mitigation || item?.requiredAction).join('\n')
+    })).filter(item => item.risk || item.action);
+  }
+  const risks = textLines(project.risk);
+  const actions = textLines(project.next);
+  return Array.from({ length: Math.max(risks.length, actions.length) }, (_, index) => ({
+    risk: risks[index] || '',
+    action: actions[index] || ''
+  })).filter(item => item.risk || item.action);
+}
+
+function renderOnePageStatus(project) {
+  const normalized = normalizeProject(project);
+  const structuredRiskPairs = normalized.riskActions || normalized.riskPairs;
+  document.getElementById('onePageTitle').textContent = normalized.name || normalized.code || 'Untitled project';
+  document.getElementById('onePagePm').textContent = `Project Manager: ${normalized.pm || normalized.owner || 'Unassigned'}`;
+  renderOnePageList('onePageAccomplishments', normalized.accomplishments || normalized.highlight, 'No accomplishments available.');
+  renderOnePageList('onePageFutureActivities', normalized.futureActivities || normalized.weeklyActions || normalized.weeklyAction, 'No future activities available.');
+  renderProjectGantt(normalized, 'onePageGantt');
+
+  const pairs = onePageRiskPairs({ ...normalized, riskActions: structuredRiskPairs });
+  renderOnePageList('onePageRisks', pairs.map(pair => pair.risk).filter(Boolean), 'No risks identified.');
+  renderOnePageList('onePageMitigations', pairs.map(pair => pair.action).filter(Boolean), 'No mitigations or actions available.');
+  document.getElementById('onePageStatusDate').textContent =
+    `Status date: ${formatStatusDate(normalized.statusDate ?? normalized.updatedAt ?? normalized.lastUpdatedAt)}`;
+}
+
+window.openOnePageStatus = code => {
+  const rawProject = allWeeks[currentIdx]?.projects?.find(project => project.code === code);
+  if (!rawProject) return;
+  const modal = document.getElementById('onePageStatusModal');
+  modal.dataset.projectCode = code;
+  renderOnePageStatus(rawProject);
+  openAccessibleModal(modal);
 };
 
 // ── RENDER ──
@@ -4822,7 +4927,26 @@ window.navWeek = (dir) => {
   currentIdx = Math.max(0, Math.min(allWeeks.length-1, currentIdx + dir));
   render();
 };
-window.closeModal = (id) => document.getElementById(id).classList.remove('open');
+let modalReturnFocus = null;
+function openAccessibleModal(modal) {
+  modalReturnFocus = document.activeElement;
+  modal.classList.add('open');
+  requestAnimationFrame(() => modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus());
+}
+window.closeModal = id => {
+  const modal = document.getElementById(id);
+  modal?.classList.remove('open');
+  if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
+  modalReturnFocus = null;
+};
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  const modal = document.querySelector('.overlay.open[role="dialog"]');
+  if (modal) {
+    event.preventDefault();
+    closeModal(modal.id);
+  }
+});
 
 // ── PROJECT COMBINED EDIT ──
 function ensurePrimaryRiskActionPair() {

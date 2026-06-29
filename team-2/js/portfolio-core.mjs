@@ -26,6 +26,26 @@ const WORKSTREAM_TEMPLATES = Object.freeze({
   [PROJECT_LEVEL.HARDWARE_MODULE]: Object.freeze(['Documentation', 'BOM Verification', 'Procurement', 'Assembly/Test', 'Certification']),
 });
 
+export function formatStatusDate(value) {
+  let candidate = value;
+  try {
+    if (candidate && typeof candidate.toDate === 'function') candidate = candidate.toDate();
+    else if (candidate && Number.isFinite(candidate.seconds)) {
+      candidate = new Date(candidate.seconds * 1000 + Number(candidate.nanoseconds || 0) / 1000000);
+    }
+  } catch {
+    return 'Not available';
+  }
+  const date = candidate instanceof Date ? new Date(candidate.getTime()) : new Date(candidate);
+  if (!candidate || Number.isNaN(date.getTime())) return 'Not available';
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
 export function normalizeProject(source = {}) {
   const project = source && typeof source === 'object' ? source : {};
 
