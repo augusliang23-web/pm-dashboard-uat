@@ -176,6 +176,14 @@ body {
 .proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 24px; }
 .proj-card { background: var(--s1); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; position: relative; display: flex; flex-direction: column; box-shadow: var(--shadow); cursor: pointer; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
 .proj-card:hover { border-color: var(--border2); box-shadow: 0 10px 26px rgba(0,0,0,0.045); transform: translateY(-2px); }
+.portfolio-toolbar { background:var(--s1); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:14px; margin-bottom:18px; display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.portfolio-scope { display:flex; gap:4px; padding:3px; background:var(--s3); border-radius:7px; }
+.portfolio-scope button { border:0; border-radius:5px; background:transparent; color:var(--text-light); padding:7px 11px; font:600 11px 'Noto Sans TC',sans-serif; cursor:pointer; }
+.portfolio-scope button.active { background:var(--s1); color:var(--accent-hov); box-shadow:0 1px 4px rgba(0,0,0,.08); }
+.portfolio-controls { display:flex; flex:1; flex-wrap:wrap; gap:8px; }
+.portfolio-controls .fi, .portfolio-controls .fs { min-width:135px; margin:0; }
+.portfolio-controls .portfolio-search { flex:1; min-width:190px; }
+.project-level-badge { display:inline-flex; align-items:center; margin-left:7px; padding:2px 6px; border-radius:4px; background:var(--bdim); color:var(--blue-text); font-size:9px; font-weight:700; vertical-align:middle; }
 .card-stripe { height: 4px; }
 .card-stripe.green { background: var(--green); }
 .card-stripe.yellow { background: var(--yellow); }
@@ -1381,7 +1389,23 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     </div>
   </div>
 
-  <div id="normalView"><div class="proj-grid" id="projGrid"></div></div>
+  <div id="normalView">
+    <div class="portfolio-toolbar no-print" aria-label="Portfolio filters">
+      <div class="portfolio-scope" id="portfolioScope" aria-label="Project scope">
+        <button type="button" data-scope="all">All</button>
+        <button type="button" data-scope="system">System</button>
+        <button type="button" data-scope="hardware-module">Hardware Module</button>
+      </div>
+      <div class="portfolio-controls">
+        <input class="fi portfolio-search" id="projectSearch" type="search" placeholder="Search project name or code">
+        <select class="fs" id="filterPm" aria-label="Project manager filter"><option value="all">All PMs</option></select>
+        <select class="fs" id="filterRag" aria-label="RAG filter"><option value="all">All RAG</option><option value="green">On Track</option><option value="yellow">At Risk</option><option value="red">Critical</option></select>
+        <select class="fs" id="filterLifecycle" aria-label="Lifecycle filter"><option value="all">All Lifecycles</option><option value="active">Active</option><option value="on-hold">On Hold</option><option value="completed">Completed</option></select>
+        <select class="fs" id="filterProductFamily" aria-label="Product family filter"><option value="all">All Product Families</option></select>
+      </div>
+    </div>
+    <div class="proj-grid" id="projGrid"></div>
+  </div>
   <div id="execView" class="exec-view"></div>
 </div>
 
@@ -1489,6 +1513,15 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <div style="display:flex; gap:16px; margin-top:10px;">
         <div class="fg"><label class="fl">Customer</label><input class="fi" id="pe_customer"></div>
         <div class="fg"><label class="fl">Location</label><input class="fi" id="pe_location"></div>
+      </div>
+      <div style="display:flex; gap:16px; margin-top:10px;">
+        <div class="fg"><label class="fl">Project Level</label><select class="fs" id="pe_project_level"><option value="system">System</option><option value="hardware-module">Hardware Module</option></select></div>
+        <div class="fg"><label class="fl">Lifecycle</label><select class="fs" id="pe_lifecycle"><option value="active">Active</option><option value="on-hold">On Hold</option><option value="completed">Completed</option></select></div>
+      </div>
+      <div style="display:flex; gap:16px; margin-top:10px;">
+        <div class="fg"><label class="fl">Project Type</label><input class="fi" id="pe_project_type"></div>
+        <div class="fg"><label class="fl">Classification</label><input class="fi" id="pe_classification"></div>
+        <div class="fg"><label class="fl">Product Family</label><input class="fi" id="pe_product_family"></div>
       </div>
       <div style="margin-top:20px;">
         <label class="fl">Milestones</label>
@@ -1680,7 +1713,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 
 <script type="module">
-import { normalizeProject } from "./js/portfolio-core.mjs";
+import { filterProjects, normalizeProject } from "./js/portfolio-core.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -1696,6 +1729,15 @@ let currentUser = null;
 let currentRole = 'pm';
 let isAdminVipPreview = false;
 let currentPMFilter = 'all';
+const PORTFOLIO_SCOPE_KEY = 'team2.portfolioScope';
+let portfolioScope = (() => {
+  try {
+    const stored = localStorage.getItem(PORTFOLIO_SCOPE_KEY);
+    return ['all', 'system', 'hardware-module'].includes(stored) ? stored : 'all';
+  } catch {
+    return 'all';
+  }
+})();
 let activeStrategicTrack = 'all';
 let activeRoadmapYear = null;
 let isOverview = false;
@@ -1716,6 +1758,63 @@ let fxRates = {
 const SUPPORTED_CURRENCIES = ['USD', 'TWD', 'SGD'];
 const DEFAULT_TEAM_ROLES = ['PM', 'Technical Lead', 'Firmware Engineer', 'Hardware Engineer', 'Mechanical Engineer', 'QA / Validation', 'Sourcing', 'Manufacturing Engineer'];
 const DEFAULT_BUDGET_CATEGORIES = ['NRE', 'Sample fee', 'Travel fee', 'Tooling', 'Certification', 'Lab test', 'Component', 'Other'];
+
+function getPortfolioFilters() {
+  return {
+    scope: portfolioScope,
+    search: document.getElementById('projectSearch')?.value || '',
+    pm: document.getElementById('filterPm')?.value || 'all',
+    rag: document.getElementById('filterRag')?.value || 'all',
+    lifecycle: document.getElementById('filterLifecycle')?.value || 'all',
+    productFamily: document.getElementById('filterProductFamily')?.value || 'all'
+  };
+}
+
+function replacePortfolioOptions(selectId, values, allLabel) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const selected = select.value || 'all';
+  const uniqueValues = [...new Map(
+    values
+      .map(value => (value ?? '').toString().trim())
+      .filter(Boolean)
+      .map(value => [value.toLocaleLowerCase(), value])
+  ).values()]
+    .sort((a, b) => a.localeCompare(b));
+  select.replaceChildren();
+  const allOption = document.createElement('option');
+  allOption.value = 'all';
+  allOption.textContent = allLabel;
+  select.appendChild(allOption);
+  uniqueValues.forEach(value => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value;
+    select.appendChild(option);
+  });
+  select.value = uniqueValues.includes(selected) ? selected : 'all';
+}
+
+function refreshPortfolioToolbar(projects) {
+  replacePortfolioOptions('filterPm', projects.map(project => project.pm ?? project.projectManager ?? project.owner), 'All PMs');
+  replacePortfolioOptions('filterProductFamily', projects.map(project => normalizeProject(project).productFamily), 'All Product Families');
+  document.querySelectorAll('#portfolioScope [data-scope]').forEach(button => {
+    button.classList.toggle('active', button.dataset.scope === portfolioScope);
+    button.setAttribute('aria-pressed', button.dataset.scope === portfolioScope ? 'true' : 'false');
+  });
+}
+
+document.querySelectorAll('#portfolioScope [data-scope]').forEach(button => {
+  button.addEventListener('click', () => {
+    portfolioScope = button.dataset.scope;
+    try { localStorage.setItem(PORTFOLIO_SCOPE_KEY, portfolioScope); } catch {}
+    window.render();
+  });
+});
+['projectSearch', 'filterPm', 'filterRag', 'filterLifecycle', 'filterProductFamily'].forEach(id => {
+  const control = document.getElementById(id);
+  control?.addEventListener(id === 'projectSearch' ? 'input' : 'change', () => window.render());
+});
 
 // ── IDLE DETECTION ──
 let heartbeatInterval = null;
@@ -3990,6 +4089,7 @@ window.render = () => {
   }
 
   let projs = enrichProjectsPrototype(week.projects || []);
+  refreshPortfolioToolbar(projs);
   
   const visFilter = document.getElementById('visSelect') ? document.getElementById('visSelect').value : 'active';
   if (isVipPerspective() || currentRole !== 'admin' || visFilter === 'active') {
@@ -3999,6 +4099,7 @@ window.render = () => {
   if (currentPMFilter !== 'all' && !isOverview) {
     projs = projs.filter(p => p.owner === currentPMFilter);
   }
+  projs = filterProjects(projs, getPortfolioFilters());
 
   const total = projs.length;
   const critical = projs.filter(p => p.status === 'red').length;
@@ -4062,7 +4163,7 @@ function renderNormal(projs) {
       <div class="card-body">
         <div class="card-summary">
           <div class="card-summary-left">
-            <div class="proj-name">${p.name}${p.visibility && p.visibility !== 'active' ? `<span class="muted-badge">[${p.visibility.toUpperCase()}]</span>` : ''}</div>
+            <div class="proj-name">${p.name}<span class="project-level-badge">${p.projectLevel === 'hardware-module' ? 'Module' : 'System'}</span>${p.visibility && p.visibility !== 'active' ? `<span class="muted-badge">[${p.visibility.toUpperCase()}]</span>` : ''}</div>
             <div class="proj-code">${p.code}</div>
           </div>
           <div class="card-summary-right">
@@ -4282,7 +4383,7 @@ function renderExec(projs, summary) {
           <article class="exec-project-card ${p.status}" ondblclick="openProjDetail('${p.code}')" title="Double click for details">
             <div class="exec-project-top">
               <div class="exec-project-identity">
-                <div class="exec-project-name">${p.name}${p.visibility && p.visibility !== 'active' ? ` <span style="color:var(--red); font-size:10px; font-weight:700;">[${p.visibility.toUpperCase()}]</span>` : ''}</div>
+                <div class="exec-project-name">${p.name}<span class="project-level-badge">${p.projectLevel === 'hardware-module' ? 'Module' : 'System'}</span>${p.visibility && p.visibility !== 'active' ? ` <span style="color:var(--red); font-size:10px; font-weight:700;">[${p.visibility.toUpperCase()}]</span>` : ''}</div>
                 <div class="exec-project-meta">
                   <span class="exec-status-chip ${p.status}">${statusMap[p.status] || p.status}</span>
                   <span class="exec-owner-chip">${p.owner || '-'}</span>
@@ -4778,6 +4879,7 @@ window.openProjEdit = (code, isNew = false) => {
   editingProjCode = code;
   const week = allWeeks[currentIdx];
   let p = isNew ? {name:'', code:'', owner:'', deputy:'', customer:'', location:'', visibility:'active', milestones:[], quarterlyMilestones:[], status:'green', progress:0, attention:'watch', highlight:'', weeklyActions:'', risk:'', next:'', riskActions:[], teamMembers:[], budget:{ mode:'manual', currency:'USD', totalEstimated:0, monthlyPlans:[], actuals:[] }} : enrichProjectPrototype(week.projects.find(x => x.code === code), week.projects.findIndex(x => x.code === code));
+  p = normalizeProject(p);
   
   document.getElementById('peTitle').textContent = isNew ? "New Project" : "Edit Project";
   
@@ -4804,6 +4906,11 @@ window.openProjEdit = (code, isNew = false) => {
   
   document.getElementById('pe_customer').value = p.customer || '';
   document.getElementById('pe_location').value = p.location || '';
+  document.getElementById('pe_project_level').value = p.projectLevel;
+  document.getElementById('pe_lifecycle').value = p.lifecycle;
+  document.getElementById('pe_project_type').value = p.projectType;
+  document.getElementById('pe_classification').value = p.classification;
+  document.getElementById('pe_product_family').value = p.productFamily;
   document.getElementById('pe_visibility').value = p.visibility || 'active';
   
   const msCont = document.getElementById('msListContainer');

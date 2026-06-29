@@ -59,3 +59,23 @@ test('trims portfolio editor values while guarding controls not yet rendered', (
     ),
   );
 });
+
+test('exposes portfolio scope, filter, and project editor controls', () => {
+  const requiredIds = [
+    'portfolioScope',
+    'projectSearch',
+    'filterPm',
+    'filterRag',
+    'filterLifecycle',
+    'filterProductFamily',
+    'pe_project_level',
+    'pe_lifecycle',
+    'pe_project_type',
+    'pe_classification',
+    'pe_product_family',
+  ];
+
+  for (const id of requiredIds) {
+    assert.match(dashboard, new RegExp(`id=["']${id}["']`));
+  }
+});
