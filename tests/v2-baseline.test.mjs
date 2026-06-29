@@ -200,6 +200,15 @@ test('one-page project status view is present and accessible to every project ro
   assert.ok(dashboard.includes("formatStatusDate(normalized.statusDate ?? normalized.updatedAt ?? normalized.lastUpdatedAt)"));
 });
 
+test('one-page status traps focus and isolates the underlying project detail', () => {
+  assert.ok(dashboard.includes("event.key === 'Tab'"));
+  assert.ok(dashboard.includes('getFocusTrapIndex(currentIndex, focusable.length, event.shiftKey)'));
+  assert.ok(dashboard.includes("projectDetail.inert = true"));
+  assert.ok(dashboard.includes("projectDetail.setAttribute('aria-hidden', 'true')"));
+  assert.ok(dashboard.includes('restoreProjectDetailModalState()'));
+  assert.ok(dashboard.includes('modalReturnFocus.focus()'));
+});
+
 test('project writes re-authorize at the mutation boundary', () => {
   assert.ok(dashboard.includes("if (isCreatingNew && currentRole !== 'admin') {"));
   assert.ok(dashboard.includes('const targetProject = week.projects.find(project => project.code === editingProjCode);'));

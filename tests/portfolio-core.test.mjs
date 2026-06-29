@@ -9,6 +9,7 @@ import {
   createDefaultWorkstreams,
   filterProjects,
   formatStatusDate,
+  getFocusTrapIndex,
   mergeResourceEntry,
   normalizeProject,
   normalizeResourceEntry,
@@ -17,6 +18,13 @@ import {
   validateResourceInput,
   validateWorkstreams,
 } from '../team-2/js/portfolio-core.mjs';
+
+test('getFocusTrapIndex wraps Tab navigation in both directions', () => {
+  assert.equal(getFocusTrapIndex(0, 3, true), 2);
+  assert.equal(getFocusTrapIndex(2, 3, false), 0);
+  assert.equal(getFocusTrapIndex(1, 3, false), 1);
+  assert.equal(getFocusTrapIndex(-1, 0, false), -1);
+});
 
 test('formatStatusDate accepts Firestore, ISO, and Date values without inventing a date', () => {
   const expected = 'Jun 28, 2026';

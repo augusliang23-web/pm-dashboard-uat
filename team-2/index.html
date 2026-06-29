@@ -1809,7 +1809,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 
 <script type="module">
-import { RESOURCE_DISCIPLINES, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, filterProjects, formatStatusDate, mergeResourceEntry, normalizeProject, normalizeResourceEntry, normalizeWorkstream, parseIsoDate, validateResourceInput, validateWorkstreams } from "./js/portfolio-core.mjs";
+import { RESOURCE_DISCIPLINES, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, filterProjects, formatStatusDate, getFocusTrapIndex, mergeResourceEntry, normalizeProject, normalizeResourceEntry, normalizeWorkstream, parseIsoDate, validateResourceInput, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -4928,23 +4928,57 @@ window.navWeek = (dir) => {
   render();
 };
 let modalReturnFocus = null;
+let projectDetailModalState = null;
+function isolateProjectDetailModal() {
+  const projectDetail = document.getElementById('projDetailOverlay');
+  projectDetailModalState = {
+    inert: projectDetail.inert,
+    hadAriaHidden: projectDetail.hasAttribute('aria-hidden'),
+    ariaHidden: projectDetail.getAttribute('aria-hidden')
+  };
+  projectDetail.inert = true;
+  projectDetail.setAttribute('aria-hidden', 'true');
+}
+function restoreProjectDetailModalState() {
+  if (!projectDetailModalState) return;
+  const projectDetail = document.getElementById('projDetailOverlay');
+  projectDetail.inert = projectDetailModalState.inert;
+  if (projectDetailModalState.hadAriaHidden) {
+    projectDetail.setAttribute('aria-hidden', projectDetailModalState.ariaHidden);
+  } else {
+    projectDetail.removeAttribute('aria-hidden');
+  }
+  projectDetailModalState = null;
+}
 function openAccessibleModal(modal) {
   modalReturnFocus = document.activeElement;
+  if (modal.id === 'onePageStatusModal') isolateProjectDetailModal();
   modal.classList.add('open');
   requestAnimationFrame(() => modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus());
 }
 window.closeModal = id => {
   const modal = document.getElementById(id);
   modal?.classList.remove('open');
+  if (id === 'onePageStatusModal') restoreProjectDetailModalState();
   if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
   modalReturnFocus = null;
 };
 document.addEventListener('keydown', event => {
-  if (event.key !== 'Escape') return;
   const modal = document.querySelector('.overlay.open[role="dialog"]');
-  if (modal) {
+  if (!modal) return;
+  if (event.key === 'Escape') {
     event.preventDefault();
     closeModal(modal.id);
+    return;
+  }
+  if (event.key === 'Tab' && modal.id === 'onePageStatusModal') {
+    const focusable = Array.from(modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+    const currentIndex = focusable.indexOf(document.activeElement);
+    const targetIndex = getFocusTrapIndex(currentIndex, focusable.length, event.shiftKey);
+    if (targetIndex !== currentIndex && targetIndex >= 0) {
+      event.preventDefault();
+      focusable[targetIndex].focus();
+    }
   }
 });
 

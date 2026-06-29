@@ -46,6 +46,14 @@ export function formatStatusDate(value) {
   });
 }
 
+export function getFocusTrapIndex(currentIndex, count, shiftKey) {
+  if (count <= 0) return -1;
+  if (currentIndex < 0) return shiftKey ? count - 1 : 0;
+  if (shiftKey && currentIndex === 0) return count - 1;
+  if (!shiftKey && currentIndex === count - 1) return 0;
+  return currentIndex;
+}
+
 export function normalizeProject(source = {}) {
   const project = source && typeof source === 'object' ? source : {};
 
