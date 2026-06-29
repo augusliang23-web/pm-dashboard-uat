@@ -109,18 +109,18 @@ test('keeps the portfolio toolbar and filters out of Overview scope calculations
   assert.ok(renderSource.includes("const critical = metricProjects.filter(p => p.status === 'red').length;"));
   assert.ok(renderSource.includes("const atRisk = metricProjects.filter(p => p.status === 'yellow').length;"));
   assert.ok(renderSource.includes('renderNormal(portfolioProjects);'));
-  assert.ok(renderSource.includes('renderExec(overviewProjects, week.summary);'));
+  assert.ok(renderSource.includes('renderExec(overviewProjects, week.summary, roleVisibleProjects);'));
   assert.ok(!renderSource.includes('getOverviewProjects(portfolioProjects'));
 });
 
 test('routes every project-based Overview render input through its scoped project list', () => {
-  const execStart = dashboard.indexOf('function renderExec(projs, summary)');
+  const execStart = dashboard.indexOf('function renderExec(projs, summary, allProjects = projs)');
   const execEnd = dashboard.indexOf('async function saveCurrentWeekQuietly()', execStart);
   const execSource = dashboard.slice(execStart, execEnd);
   const requiredCalls = [
     'renderResourceBudgetOverview(projs)',
     'renderWeeklyTrendPanel(projs)',
-    'renderSummaryContent(summary, projs)',
+    'renderSummaryContent(summary, allProjects, projs)',
     'renderAttentionMatrix(projs, editableDecisionView)',
     'renderRiskActionTable(projs, editableDecisionView)',
     'renderQuarterlyBoard(projs, strategyLayer, activeTrack, roadmapYear)',
@@ -128,6 +128,7 @@ test('routes every project-based Overview render input through its scoped projec
 
   for (const call of requiredCalls) assert.ok(execSource.includes(call), `expected ${call}`);
   assert.ok(dashboard.includes('getOverviewProjects(week.projects || [], overviewScope)'));
+  assert.ok(dashboard.includes('filterOverviewSummaryLines(sanitized, allProjects, scopedProjects)'));
 });
 
 test('Overview scope changes persist locally and redraw once without Firestore writes', () => {

@@ -1874,7 +1874,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 
 <script type="module">
-import { RESOURCE_DISCIPLINES, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, filterProjects, getFocusTrapIndex, getOverviewProjectBadgeLabel, getOverviewProjects, mergeResourceEntry, normalizeOverviewScope, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, parseIsoDate, resolveProjectStatusDate, validateResourceInput, validateWorkstreams } from "./js/portfolio-core.mjs";
+import { RESOURCE_DISCIPLINES, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, filterOverviewSummaryLines, filterProjects, getFocusTrapIndex, getOverviewProjectBadgeLabel, getOverviewProjects, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewScope, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, parseIsoDate, resolveProjectStatusDate, validateResourceInput, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { assertReasonableWeekDocument, buildImportResults, formatImportPreviewRow, importResultsToCsv, mergeReadyImportRows, planImport } from "./js/excel-import.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -3792,32 +3792,16 @@ function sanitizeSummaryInput(text) {
   return out.join('\n');
 }
 
-function renderSummaryContent(summary, projects = []) {
-  const text = sanitizeSummaryInput(summary || '').trim();
-  if (!text) return '<div class="exec-empty-summary">No weekly summary has been saved yet. Use Week Management to copy the AI prompt, paste the generated output, and save it.</div>';
+function renderSummaryContent(summary, allProjects = [], scopedProjects = allProjects) {
+  const sanitized = sanitizeSummaryInput(summary || '').trim();
+  if (!sanitized) return '<div class="exec-empty-summary">No weekly summary has been saved yet. Use Week Management to copy the AI prompt, paste the generated output, and save it.</div>';
+  const text = filterOverviewSummaryLines(sanitized, allProjects, scopedProjects).trim();
+  if (!text) return '<div class="exec-empty-summary">No summary items apply to the selected Overview scope.</div>';
   const lines = textLines(text);
   const isBullet = line => /^[-*]\s+/.test(line) || /^\d+[.)]\s+/.test(line);
-  const projectKeys = (projects || [])
-    .flatMap(project => [project.name, project.code]
-      .filter(Boolean)
-      .map(value => ({ key: String(value).trim(), project })))
-    .sort((a, b) => b.key.length - a.key.length);
   const parseProjectLine = line => {
-    const clean = line.replace(/^[-*]\s+/, '').replace(/^\d+[.)]\s+/, '').trim();
-    const lower = clean.toLowerCase();
-    for (const { key, project } of projectKeys) {
-      const keyLower = key.toLowerCase();
-      if (lower.startsWith(`${keyLower}:`)) {
-        return { name: key, body: clean.slice(key.length + 1).trim(), project };
-      }
-      if (lower.startsWith(`${keyLower} `)) {
-        const remainder = clean.slice(key.length).trim();
-        if (/^[^:]{1,48}:\s*\S/.test(remainder)) {
-          return { name: key, body: remainder, project };
-        }
-      }
-    }
-    return null;
+    const match = matchOverviewSummaryProjectLine(line, scopedProjects);
+    return match ? { name: match.prefix, body: match.body, project: match.project } : null;
   };
   const renderProjectItem = item => `
     <div class="exec-summary-project-item">
@@ -4463,7 +4447,7 @@ window.render = () => {
   document.getElementById('topMetricsGrid').style.display = showTopMetrics ? 'grid' : 'none';
 
   renderNormal(portfolioProjects);
-  renderExec(overviewProjects, week.summary);
+  renderExec(overviewProjects, week.summary, roleVisibleProjects);
   
   if (isVipPerspective()) {
     document.getElementById('normalView').style.display = 'none';
@@ -4582,7 +4566,7 @@ function renderNormal(projs) {
   }).join('');
 }
 
-function renderExec(projs, summary) {
+function renderExec(projs, summary, allProjects = projs) {
   const view = document.getElementById('execView');
   const statusMap = { 'green': 'On Track', 'yellow': 'At Risk', 'red': 'Critical' };
   const editableDecisionView = !isVipPerspective() && !isWeekReleased(allWeeks[currentIdx]);
@@ -4682,7 +4666,7 @@ function renderExec(projs, summary) {
           <div class="exec-summary-title">Weekly Executive Summary</div>
           <div class="exec-summary-sub">Management ready</div>
         </div>
-        ${renderSummaryContent(summary, projs)}
+        ${renderSummaryContent(summary, allProjects, projs)}
       </div>
     </div>
 

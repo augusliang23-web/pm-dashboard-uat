@@ -7,6 +7,7 @@ import {
   calculateDropIndex,
   createTimelineTicks,
   createDefaultWorkstreams,
+  filterOverviewSummaryLines,
   filterProjects,
   formatStatusDate,
   getOverviewProjectBadgeLabel,
@@ -303,6 +304,70 @@ test('Overview project badges are emitted only for the mixed All Projects scope'
   assert.equal(
     getOverviewProjectBadgeLabel({ projectLevel: PROJECT_LEVEL.HARDWARE_MODULE }, PROJECT_LEVEL.HARDWARE_MODULE),
     '',
+  );
+});
+
+const summaryProjects = [
+  { code: 'SYS-A', name: 'Alpha', projectLevel: PROJECT_LEVEL.SYSTEM },
+  { code: 'MOD-A', name: 'Alpha Module', projectLevel: PROJECT_LEVEL.HARDWARE_MODULE },
+];
+
+test('Overview summary filtering excludes Module lines from System scope', () => {
+  const summary = [
+    'WEEKLY MOVEMENT',
+    '- Alpha: System work advanced.',
+    '- Alpha Module: Module work advanced.',
+  ].join('\n');
+
+  assert.equal(
+    filterOverviewSummaryLines(summary, summaryProjects, getOverviewProjects(summaryProjects, PROJECT_LEVEL.SYSTEM)),
+    ['WEEKLY MOVEMENT', '- Alpha: System work advanced.'].join('\n'),
+  );
+});
+
+test('Overview summary filtering excludes System lines from Module scope', () => {
+  const summary = [
+    '- SYS-A: System action.',
+    '- MOD-A: Module action.',
+  ].join('\n');
+
+  assert.equal(
+    filterOverviewSummaryLines(summary, summaryProjects, getOverviewProjects(summaryProjects, PROJECT_LEVEL.HARDWARE_MODULE)),
+    '- MOD-A: Module action.',
+  );
+});
+
+test('Overview summary filtering omits every known project line for an empty scope', () => {
+  const summary = [
+    '- Alpha: System action.',
+    '- Alpha Module: Module action.',
+  ].join('\n');
+
+  assert.equal(filterOverviewSummaryLines(summary, summaryProjects, []), '');
+});
+
+test('Overview summary filtering preserves generic non-project narrative', () => {
+  const summary = [
+    'Portfolio delivery remains stable.',
+    '- Alpha Module: Module action.',
+    'No management decision required.',
+  ].join('\n');
+
+  assert.equal(
+    filterOverviewSummaryLines(summary, summaryProjects, getOverviewProjects(summaryProjects, PROJECT_LEVEL.SYSTEM)),
+    ['Portfolio delivery remains stable.', 'No management decision required.'].join('\n'),
+  );
+});
+
+test('Overview summary filtering matches similarly named projects on an exact prefix boundary', () => {
+  const summary = [
+    '- Alpha Module: Module-specific update.',
+    '- Alpha Modularization: Generic narrative, not a known project.',
+  ].join('\n');
+
+  assert.equal(
+    filterOverviewSummaryLines(summary, summaryProjects, getOverviewProjects(summaryProjects, PROJECT_LEVEL.SYSTEM)),
+    '- Alpha Modularization: Generic narrative, not a known project.',
   );
 });
 

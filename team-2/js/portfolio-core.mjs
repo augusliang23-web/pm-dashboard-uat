@@ -291,6 +291,51 @@ export function getOverviewProjectBadgeLabel(project = {}, scope = OVERVIEW_SCOP
   return normalizeProject(project).projectLevel === PROJECT_LEVEL.HARDWARE_MODULE ? 'Module' : 'System';
 }
 
+export function matchOverviewSummaryProjectLine(line, projects = []) {
+  const content = String(line || '')
+    .trim()
+    .replace(/^(?:[-*+]|\d+[.)])\s+/, '');
+  const normalizedContent = content.toLocaleLowerCase();
+  const identities = (Array.isArray(projects) ? projects : [])
+    .flatMap(project => [project?.name, project?.code]
+      .map(value => stringValue(value))
+      .filter(Boolean)
+      .map(key => ({ key, project })))
+    .sort((a, b) => b.key.length - a.key.length);
+
+  for (const identity of identities) {
+    if (!normalizedContent.startsWith(identity.key.toLocaleLowerCase())) continue;
+    const remainder = content.slice(identity.key.length);
+    const delimiter = remainder.match(/^\s*:\s*/);
+    if (!delimiter) continue;
+    return {
+      project: identity.project,
+      prefix: identity.key,
+      body: remainder.slice(delimiter[0].length).trim(),
+    };
+  }
+  return null;
+}
+
+export function filterOverviewSummaryLines(summary, allProjects = [], scopedProjects = allProjects) {
+  const included = new Set((Array.isArray(scopedProjects) ? scopedProjects : [])
+    .map(projectMembershipKey)
+    .filter(Boolean));
+  return String(summary || '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .filter(line => {
+      const match = matchOverviewSummaryProjectLine(line, allProjects);
+      return !match || included.has(projectMembershipKey(match.project));
+    })
+    .join('\n');
+}
+
+function projectMembershipKey(project = {}) {
+  const code = stringValue(project.code).toLocaleLowerCase();
+  return code ? `code:${code}` : `name:${stringValue(project.name).toLocaleLowerCase()}`;
+}
+
 function stringValue(value) {
   return (value ?? '').toString().trim();
 }
