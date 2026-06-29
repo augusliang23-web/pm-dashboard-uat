@@ -1544,6 +1544,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { confirmWeekMutation, getWriteErrorMessage } from "./sync-core.js";
+import { getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline } from "./executive-timeline-core.js";
 
 const app = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(app);
@@ -2775,7 +2776,7 @@ function normalizeExecutiveMilestoneTimeline(raw = {}) {
   const rows = (source.rows || []).map(row => ({
     label: String(row.label || ''),
     cells: Array.from({ length: 4 }, (_, index) => {
-      const cell = row.cells?.[index] || [];
+      const cell = getExecutiveTimelineCell(row.cells, index);
       return Array.isArray(cell) ? cell.map(String).filter(Boolean) : textLines(cell);
     })
   })).filter(row => row.label || row.cells.some(cell => cell.length));
@@ -4209,7 +4210,7 @@ window.saveStrategyLayer = async () => {
   showLoader("Saving Strategy Layer...");
   try {
     const base = getStrategyLayer(week);
-    const executiveMilestoneTimeline = collectExecutiveMilestoneTimeline();
+    const executiveMilestoneTimeline = serializeExecutiveMilestoneTimeline(collectExecutiveMilestoneTimeline());
     const projectMap = {};
     document.querySelectorAll('.project-map-row').forEach(row => {
       const code = row.dataset.code || '';

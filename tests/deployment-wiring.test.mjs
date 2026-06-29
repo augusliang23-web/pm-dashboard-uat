@@ -20,3 +20,18 @@ test('v2.0 strategy save commits a clone after confirmation', () => {
   assert.match(production, /const savedWeek = await confirmWeekMutation\(/);
   assert.match(production, /allWeeks\[currentIdx\] = savedWeek/);
 });
+
+test('v2.0 serializes executive timeline cells for Firestore', () => {
+  assert.match(
+    production,
+    /import \{ getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline \} from "\.\/executive-timeline-core\.js"/
+  );
+  assert.match(
+    production,
+    /const cell = getExecutiveTimelineCell\(row\.cells, index\)/
+  );
+  assert.match(
+    production,
+    /serializeExecutiveMilestoneTimeline\(collectExecutiveMilestoneTimeline\(\)\)/
+  );
+});
