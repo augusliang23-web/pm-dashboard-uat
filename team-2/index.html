@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Project Dashboard v2.0T · LITEON Edition</title>
+<title>Project Dashboard · LITEON Edition</title>
 
 <script>
 // ═══════════════════════════════════════════════════════════════════
@@ -18,6 +18,8 @@ const FIREBASE_CONFIG = {
   appId: "1:842441149281:web:ef2a9af8b37593451e1320",
   measurementId: "G-TW9FW819EY"
 };
+const DASHBOARD_RELEASE = 'v2.0T-portfolio';
+const DASHBOARD_BASE_COMMIT = 'ddc0e5f';
 </script>
 
 <style>
@@ -1282,6 +1284,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <span class="hdr-version">v2.0T</span>
       </div>
       <span class="hdr-sub">LITEON INTERNAL SECURE ACCESS</span>
+      <span class="hdr-sub" id="dashboardVersion"></span>
     </div>
   </div>
 
@@ -2397,6 +2400,7 @@ async function fetchDynamicPMList() {
 
 function setupUI() {
   isAdminVipPreview = false;
+  document.getElementById('dashboardVersion').textContent = `${DASHBOARD_RELEASE} · base ${DASHBOARD_BASE_COMMIT}`;
   document.getElementById('displayUser').textContent = getEmailKey(currentUser).split('@')[0].toUpperCase();
   const rBadge = document.getElementById('displayRole');
   rBadge.textContent = currentRole.toUpperCase();
