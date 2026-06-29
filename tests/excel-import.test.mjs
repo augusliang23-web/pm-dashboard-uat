@@ -480,6 +480,88 @@ test('in-flight import owns modal state and disables every mutation or cancellat
   assert.ok(dashboard.includes("if (id === 'excelImportOverlay' && excelImportInFlight) return;"));
 });
 
+test('import plans, attempts, and results are owned by the current authenticated user', () => {
+  const start = dashboard.indexOf('// EXCEL IMPORT');
+  const end = dashboard.indexOf('// END EXCEL IMPORT', start);
+  const source = dashboard.slice(start, end);
+  assert.ok(source.includes('function getCurrentImportUserKey()'));
+  assert.ok(source.includes('currentUser?.uid || getEmailKey(currentUser)'));
+  assert.ok(source.includes('importPlan.createdByUserKey = getCurrentImportUserKey();'));
+  assert.ok(source.includes('plan.createdByUserKey === getCurrentImportUserKey()'));
+  assert.ok(source.includes('ownerUserKey: plan.createdByUserKey'));
+  assert.ok(source.includes('activeExcelImportAttempt.ownerUserKey === getCurrentImportUserKey()'));
+  assert.ok(source.includes('lastExcelImportResultsUserKey = getCurrentImportUserKey();'));
+  assert.ok(source.includes('lastExcelImportResultsUserKey !== getCurrentImportUserKey()'));
+
+  const updatePosition = source.indexOf('transaction.update(targetWeekRef');
+  const boundarySource = source.slice(source.lastIndexOf('if (', updatePosition), updatePosition);
+  assert.ok(boundarySource.includes("currentRole !== 'admin'"));
+  assert.ok(boundarySource.includes('plan.createdByUserKey !== getCurrentImportUserKey()'));
+});
+
+test('all auth transitions and user setup force-clear import state', () => {
+  assert.ok(dashboard.includes('function clearExcelImportForAuthTransition()'));
+  const logoutStart = dashboard.indexOf('window.handleLogout = async () =>');
+  const authStart = dashboard.indexOf('onAuthStateChanged(auth, async user =>');
+  const setupStart = dashboard.indexOf('function setupUI()');
+  assert.ok(dashboard.slice(logoutStart, authStart).includes('clearExcelImportForAuthTransition();'));
+  assert.ok(dashboard.slice(authStart, setupStart).includes('clearExcelImportForAuthTransition();'));
+  assert.ok(dashboard.slice(setupStart, dashboard.indexOf('// ── DATA ──', setupStart))
+    .includes('clearExcelImportForAuthTransition();'));
+
+  const cleanupStart = dashboard.indexOf('function clearExcelImportForAuthTransition()');
+  const cleanupEnd = dashboard.indexOf('function clearExcelImportWorkerTimer()', cleanupStart);
+  const cleanup = dashboard.slice(cleanupStart, cleanupEnd);
+  for (const expected of [
+    'excelImportAttemptToken += 1;',
+    'excelImportRequestToken += 1;',
+    'terminateExcelImportWorker();',
+    'pendingExcelImportPlan = null;',
+    'lastExcelImportResults = null;',
+    "document.getElementById('excelImportFile').value = '';",
+    "document.getElementById('excelImportOverlay').classList.remove('open');",
+  ]) {
+    assert.ok(cleanup.includes(expected), `expected auth cleanup to include ${expected}`);
+  }
+});
+
+test('Excel import has a visible file label and shares the reusable dialog focus trap', () => {
+  assert.match(dashboard, /<label[^>]+for="excelImportFile"[^>]*>[^<]+<\/label>/);
+  const keydownStart = dashboard.indexOf("document.addEventListener('keydown'");
+  const keydownEnd = dashboard.indexOf('// ── PROJECT COMBINED EDIT', keydownStart);
+  const keydown = dashboard.slice(keydownStart, keydownEnd);
+  assert.ok(keydown.includes("event.key === 'Tab'"));
+  assert.ok(keydown.includes('getFocusTrapIndex('));
+  assert.doesNotMatch(keydown, /modal\.id === 'onePageStatusModal'/);
+  assert.ok(dashboard.includes('modalReturnFocus.focus()'));
+});
+
+test('both direct and arrow week navigation invalidate Excel previews after effective changes', () => {
+  const jumpStart = dashboard.indexOf('window.jumpToWeek = (idx) =>');
+  const jumpEnd = dashboard.indexOf('window.toggleReleaseWeek', jumpStart);
+  const jumpSource = dashboard.slice(jumpStart, jumpEnd);
+  assert.ok(jumpSource.includes('invalidateExcelImportForWeekChange();'));
+
+  const navStart = dashboard.indexOf('window.navWeek = (dir) =>');
+  const navEnd = dashboard.indexOf('let modalReturnFocus', navStart);
+  const navSource = dashboard.slice(navStart, navEnd);
+  assert.ok(navSource.includes('const nextIndex ='));
+  assert.ok(navSource.includes('if (nextIndex !== currentIdx)'));
+  assert.ok(navSource.includes('invalidateExcelImportForWeekChange();'));
+});
+
+test('CSV download uses an attached anchor and defers object URL revocation', () => {
+  const start = dashboard.indexOf('window.downloadExcelImportResults = () =>');
+  const end = dashboard.indexOf('// END EXCEL IMPORT', start);
+  const source = dashboard.slice(start, end);
+  assert.ok(source.includes('document.body.append(link);'));
+  assert.ok(source.includes('link.click();'));
+  assert.ok(source.includes('link.remove();'));
+  assert.match(source, /setTimeout\(\(\) => URL\.revokeObjectURL\(url\), 0\)/);
+  assert.ok(source.indexOf('document.body.append(link);') < source.indexOf('link.click();'));
+  assert.ok(source.indexOf('link.click();') < source.indexOf('link.remove();'));
+});
+
 test('runbook records row count, stops on failures, and includes an Overview spot-check', () => {
   assert.match(runbook, /worksheet row count/i);
   assert.match(runbook, /stop[^.\n]*failed rows/i);

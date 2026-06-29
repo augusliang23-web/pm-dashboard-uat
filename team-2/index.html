@@ -1841,7 +1841,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button id="closeExcelImportXBtn" class="modal-x" onclick="closeExcelImport()" aria-label="Close">×</button>
     </div>
     <p style="font-size:12px; color:var(--text-light); line-height:1.5;">Select an .xlsx or .xls file to preview its first sheet. Nothing will be written in this step.</p>
-    <input id="excelImportFile" type="file" accept=".xlsx,.xls" style="margin-top:16px;" onchange="handleExcelImportFile(event)">
+    <label class="fl" for="excelImportFile" style="display:block; margin-top:16px;">Excel workbook (.xlsx or .xls)</label>
+    <input id="excelImportFile" type="file" accept=".xlsx,.xls" onchange="handleExcelImportFile(event)">
     <div id="excelImportError" class="import-error" role="alert"></div>
     <div id="excelImportTargetWeek" style="font-size:12px; font-weight:700; color:var(--text-light);">Target week: —</div>
     <div class="import-summary" aria-live="polite">
@@ -1887,6 +1888,7 @@ let currentRole = 'pm';
 let pendingExcelImportPlan = null;
 let lastExcelImportResults = null;
 let lastExcelImportTargetWeekId = '';
+let lastExcelImportResultsUserKey = '';
 let excelImportInFlight = false;
 let isAdminVipPreview = false;
 let currentPMFilter = 'all';
@@ -2566,6 +2568,7 @@ window.saveNewPassword = async () => {
 };
 
 window.handleLogout = async () => {
+  clearExcelImportForAuthTransition();
   showLoader("Logging out...");
   stopPresenceSystem();
   if (weeksUnsub) {
@@ -2584,6 +2587,7 @@ window.handleLogout = async () => {
 };
 
 onAuthStateChanged(auth, async user => {
+  clearExcelImportForAuthTransition();
   const dot = document.getElementById('syncDot');
   if (user) {
     try {
@@ -2662,6 +2666,7 @@ async function fetchDynamicPMList() {
 }
 
 function setupUI() {
+  clearExcelImportForAuthTransition();
   isAdminVipPreview = false;
   document.getElementById('dashboardVersion').textContent = `${DASHBOARD_RELEASE} · base ${DASHBOARD_BASE_COMMIT}`;
   document.getElementById('displayUser').textContent = getEmailKey(currentUser).split('@')[0].toUpperCase();
@@ -4997,7 +5002,11 @@ window.setOverviewCurrency = (currency) => {
   render();
 };
 window.navWeek = (dir) => {
-  currentIdx = Math.max(0, Math.min(allWeeks.length-1, currentIdx + dir));
+  const nextIndex = Math.max(0, Math.min(allWeeks.length - 1, currentIdx + dir));
+  if (nextIndex !== currentIdx) {
+    currentIdx = nextIndex;
+    invalidateExcelImportForWeekChange();
+  }
   render();
 };
 let modalReturnFocus = null;
@@ -5040,6 +5049,36 @@ let excelImportPreviewTarget = null;
 let excelImportWorker = null;
 let excelImportWorkerReject = null;
 let excelImportWorkerTimer = null;
+function getCurrentImportUserKey() {
+  return currentUser?.uid || getEmailKey(currentUser);
+}
+function clearExcelImportForAuthTransition() {
+  excelImportAttemptToken += 1;
+  excelImportRequestToken += 1;
+  activeExcelImportAttempt = null;
+  excelImportInFlight = false;
+  terminateExcelImportWorker();
+  pendingExcelImportPlan = null;
+  excelImportPreviewTarget = null;
+  lastExcelImportResults = null;
+  lastExcelImportTargetWeekId = '';
+  lastExcelImportResultsUserKey = '';
+  document.getElementById('excelImportFile').value = '';
+  document.getElementById('excelImportError').textContent = '';
+  document.getElementById('excelImportResult').textContent = '';
+  document.getElementById('excelImportPreview').replaceChildren();
+  document.getElementById('excelImportConfirmation').hidden = true;
+  document.getElementById('excelImportTargetWeek').textContent = 'Target week: —';
+  document.getElementById('downloadImportResultsBtn').hidden = true;
+  document.getElementById('excelImportOverlay').classList.remove('open');
+  for (const id of ['importReadyCount', 'importSkippedCount', 'importFailedCount']) {
+    document.getElementById(id).textContent = '0';
+  }
+  setExcelImportControlsDisabled(false);
+  document.getElementById('confirmImportBtn').disabled = true;
+  document.getElementById('executeImportBtn').disabled = true;
+  modalReturnFocus = null;
+}
 function clearExcelImportWorkerTimer() {
   if (excelImportWorkerTimer !== null) {
     clearTimeout(excelImportWorkerTimer);
@@ -5080,6 +5119,7 @@ function resetExcelImportPreview() {
   excelImportPreviewTarget = null;
   lastExcelImportResults = null;
   lastExcelImportTargetWeekId = '';
+  lastExcelImportResultsUserKey = '';
   document.getElementById('excelImportError').textContent = '';
   document.getElementById('excelImportResult').textContent = '';
   document.getElementById('excelImportPreview').replaceChildren();
@@ -5120,6 +5160,7 @@ function isPendingExcelImportCurrent(plan) {
   return Boolean(plan)
     && pendingExcelImportPlan === plan
     && plan.requestToken === excelImportRequestToken
+    && plan.createdByUserKey === getCurrentImportUserKey()
     && currentRole === 'admin'
     && currentUser
     && fileInput.files?.[0] === plan.sourceFile
@@ -5129,7 +5170,8 @@ function isPendingExcelImportCurrent(plan) {
 }
 function isExcelImportAttemptCurrent(attemptToken, plan) {
   return activeExcelImportAttempt?.token === attemptToken
-    && activeExcelImportAttempt.plan === plan;
+    && activeExcelImportAttempt.plan === plan
+    && activeExcelImportAttempt.ownerUserKey === getCurrentImportUserKey();
 }
 function invalidateExcelImportForWeekChange() {
   if (excelImportInFlight) return;
@@ -5259,6 +5301,7 @@ window.handleExcelImportFile = async event => {
     importPlan.sourceFile = file;
     importPlan.targetWeekLabel = targetWeek.weekLabel;
     importPlan.targetWeekId = weekDocumentId(targetWeek);
+    importPlan.createdByUserKey = getCurrentImportUserKey();
     pendingExcelImportPlan = importPlan;
     renderExcelImportPlan(pendingExcelImportPlan);
   } catch (parseError) {
@@ -5287,6 +5330,7 @@ window.updateImportExecutionState = () => {
 function showExcelImportResults(results, message, targetWeekId) {
   lastExcelImportResults = results;
   lastExcelImportTargetWeekId = targetWeekId;
+  lastExcelImportResultsUserKey = getCurrentImportUserKey();
   const counts = { success: 0, skipped: 0, failed: 0 };
   results.forEach(result => { counts[result.status] += 1; });
   document.getElementById('excelImportResult').textContent =
@@ -5303,7 +5347,11 @@ window.executeConfirmedExcelImport = async () => {
   }
 
   const attemptToken = ++excelImportAttemptToken;
-  activeExcelImportAttempt = { token: attemptToken, plan };
+  activeExcelImportAttempt = {
+    token: attemptToken,
+    plan,
+    ownerUserKey: plan.createdByUserKey,
+  };
   excelImportInFlight = true;
   setExcelImportControlsDisabled(true);
   document.getElementById('excelImportError').textContent = '';
@@ -5318,6 +5366,7 @@ window.executeConfirmedExcelImport = async () => {
     // Revalidate authorization, modal/request state, selected week, and plan at the write boundary.
     if (!isExcelImportAttemptCurrent(attemptToken, plan)
       || !isPendingExcelImportCurrent(plan) || pendingExcelImportPlan !== plan
+      || plan.createdByUserKey !== getCurrentImportUserKey()
       || getSelectedImportWeek()?.weekLabel !== targetWeekLabel) {
       throw new Error('Import aborted because the target week or preview changed.');
     }
@@ -5343,6 +5392,7 @@ window.executeConfirmedExcelImport = async () => {
       assertReasonableWeekDocument(updatedWeek);
       if (!isExcelImportAttemptCurrent(attemptToken, plan)
         || !isPendingExcelImportCurrent(plan) || currentRole !== 'admin'
+        || plan.createdByUserKey !== getCurrentImportUserKey()
         || pendingExcelImportPlan !== plan || getSelectedImportWeek()?.weekLabel !== targetWeekLabel) {
         throw new Error('Import aborted because authorization, the modal, or target week changed.');
       }
@@ -5391,14 +5441,17 @@ window.executeConfirmedExcelImport = async () => {
   }
 };
 window.downloadExcelImportResults = () => {
-  if (!lastExcelImportResults) return;
+  if (!lastExcelImportResults
+    || lastExcelImportResultsUserKey !== getCurrentImportUserKey()) return;
   const csv = importResultsToCsv(lastExcelImportResults);
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const link = document.createElement('a');
   link.href = url;
   link.download = `team-2-excel-import-results-${lastExcelImportTargetWeekId || 'completed'}.csv`;
+  document.body.append(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 };
 // END EXCEL IMPORT
 
@@ -5419,7 +5472,7 @@ document.addEventListener('keydown', event => {
     closeModal(modal.id);
     return;
   }
-  if (event.key === 'Tab' && modal.id === 'onePageStatusModal') {
+  if (event.key === 'Tab') {
     const focusable = Array.from(modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
     const currentIndex = focusable.indexOf(document.activeElement);
     const targetIndex = getFocusTrapIndex(currentIndex, focusable.length, event.shiftKey);
