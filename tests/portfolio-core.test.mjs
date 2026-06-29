@@ -359,15 +359,43 @@ test('Overview summary filtering preserves generic non-project narrative', () =>
   );
 });
 
-test('Overview summary filtering matches similarly named projects on an exact prefix boundary', () => {
+test('Overview summary filtering supports labeled lines and chooses the longest known project identity', () => {
   const summary = [
-    '- Alpha Module: Module-specific update.',
-    '- Alpha Modularization: Generic narrative, not a known project.',
+    '- Alpha weekly status: System-specific update.',
+    '- Alpha Module weekly status: Module-specific update.',
   ].join('\n');
 
   assert.equal(
     filterOverviewSummaryLines(summary, summaryProjects, getOverviewProjects(summaryProjects, PROJECT_LEVEL.SYSTEM)),
-    '- Alpha Modularization: Generic narrative, not a known project.',
+    '- Alpha weekly status: System-specific update.',
+  );
+  assert.equal(
+    filterOverviewSummaryLines(summary, summaryProjects, getOverviewProjects(summaryProjects, PROJECT_LEVEL.HARDWARE_MODULE)),
+    '- Alpha Module weekly status: Module-specific update.',
+  );
+  const codeSummary = '- MOD-A management ask: Approve the module decision.';
+  assert.equal(
+    filterOverviewSummaryLines(codeSummary, summaryProjects, getOverviewProjects(summaryProjects, PROJECT_LEVEL.SYSTEM)),
+    '',
+  );
+  assert.equal(
+    filterOverviewSummaryLines(codeSummary, summaryProjects, getOverviewProjects(summaryProjects, PROJECT_LEVEL.HARDWARE_MODULE)),
+    codeSummary,
+  );
+});
+
+test('Overview summary filtering removes section headings orphaned by project exclusions', () => {
+  const summary = [
+    '## WEEKLY MOVEMENT',
+    '- Alpha weekly status: System-specific update.',
+    '## MANAGEMENT ASK',
+    '- Alpha Module weekly status: Module-specific update.',
+  ].join('\n');
+
+  assert.equal(filterOverviewSummaryLines(summary, summaryProjects, []), '');
+  assert.equal(
+    filterOverviewSummaryLines(summary, summaryProjects, getOverviewProjects(summaryProjects, PROJECT_LEVEL.SYSTEM)),
+    ['## WEEKLY MOVEMENT', '- Alpha weekly status: System-specific update.'].join('\n'),
   );
 });
 

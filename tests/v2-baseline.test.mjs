@@ -129,6 +129,7 @@ test('routes every project-based Overview render input through its scoped projec
   for (const call of requiredCalls) assert.ok(execSource.includes(call), `expected ${call}`);
   assert.ok(dashboard.includes('getOverviewProjects(week.projects || [], overviewScope)'));
   assert.ok(dashboard.includes('filterOverviewSummaryLines(sanitized, allProjects, scopedProjects)'));
+  assert.ok(dashboard.includes('No summary items apply to the selected Overview scope.'));
 });
 
 test('Overview scope changes persist locally and redraw once without Firestore writes', () => {

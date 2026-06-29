@@ -307,11 +307,19 @@ export function matchOverviewSummaryProjectLine(line, projects = []) {
     if (!normalizedContent.startsWith(identity.key.toLocaleLowerCase())) continue;
     const remainder = content.slice(identity.key.length);
     const delimiter = remainder.match(/^\s*:\s*/);
-    if (!delimiter) continue;
+    if (delimiter) {
+      return {
+        project: identity.project,
+        prefix: identity.key,
+        body: remainder.slice(delimiter[0].length).trim(),
+      };
+    }
+    const labeledBody = remainder.trim();
+    if (!/^[^:\r\n]{1,48}:\s*\S/.test(labeledBody)) continue;
     return {
       project: identity.project,
       prefix: identity.key,
-      body: remainder.slice(delimiter[0].length).trim(),
+      body: labeledBody,
     };
   }
   return null;
@@ -321,14 +329,30 @@ export function filterOverviewSummaryLines(summary, allProjects = [], scopedProj
   const included = new Set((Array.isArray(scopedProjects) ? scopedProjects : [])
     .map(projectMembershipKey)
     .filter(Boolean));
-  return String(summary || '')
+  const lines = String(summary || '')
     .replace(/\r\n?/g, '\n')
     .split('\n')
     .filter(line => {
       const match = matchOverviewSummaryProjectLine(line, allProjects);
       return !match || included.has(projectMembershipKey(match.project));
-    })
-    .join('\n');
+    });
+  const withoutOrphanHeadings = lines.filter((line, index) => {
+    if (!isOverviewSummaryHeading(line)) return true;
+    const sectionEnd = lines.findIndex((candidate, candidateIndex) => (
+      candidateIndex > index && isOverviewSummaryHeading(candidate)
+    ));
+    const end = sectionEnd < 0 ? lines.length : sectionEnd;
+    return lines.slice(index + 1, end).some(candidate => candidate.trim());
+  });
+  while (withoutOrphanHeadings[0]?.trim() === '') withoutOrphanHeadings.shift();
+  while (withoutOrphanHeadings.at(-1)?.trim() === '') withoutOrphanHeadings.pop();
+  return withoutOrphanHeadings.join('\n');
+}
+
+function isOverviewSummaryHeading(line) {
+  const value = String(line || '').trim();
+  if (/^#{1,3}\s+\S/.test(value)) return true;
+  return /^(weekly movement|management ask|executive summary|key updates|portfolio movement|decision needed|management request):?$/i.test(value);
 }
 
 function projectMembershipKey(project = {}) {
