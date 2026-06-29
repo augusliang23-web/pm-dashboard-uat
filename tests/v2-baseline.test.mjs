@@ -83,3 +83,18 @@ test('exposes portfolio scope, filter, and project editor controls', () => {
   assert.ok(toolbarPosition < dashboard.indexOf('id="normalView"'));
   assert.ok(toolbarPosition < dashboard.indexOf('id="execView"'));
 });
+
+test('builds portfolio facets from role-visible projects and uses neutral executive totals', () => {
+  const renderStart = dashboard.indexOf('window.render = () =>');
+  const renderEnd = dashboard.indexOf('function renderNormal(', renderStart);
+  const renderSource = dashboard.slice(renderStart, renderEnd);
+  const visibilityPosition = renderSource.indexOf(
+    "projs = projs.filter(p => !p.visibility || p.visibility === 'active');",
+  );
+  const facetPosition = renderSource.indexOf('refreshPortfolioToolbar(projs);');
+
+  assert.ok(visibilityPosition >= 0);
+  assert.ok(facetPosition > visibilityPosition);
+  assert.ok(dashboard.includes('<div class="exec-panel-note">${total} projects</div>'));
+  assert.ok(!dashboard.includes('<div class="exec-panel-note">${total} active projects</div>'));
+});

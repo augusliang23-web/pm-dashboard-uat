@@ -4089,12 +4089,12 @@ window.render = () => {
   }
 
   let projs = enrichProjectsPrototype(week.projects || []);
-  refreshPortfolioToolbar(projs);
   
   const visFilter = document.getElementById('visSelect') ? document.getElementById('visSelect').value : 'active';
   if (isVipPerspective() || currentRole !== 'admin' || visFilter === 'active') {
      projs = projs.filter(p => !p.visibility || p.visibility === 'active');
   }
+  refreshPortfolioToolbar(projs);
 
   if (currentPMFilter !== 'all' && !isOverview) {
     projs = projs.filter(p => p.owner === currentPMFilter);
@@ -4257,7 +4257,7 @@ function renderExec(projs, summary) {
             <div class="exec-eyebrow">Portfolio health</div>
             <div class="exec-panel-title">Project status at a glance</div>
           </div>
-          <div class="exec-panel-note">${total} active projects</div>
+          <div class="exec-panel-note">${total} projects</div>
         </div>
         <div class="exec-health-body">
           <div class="exec-donut" style="--critical-end:${criticalEnd}%; --risk-end:${riskEnd}%;">
