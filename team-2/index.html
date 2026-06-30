@@ -1953,7 +1953,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script type="module">
 import { RESOURCE_DISCIPLINES, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, validateResourceInput, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { assertReasonableWeekDocument, buildImportResults, formatImportPreviewRow, importResultsToCsv, mergeReadyImportRows, planImport } from "./js/excel-import.mjs";
-import { applyProjectDelete, applyProjectSave, projectRevisionFingerprint } from "./js/project-mutations.mjs";
+import { applyProjectDelete, applyProjectSave, ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -1995,6 +1995,7 @@ let projectMutationInFlight = false;
 let projectMutationInFlightToken = null;
 let projectEditorSession = null;
 let projectEditorSessionSequence = 0;
+let projectEditorRowSequence = 0;
 let newProjectScheduleUntouched = false;
 let ganttScale = 'month';
 let editorResourceStatus = normalizeResourceBudgetStatus({});
@@ -3784,7 +3785,7 @@ function getProjectAttention(p) {
 function getQuarterlyMilestones(p) {
   return (p.quarterlyMilestones || []).map(q => Array.isArray(q)
     ? { quarter:q[0], goal:q[1], window:q[2], status:q[3] }
-    : { quarter:q.quarter, goal:q.goal, window:q.window, status:q.status });
+    : { ...q, quarter:q.quarter, goal:q.goal, window:q.window, status:q.status });
 }
 
 const STRATEGIC_TRACKS = [
@@ -4208,8 +4209,11 @@ function rawRiskItems(p) {
 }
 
 function getRiskActionPairs(p) {
-  const saved = Array.isArray(p?.riskActions) ? p.riskActions : [];
+  const saved = Array.isArray(p?.riskActions)
+    ? p.riskActions
+    : Array.isArray(p?.riskPairs) ? p.riskPairs : [];
   const structured = saved.map((item, index) => ({
+    id: item?.id,
     risk: String(item?.risk || '').trim(),
     action: String(item?.action || '').trim(),
     primary: item?.primary === true || item?.isPrimary === true || index === 0 && saved.every(x => !x?.primary && !x?.isPrimary)
@@ -4451,7 +4455,7 @@ function formatExecProjectMilestones(milestones) {
 }
 
 function normalizeMilestonePlan(m, index = 0) {
-  const planId = m?.planId || `ms-${index + 1}-${String(m?.name || 'milestone').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'item'}`;
+  const planId = m?.planId || m?.id || `ms-${index + 1}-${String(m?.name || 'milestone').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'item'}`;
   const current = {
     name: String(m?.name || ''),
     date: String(m?.date || ''),
@@ -6121,6 +6125,12 @@ document.addEventListener('keydown', event => {
 });
 
 // ── PROJECT COMBINED EDIT ──
+function newEditorRowId(kind) {
+  const unique = globalThis.crypto?.randomUUID?.()
+    || `${Date.now()}-${++projectEditorRowSequence}-${Math.random().toString(36).slice(2)}`;
+  return `${kind}-${unique}`;
+}
+
 function ensurePrimaryRiskActionPair() {
   const rows = Array.from(document.querySelectorAll('.risk-pair-row'));
   if (!rows.length) return;
@@ -6131,6 +6141,7 @@ function ensurePrimaryRiskActionPair() {
 function collectRiskActionPairs() {
   const rows = Array.from(document.querySelectorAll('.risk-pair-row'));
   const pairs = rows.map(row => ({
+    id: row.dataset.riskActionId,
     primary: row.querySelector('.rap-primary')?.checked === true,
     risk: row.querySelector('.rap-risk')?.value.trim() || '',
     action: row.querySelector('.rap-action')?.value.trim() || ''
@@ -6169,12 +6180,16 @@ function collectMilestonesWithHistory(previousProject, editorSession) {
 
 window.ensurePrimaryRiskActionPair = ensurePrimaryRiskActionPair;
 
-window.addRiskActionPairRow = (risk = '', action = '', primary = false) => {
+window.addRiskActionPairRow = (item = {}) => {
   const container = document.getElementById('riskActionPairContainer');
   if (!container) return;
+  const risk = item.risk || '';
+  const action = item.action || '';
+  const primary = item.primary === true;
   const isFirst = !container.querySelector('.risk-pair-row');
   const row = document.createElement('div');
   row.className = 'risk-pair-row';
+  row.dataset.riskActionId = item.id || newEditorRowId('risk-action');
   row.innerHTML = `
     <label class="risk-primary-control"><input type="radio" name="riskActionPrimary" class="rap-primary" ${primary || isFirst ? 'checked' : ''}> Primary</label>
     <textarea class="ft rap-risk" rows="2" placeholder="Risk / Blocker shown in Overview">${escHtml(risk)}</textarea>
@@ -6188,6 +6203,7 @@ window.addRiskActionPairRow = (risk = '', action = '', primary = false) => {
 
 function collectTeamMembers() {
   return Array.from(document.querySelectorAll('.team-row')).map(row => ({
+    id: row.dataset.teamMemberId,
     name: row.querySelector('.team-name')?.value.trim() || '',
     roleName: row.querySelector('.team-role')?.value.trim() || '',
     effortPct: Number(row.querySelector('.team-effort')?.value || 0)
@@ -6196,6 +6212,7 @@ function collectTeamMembers() {
 
 function collectBudgetRows(selector) {
   return Array.from(document.querySelectorAll(selector)).map(row => ({
+    id: row.dataset.budgetRowId,
     month: row.querySelector('.budget-month')?.value || '',
     categoryName: row.querySelector('.budget-category')?.value.trim() || 'Other',
     currency: row.querySelector('.budget-currency')?.value || 'USD',
@@ -6373,6 +6390,7 @@ window.addTeamMemberRow = (member = {}) => {
   if (!container) return;
   const row = document.createElement('div');
   row.className = 'team-row';
+  row.dataset.teamMemberId = member.id || newEditorRowId('team');
   row.innerHTML = `
     <input class="fi team-name" value="${escHtml(member.name || '')}" placeholder="Name">
     <input class="fi team-role" list="teamRoleOptions" value="${escHtml(member.roleName || member.role || '')}" placeholder="Role">
@@ -6389,6 +6407,7 @@ window.addBudgetPlanRow = (item = {}) => {
   if (!container) return;
   const row = document.createElement('div');
   row.className = 'budget-plan-row';
+  row.dataset.budgetRowId = item.id || newEditorRowId('budget-plan');
   row.innerHTML = `
     <input class="fi budget-month" type="month" value="${escHtml(item.month || monthValue(0))}" onchange="updateBudgetLinkSummary()">
     <input class="fi budget-category" list="budgetCategoryOptions" value="${escHtml(item.categoryName || item.category || 'NRE')}" placeholder="Category">
@@ -6408,6 +6427,7 @@ window.addBudgetActualRow = (item = {}) => {
   if (!container) return;
   const row = document.createElement('div');
   row.className = 'budget-actual-row';
+  row.dataset.budgetRowId = item.id || newEditorRowId('budget-actual');
   row.innerHTML = `
     <input class="fi budget-month" type="month" value="${escHtml(item.month || monthValue(0))}">
     <input class="fi budget-category" list="budgetCategoryOptions" value="${escHtml(item.categoryName || item.category || 'Sample fee')}" placeholder="Category">
@@ -6668,6 +6688,7 @@ window.openProjEdit = (code, isNew = false) => {
   const week = allWeeks[currentIdx];
   let p = isNew ? {name:'', code:'', owner:'', deputy:'', customer:'', location:'', visibility:'active', milestones:[], quarterlyMilestones:[], status:'green', progress:0, attention:'watch', highlight:'', weeklyActions:'', risk:'', next:'', riskActions:[], teamMembers:[], budget:{ mode:'manual', currency:'USD', totalEstimated:0, monthlyPlans:[], actuals:[] }, dataStatus: normalizeResourceBudgetStatus({})} : enrichProjectPrototype(week.projects.find(x => x.code === code), week.projects.findIndex(x => x.code === code));
   p = normalizeProject(p);
+  p = withProjectEditorRowIds(p);
   resourceEditorHydrating = true;
   editorResourceStatus = normalizeResourceBudgetStatus(p);
   
@@ -6683,7 +6704,10 @@ window.openProjEdit = (code, isNew = false) => {
   const riskPairCont = document.getElementById('riskActionPairContainer');
   riskPairCont.innerHTML = '';
   const pairs = getRiskActionPairs(p);
-  (pairs.length ? pairs : [{ risk:'', action:'', primary:true }]).forEach(item => addRiskActionPairRow(item.risk, item.action, item.primary));
+  (pairs.length ? pairs : [{ risk:'', action:'', primary:true }]).forEach((item, index) => addRiskActionPairRow({
+    ...item,
+    id: item.id || (pairs.length ? ensureStableEditorRowId(item, 'risk-action', index) : undefined)
+  }));
   
   document.getElementById('pe_name').value = p.name || '';
   document.getElementById('pe_code').value = p.code || '';
@@ -6725,7 +6749,7 @@ window.openProjEdit = (code, isNew = false) => {
   };
   const qmsCont = document.getElementById('qmsListContainer');
   qmsCont.innerHTML = '';
-  getQuarterlyMilestones(p).forEach(m => addQuarterlyMilestoneRow(m.quarter, m.goal, m.window, m.status));
+  getQuarterlyMilestones(p).forEach(item => addQuarterlyMilestoneRow(item));
   document.querySelectorAll('input[name="budgetMode"]').forEach(input => {
     input.checked = input.value === (p.budget?.mode || 'manual');
   });
@@ -6841,6 +6865,7 @@ window.saveProjEdit = async () => {
   }
   const milestones = collectMilestonesWithHistory(previousProject, session);
   const quarterlyMilestones = Array.from(document.querySelectorAll('.qms-row')).map(div => ({
+    id: div.dataset.quarterlyMilestoneId,
     quarter: div.querySelector('.qms-quarter').value,
     goal: div.querySelector('.qms-goal').value,
     window: div.querySelector('.qms-window').value,
@@ -7046,11 +7071,16 @@ window.addMilestoneRow = (name='', status='to-do', dateStr='', planData = null) 
   refreshWorkstreamMilestoneOptions();
 }
 
-window.addQuarterlyMilestoneRow = (quarter='', goal='', windowText='', status='planned') => {
+window.addQuarterlyMilestoneRow = (item = {}) => {
+  const quarter = item.quarter || '';
+  const goal = item.goal || '';
+  const windowText = item.window || '';
+  const status = item.status || 'planned';
   const selectedQuarter = quarter || nextQuarterLabelFromRows();
   const selectedMonth = windowText || quarterMonthOptions(selectedQuarter)[0] || '';
   const div = document.createElement('div');
   div.className = "qms-row";
+  div.dataset.quarterlyMilestoneId = item.id || newEditorRowId('qms');
   div.innerHTML = `
     <select class="fs qms-quarter">${quarterSelectOptions(selectedQuarter).map(q => `<option value="${escHtml(q)}" ${q === selectedQuarter ? 'selected' : ''}>${escHtml(q)}</option>`).join('')}</select>
     <input class="fi qms-goal" value="${escHtml(goal || '')}" placeholder="Quarterly target / business objective">

@@ -5,8 +5,10 @@ import test from 'node:test';
 import {
   applyProjectDelete,
   applyProjectSave,
+  ensureStableEditorRowId,
   mergePreservingUnknown,
   projectRevisionFingerprint,
+  withProjectEditorRowIds,
 } from '../team-2/js/project-mutations.mjs';
 
 const dashboard = await readFile(
@@ -203,8 +205,8 @@ test('recursive merge preserves unknown nested fields while honoring deliberate 
       unknownDataStatus: 'keep',
     },
     teamMembers: [
-      { name: 'Alice', role: 'Engineer', directoryId: 'keep' },
-      { name: 'Removed', role: 'Engineer', directoryId: 'remove-with-row' },
+      { id: 'team-1', name: 'Alice', role: 'Engineer', directoryId: 'keep' },
+      { id: 'team-removed', name: 'Removed', role: 'Engineer', directoryId: 'remove-with-row' },
     ],
     milestones: [
       { planId: 'milestone-1', name: 'Gate', status: 'to-do', unknownMilestone: 'keep' },
@@ -224,7 +226,7 @@ test('recursive merge preserves unknown nested fields while honoring deliberate 
     dataStatus: {
       team: { state: 'confirmed' },
     },
-    teamMembers: [{ name: 'Alice', role: 'Lead' }],
+    teamMembers: [{ id: 'team-1', name: 'Alice', role: 'Lead' }],
     milestones: [{ planId: 'milestone-1', name: 'Gate renamed', status: 'done' }],
   };
 
@@ -281,6 +283,61 @@ test('canonical project fingerprints ignore object key order and reject concurre
     }),
     /changed since.*reopen/i,
   );
+});
+
+test('stable row IDs prevent deleted budget, QMS, and risk metadata from moving by index', () => {
+  const live = {
+    budget: {
+      monthlyPlans: [
+        { id: 'plan-1', amount: 10, externalRef: 'deleted-plan' },
+        { id: 'plan-2', amount: 20, externalRef: 'kept-plan' },
+      ],
+    },
+    quarterlyMilestones: [
+      { id: 'qms-1', goal: 'Delete', externalRef: 'deleted-qms' },
+      { id: 'qms-2', goal: 'Keep', externalRef: 'kept-qms' },
+    ],
+    riskActions: [
+      { id: 'risk-1', risk: 'Delete', externalRef: 'deleted-risk' },
+      { id: 'risk-2', risk: 'Keep', externalRef: 'kept-risk' },
+    ],
+  };
+  const draft = {
+    budget: { monthlyPlans: [{ id: 'plan-2', amount: 25 }] },
+    quarterlyMilestones: [{ id: 'qms-2', goal: 'Keep edited' }],
+    riskActions: [{ id: 'risk-2', risk: 'Keep edited' }],
+  };
+
+  const merged = mergePreservingUnknown(live, draft);
+
+  assert.deepEqual(merged.budget.monthlyPlans.map(row => row.externalRef), ['kept-plan']);
+  assert.deepEqual(merged.quarterlyMilestones.map(row => row.externalRef), ['kept-qms']);
+  assert.deepEqual(merged.riskActions.map(row => row.externalRef), ['kept-risk']);
+});
+
+test('renaming a team member preserves metadata by ID and legacy row IDs are deterministic', () => {
+  const legacy = { name: 'Legacy member', roleName: 'Engineer', directoryRef: 'keep' };
+  const firstId = ensureStableEditorRowId(legacy, 'team', 0);
+  const secondId = ensureStableEditorRowId(legacy, 'team', 0);
+  assert.equal(firstId, secondId);
+  assert.match(firstId, /^team-legacy-/);
+
+  const identified = withProjectEditorRowIds({
+    teamMembers: [legacy],
+    milestones: [{ name: 'Legacy gate', status: 'to-do' }],
+    ganttWorkstreams: [{ name: 'Legacy workstream' }],
+    budget: { monthlyPlans: [{ month: '2026-07', amount: 10 }], actuals: [] },
+  });
+  assert.equal(identified.teamMembers[0].id, firstId);
+  assert.ok(identified.milestones[0].planId);
+  assert.equal(identified.ganttWorkstreams[0].id, 'workstream-1');
+  assert.ok(identified.budget.monthlyPlans[0].id);
+
+  const merged = mergePreservingUnknown(identified, {
+    teamMembers: [{ id: firstId, name: 'Renamed member', roleName: 'Lead' }],
+  });
+  assert.equal(merged.teamMembers[0].name, 'Renamed member');
+  assert.equal(merged.teamMembers[0].directoryRef, 'keep');
 });
 
 test('project save and delete use retryable transactions and commit UI state only after await', () => {
@@ -353,4 +410,36 @@ test('project editor pins week and identity session and stale completions cannot
     );
   }
   assert.doesNotMatch(dashboard, /function applyCommittedWeek|applyCommittedWeek\(/);
+});
+
+test('editable project row renderers and collectors persist stable DOM identities', () => {
+  for (const datasetName of [
+    'riskActionId',
+    'teamMemberId',
+    'budgetRowId',
+    'quarterlyMilestoneId',
+    'planId',
+    'workstreamId',
+  ]) {
+    assert.ok(dashboard.includes(`dataset.${datasetName}`), `missing dataset.${datasetName}`);
+  }
+
+  const riskCollector = dashboard.slice(
+    dashboard.indexOf('function collectRiskActionPairs()'),
+    dashboard.indexOf('function collectMilestonesWithHistory'),
+  );
+  const teamCollector = dashboard.slice(
+    dashboard.indexOf('function collectTeamMembers()'),
+    dashboard.indexOf('function getSelectedBudgetMode()'),
+  );
+  const saveSource = dashboard.slice(
+    dashboard.indexOf('window.saveProjEdit = async () =>'),
+    dashboard.indexOf('window.deleteProject = async () =>'),
+  );
+  assert.ok(riskCollector.includes('id: row.dataset.riskActionId'));
+  assert.ok(teamCollector.includes('id: row.dataset.teamMemberId'));
+  assert.ok(teamCollector.includes('id: row.dataset.budgetRowId'));
+  assert.ok(saveSource.includes('id: div.dataset.quarterlyMilestoneId'));
+  assert.ok(dashboard.includes('p = withProjectEditorRowIds(p);'));
+  assert.ok(dashboard.includes('newEditorRowId('));
 });
