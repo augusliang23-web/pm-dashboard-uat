@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
+import { planImport } from '../team-2/js/excel-import.mjs';
 
 const require = createRequire(import.meta.url);
 const XLSX = require('../team-2/vendor/xlsx.full.min.js');
@@ -216,6 +217,26 @@ test('preserves formatted numeric project identities and visible Excel errors', 
   assert.equal(rows[0]['Project ID/Code'], '00123');
   assert.equal(rows[0]['Estimated Hard Hours'], '#DIV/0!');
   assert.ok(rows[0].__importWarnings__.some(warning => (
+    /Estimated Hard Hours/.test(warning) && /#DIV\/0!/.test(warning)
+  )));
+});
+
+test('a real workbook formula error in a mapped numeric field fails import validation', () => {
+  const bytes = workbookBytes([
+    ['Project ID/Code', 'Project Name', 'Estimated Hard Hours'],
+    ['FORMULA-1', 'Broken estimate', 1],
+  ], sheet => {
+    sheet.C2 = { t: 'e', v: 7, f: '1/0' };
+  });
+
+  const rows = parseWorkbookData(bytes, XLSX);
+  const plan = planImport(rows);
+
+  assert.equal(rows[0]['Estimated Hard Hours'], '#DIV/0!');
+  assert.equal(plan.counts.ready, 0);
+  assert.equal(plan.counts.failed, 1);
+  assert.match(plan.failed[0].reason, /Estimated Hard Hours.*#DIV\/0!/);
+  assert.ok(plan.failed[0].warnings.some(warning => (
     /Estimated Hard Hours/.test(warning) && /#DIV\/0!/.test(warning)
   )));
 });

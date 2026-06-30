@@ -260,6 +260,8 @@ export function filterProjects(source = [], filters = {}) {
   const rag = normalizedFilter(filters.rag);
   const lifecycle = normalizedFilter(filters.lifecycle);
   const productFamily = normalizedFilter(filters.productFamily);
+  const projectType = normalizedFilter(filters.projectType);
+  const classification = normalizedFilter(filters.classification);
   const search = normalizedFilter(filters.search);
 
   return projects.filter(project => {
@@ -271,6 +273,8 @@ export function filterProjects(source = [], filters = {}) {
       && (isAll(rag) || normalizedFilter(project.status) === rag)
       && (isAll(lifecycle) || normalizedFilter(project.lifecycle) === lifecycle)
       && (isAll(productFamily) || normalizedFilter(project.productFamily) === productFamily)
+      && (isAll(projectType) || normalizedFilter(project.projectType) === projectType)
+      && (isAll(classification) || normalizedFilter(project.classification) === classification)
       && (!search || normalizedFilter(`${project.code ?? ''} ${project.name ?? ''}`).includes(search))
     );
   });

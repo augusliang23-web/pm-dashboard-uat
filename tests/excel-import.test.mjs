@@ -92,7 +92,7 @@ test('merges parser warnings and errors into row validation', () => {
   assert.match(plan.failed[0].reason, /explicit text format/i);
 });
 
-test('keeps valid PMO completed hours pending confirmation and never sets actual', () => {
+test('keeps valid PMO completed hours pending confirmation and blocks invalid values', () => {
   const result = normalizeImportRow({
     'Project ID/Code': 'PMO-1',
     'Project Name': 'PMO pending',
@@ -116,7 +116,10 @@ test('keeps valid PMO completed hours pending confirmation and never sets actual
     }, 3);
     assert.equal(invalid.pmoCompletedHoursPending, null);
     assert.equal(invalid.project.resources.pmo.actual, null);
-    assert.ok(invalid.warnings.some(message => /PMO Hours Completed is invalid/.test(message)));
+    assert.ok(invalid.errors.some(message => (
+      /PMO Hours Completed is invalid/.test(message)
+      && message.includes(String(completed))
+    )));
   }
 });
 
@@ -189,7 +192,7 @@ test('formats a complete safe preview with blocking reason and every warning', (
   assert.doesNotMatch(renderSource, /\.innerHTML\s*=/);
 });
 
-test('uses hardware-module with warnings for blank or unknown level and invalid estimates', () => {
+test('uses hardware-module for blank or unknown level and blocks invalid estimates', () => {
   const blank = normalizeImportRow({
     'Project ID/Code': 'HW-1',
     'Project Name': 'Board',
@@ -201,9 +204,22 @@ test('uses hardware-module with warnings for blank or unknown level and invalid 
 
   assert.equal(blank.project.projectLevel, 'hardware-module');
   assert.deepEqual(blank.project.resources.hardware, { estimated: 0, actual: null, remaining: null, updatedAt: '' });
-  assert.equal(blank.warnings.length, 4);
   assert.ok(blank.warnings.some(message => /Project Level/.test(message)));
-  assert.ok(blank.warnings.some(message => /Estimated Hard Hours/.test(message)));
+  assert.equal(blank.errors.length, 3);
+  assert.ok(blank.errors.some(message => (
+    /Estimated Hard Hours/.test(message) && /#DIV\/0!/.test(message)
+  )));
+  assert.ok(blank.errors.some(message => (
+    /Estimated Firm Hours/.test(message) && /-2/.test(message)
+  )));
+  assert.ok(blank.errors.some(message => (
+    /Estimated Sys Hours/.test(message) && /nonsense/.test(message)
+  )));
+  assert.equal(planImport([{
+    'Project ID/Code': 'HW-1',
+    'Project Name': 'Board',
+    'Estimated Hard Hours': '#DIV/0!',
+  }]).counts.failed, 1);
 
   const unknown = normalizeImportRow({
     'Project ID/Code': 'HW-2',
@@ -214,7 +230,7 @@ test('uses hardware-module with warnings for blank or unknown level and invalid 
   assert.ok(unknown.warnings.some(message => /subassembly/.test(message)));
 });
 
-test('supports long-form lead aliases and warns while normalizing invalid volume', () => {
+test('supports long-form lead aliases and blocks invalid PII volume', () => {
   const result = normalizeImportRow({
     'Project ID/Code': 'ALIAS-1',
     'Project Name': 'Aliases',
@@ -230,7 +246,14 @@ test('supports long-form lead aliases and warns while normalizing invalid volume
   assert.equal(result.project.leads.hardware, 'Hard');
   assert.equal(result.project.leads.firmware, 'Firm');
   assert.equal(result.project.piiMysVolume, 0);
-  assert.ok(result.warnings.some(message => /PII MYS Volume/.test(message)));
+  assert.ok(result.errors.some(message => (
+    /PII MYS Volume/.test(message) && /#DIV\/0!/.test(message)
+  )));
+  assert.equal(planImport([{
+    'Project ID/Code': 'ALIAS-1',
+    'Project Name': 'Aliases',
+    'PII MYS Volume': -1,
+  }]).counts.failed, 1);
 });
 
 test('treats blank and N/A values as missing without numeric warnings', () => {
@@ -239,10 +262,17 @@ test('treats blank and N/A values as missing without numeric warnings', () => {
     'Project Name': 'Board',
     Type: ' N/A ',
     'Estimated PMO Hours': ' ',
+    'Estimated Hard Hours': 'N/A',
+    'PII MYS Volume': 'na',
+    'PMO Hours Completed': 'N/A',
   }, 3);
 
   assert.equal(result.project.projectType, '');
   assert.equal(result.project.resources.pmo.estimated, 0);
+  assert.equal(result.project.resources.hardware.estimated, 0);
+  assert.equal(result.project.piiMysVolume, 0);
+  assert.equal(result.pmoCompletedHoursPending, null);
+  assert.deepEqual(result.errors, []);
   assert.equal(result.warnings.filter(message => /Estimated PMO Hours/.test(message)).length, 0);
 });
 
@@ -312,10 +342,82 @@ test('confirmed merge skips live conflicts while preserving existing live object
   assert.deepEqual(merged.projects[0], before);
   assert.deepEqual(merged.results.map(result => result.status), ['pending', 'skipped']);
   assert.match(merged.results[1].reason, /live target week/i);
+  assert.match(merged.results[0].warnings, /Project Level is blank/);
+  assert.match(merged.results[1].warnings, /Project Level is blank/);
   assert.equal(merged.projects[1].importSource, 'excel-one-time');
   assert.equal(merged.projects[1].importedAt, timestamp);
   assert.equal(merged.projects[1].createdAt, timestamp);
   assert.equal(merged.projects[1].updatedAt, timestamp);
+});
+
+test('imported projects receive stable level-specific default Gantt schedules', () => {
+  const timestamp = '2026-06-29T12:00:00.000Z';
+  const rows = [
+    normalizeImportRow({
+      'Project ID/Code': 'SYS-SCHEDULE',
+      'Project Name': 'System schedule',
+      'Project Level': 'system',
+    }),
+    normalizeImportRow({
+      'Project ID/Code': 'MOD-SCHEDULE',
+      'Project Name': 'Module schedule',
+      'Project Level': 'hardware-module',
+    }),
+  ];
+
+  const first = mergeReadyImportRows([], rows, { timestamp }).projects;
+  const second = mergeReadyImportRows([], rows, { timestamp }).projects;
+
+  assert.deepEqual(
+    first[0].ganttWorkstreams.map(workstream => workstream.name),
+    ['Design', 'Integration', 'Validation', 'Certification', 'Launch'],
+  );
+  assert.deepEqual(
+    first[1].ganttWorkstreams.map(workstream => workstream.name),
+    ['Documentation', 'BOM Verification', 'Procurement', 'Assembly/Test', 'Certification'],
+  );
+  for (const project of first) {
+    const ids = project.ganttWorkstreams.map(workstream => workstream.id);
+    assert.equal(new Set(ids).size, ids.length);
+    assert.deepEqual(ids, ['workstream-1', 'workstream-2', 'workstream-3', 'workstream-4', 'workstream-5']);
+  }
+  assert.deepEqual(
+    second.map(project => project.ganttWorkstreams.map(workstream => workstream.id)),
+    first.map(project => project.ganttWorkstreams.map(workstream => workstream.id)),
+  );
+});
+
+test('imported projects preserve explicit Gantt schedule data', () => {
+  const row = normalizeImportRow({
+    'Project ID/Code': 'EXPLICIT-SCHEDULE',
+    'Project Name': 'Explicit schedule',
+    'Project Level': 'system',
+  });
+  row.project.ganttWorkstreams = [{
+    id: 'imported-workstream',
+    name: 'Imported phase',
+    status: 'on-track',
+    progress: 25,
+    sortOrder: 3,
+  }];
+
+  const project = mergeReadyImportRows([], [row], {
+    timestamp: '2026-06-29T12:00:00.000Z',
+  }).projects[0];
+
+  assert.deepEqual(project.ganttWorkstreams.map(workstream => ({
+    id: workstream.id,
+    name: workstream.name,
+    status: workstream.status,
+    progress: workstream.progress,
+    sortOrder: workstream.sortOrder,
+  })), [{
+    id: 'imported-workstream',
+    name: 'Imported phase',
+    status: 'on-track',
+    progress: 25,
+    sortOrder: 3,
+  }]);
 });
 
 test('PMO completed hours persist only after explicit semantics confirmation', () => {
@@ -371,6 +473,22 @@ test('result construction marks attempted rows failed after a write failure', ()
   assert.match(results.find(result => result.projectId === 'OK-1').reason, /Firestore write failed/);
 });
 
+test('failed import results preserve blocking reasons and parser warnings', () => {
+  const plan = planImport([{
+    __importWarnings__: ['Estimated Hard Hours contains Excel error #DIV/0!.'],
+    'Project ID/Code': 'BAD-1',
+    'Project Name': 'Bad estimate',
+    'Estimated Hard Hours': '#DIV/0!',
+  }]);
+
+  const [result] = buildImportResults(plan);
+
+  assert.equal(result.status, 'failed');
+  assert.match(result.reason, /Estimated Hard Hours.*#DIV\/0!/);
+  assert.match(result.warnings, /Estimated Hard Hours contains Excel error #DIV\/0!\./);
+  assert.match(result.warnings, /Project Level is blank/);
+});
+
 test('result construction promotes pending rows to success only after transaction resolution', () => {
   const plan = planImport([
     { 'Project ID/Code': 'OK-2', 'Project Name': 'Ready' },
@@ -386,14 +504,21 @@ test('result construction promotes pending rows to success only after transactio
 
 test('results CSV escapes fields and prevents spreadsheet formula injection', () => {
   const csv = importResultsToCsv([
-    { rowNumber: 2, projectId: '=HYPERLINK("bad")', status: 'failed', reason: 'Comma, quote " and\nline' },
+    {
+      rowNumber: 2,
+      projectId: '=HYPERLINK("bad")',
+      status: 'failed',
+      reason: 'Comma, quote " and\nline',
+      warnings: 'Raw #DIV/0! warning',
+    },
     { rowNumber: 3, projectId: 'SAFE-1', status: 'success', reason: '' },
   ]);
 
-  assert.ok(csv.startsWith('rowNumber,projectId,status,reason\r\n'));
+  assert.ok(csv.startsWith('rowNumber,projectId,status,reason,warnings\r\n'));
   assert.ok(csv.includes('"\'=HYPERLINK(""bad"")"'));
   assert.ok(csv.includes('"Comma, quote "" and\nline"'));
-  assert.ok(csv.endsWith('3,SAFE-1,success,\r\n'));
+  assert.ok(csv.includes('Raw #DIV/0! warning'));
+  assert.ok(csv.endsWith('3,SAFE-1,success,,\r\n'));
 });
 
 test('dashboard import is admin-only and uses a target-week transaction only after two confirmations', () => {

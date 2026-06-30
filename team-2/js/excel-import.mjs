@@ -1,4 +1,4 @@
-import { normalizeProject } from './portfolio-core.mjs';
+import { createDefaultWorkstreams, normalizeProject } from './portfolio-core.mjs';
 
 const MISSING_VALUES = new Set(['', 'n/a', 'na']);
 const UNSAFE_IDS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -53,12 +53,16 @@ function textValue(value) {
   return MISSING_VALUES.has(text.toLowerCase()) ? '' : text;
 }
 
-function estimate(value, label, warnings) {
+function invalidNumericMessage(label, text) {
+  return `${label} is invalid ("${text}"); enter zero or a positive number.`;
+}
+
+function estimate(value, label, errors) {
   const text = textValue(value);
   if (!text) return 0;
   const numeric = typeof value === 'number' ? value : Number(text);
   if (!Number.isFinite(numeric) || numeric < 0) {
-    warnings.push(`${label} is invalid; using 0.`);
+    errors.push(invalidNumericMessage(label, text));
     return 0;
   }
   return numeric;
@@ -68,12 +72,12 @@ function resource(estimated) {
   return { estimated, actual: null, remaining: null, updatedAt: '' };
 }
 
-function pendingCompletedHours(value, warnings) {
+function pendingCompletedHours(value, warnings, errors) {
   const text = textValue(value);
   if (!text) return null;
   const numeric = typeof value === 'number' ? value : Number(text);
   if (!Number.isFinite(numeric) || numeric < 0) {
-    warnings.push('PMO Hours Completed is invalid; it will not be imported.');
+    errors.push(invalidNumericMessage('PMO Hours Completed', text));
     return null;
   }
   warnings.push('PMO Hours Completed is pending; explicit confirmation is required before setting actual hours.');
@@ -106,7 +110,11 @@ export function normalizeImportRow(source, rowNumber = 2) {
   }
 
   const pm = textValue(read('pm'));
-  const pmoCompletedHoursPending = pendingCompletedHours(read('pmoCompletedHours'), warnings);
+  const pmoCompletedHoursPending = pendingCompletedHours(
+    read('pmoCompletedHours'),
+    warnings,
+    errors,
+  );
   const project = {
     code,
     name,
@@ -117,7 +125,7 @@ export function normalizeImportRow(source, rowNumber = 2) {
     productFamily: textValue(read('productFamily')),
     pm,
     owner: pm,
-    piiMysVolume: estimate(read('volume'), 'PII MYS Volume', warnings),
+    piiMysVolume: estimate(read('volume'), 'PII MYS Volume', errors),
     leads: {
       hardware: textValue(read('hardwareLead')),
       firmware: textValue(read('firmwareLead')),
@@ -125,11 +133,11 @@ export function normalizeImportRow(source, rowNumber = 2) {
       mechanical: textValue(read('mechanicalLead')),
     },
     resources: {
-      hardware: resource(estimate(read('hardwareHours'), 'Estimated Hard Hours', warnings)),
-      firmware: resource(estimate(read('firmwareHours'), 'Estimated Firm Hours', warnings)),
-      systemElectrical: resource(estimate(read('systemHours'), 'Estimated Sys Hours', warnings)),
-      mechanical: resource(estimate(read('mechanicalHours'), 'Estimated Mech Hours', warnings)),
-      pmo: resource(estimate(read('pmoHours'), 'Estimated PMO Hours', warnings)),
+      hardware: resource(estimate(read('hardwareHours'), 'Estimated Hard Hours', errors)),
+      firmware: resource(estimate(read('firmwareHours'), 'Estimated Firm Hours', errors)),
+      systemElectrical: resource(estimate(read('systemHours'), 'Estimated Sys Hours', errors)),
+      mechanical: resource(estimate(read('mechanicalHours'), 'Estimated Mech Hours', errors)),
+      pmo: resource(estimate(read('pmoHours'), 'Estimated PMO Hours', errors)),
     },
   };
 
@@ -207,8 +215,16 @@ function projectId(value) {
   return textValue(value?.project?.code ?? value?.projectId ?? value?.code);
 }
 
+function warningText(row) {
+  return Array.isArray(row?.warnings) ? row.warnings.join(' | ') : '';
+}
+
 function prepareImportedProject(row, timestamp, confirmPmoCompleted) {
+  const hasImportedSchedule = Array.isArray(row?.project?.ganttWorkstreams);
   const project = normalizeProject(row.project);
+  if (!hasImportedSchedule) {
+    project.ganttWorkstreams = createDefaultWorkstreams(project.projectLevel);
+  }
   const pmoCompleted = row.pmoCompletedHoursPending;
   if (confirmPmoCompleted && Number.isFinite(pmoCompleted)) {
     const estimated = project.resources.pmo?.estimated ?? 0;
@@ -273,6 +289,7 @@ export function mergeReadyImportRows(currentProjects = [], readyRows = [], optio
         projectId: id,
         status: 'skipped',
         reason: 'Project ID conflicts with the live target week; the existing project was preserved.',
+        warnings: warningText(row),
       });
       continue;
     }
@@ -283,6 +300,7 @@ export function mergeReadyImportRows(currentProjects = [], readyRows = [], optio
       projectId: id,
       status: 'pending',
       reason: 'Pending transaction.',
+      warnings: warningText(row),
     });
   }
 
@@ -296,6 +314,7 @@ function plannedResult(row, status) {
     projectId: projectId(row),
     status,
     reason: row?.reason || (status === 'failed' ? 'Validation failed.' : 'Skipped.'),
+    warnings: warningText(row),
   };
 }
 
@@ -307,6 +326,7 @@ export function buildImportResults(plan, attemptedResults = [], writeFailure = '
       projectId: projectId(row),
       status: 'pending',
       reason: 'Pending transaction.',
+      warnings: warningText(row),
     })) : []);
   const results = [
     ...(plan?.skipped ?? []).map(row => plannedResult(row, 'skipped')),
@@ -331,12 +351,13 @@ function safeCsvValue(value) {
 }
 
 export function importResultsToCsv(results = []) {
-  const header = ['rowNumber', 'projectId', 'status', 'reason'];
+  const header = ['rowNumber', 'projectId', 'status', 'reason', 'warnings'];
   const rows = (Array.isArray(results) ? results : []).map(result => [
     result.rowNumber,
     result.projectId,
     result.status,
     result.reason,
+    result.warnings,
   ]);
   return [header, ...rows]
     .map(row => row.map(safeCsvValue).join(','))

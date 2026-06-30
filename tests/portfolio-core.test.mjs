@@ -234,6 +234,8 @@ test('filterProjects combines portfolio filters and case-insensitive search', ()
       status: 'yellow',
       lifecycle: PROJECT_LIFECYCLE.ACTIVE,
       productFamily: 'Power',
+      projectType: 'Platform',
+      classification: 'Internal',
     },
     {
       code: 'HW-BETA',
@@ -243,6 +245,8 @@ test('filterProjects combines portfolio filters and case-insensitive search', ()
       status: 'yellow',
       lifecycle: PROJECT_LIFECYCLE.ACTIVE,
       productFamily: 'Power',
+      projectType: 'Module',
+      classification: 'Internal',
     },
     {
       code: 'SYS-GAMMA',
@@ -252,6 +256,8 @@ test('filterProjects combines portfolio filters and case-insensitive search', ()
       status: 'green',
       lifecycle: PROJECT_LIFECYCLE.COMPLETED,
       productFamily: 'Compute',
+      projectType: 'Platform',
+      classification: 'Customer',
     },
   ];
 
@@ -262,9 +268,44 @@ test('filterProjects combines portfolio filters and case-insensitive search', ()
       rag: 'YELLOW',
       lifecycle: PROJECT_LIFECYCLE.ACTIVE,
       productFamily: 'power',
+      projectType: 'PLATFORM',
+      classification: 'internal',
       search: 'ORION',
     }).map(project => project.code),
     ['SYS-ALPHA'],
+  );
+});
+
+test('filterProjects combines project type and classification with every portfolio filter', () => {
+  const projects = [
+    {
+      code: 'MATCH',
+      projectType: ' Platform ',
+      classification: ' Internal ',
+      productFamily: 'Power',
+    },
+    {
+      code: 'WRONG-TYPE',
+      projectType: 'Module',
+      classification: 'Internal',
+      productFamily: 'Power',
+    },
+    {
+      code: 'WRONG-CLASS',
+      projectType: 'Platform',
+      classification: 'Customer',
+      productFamily: 'Power',
+    },
+  ];
+
+  assert.deepEqual(
+    filterProjects(projects, {
+      scope: 'all',
+      projectType: 'platform',
+      classification: 'INTERNAL',
+      productFamily: 'power',
+    }).map(project => project.code),
+    ['MATCH'],
   );
 });
 

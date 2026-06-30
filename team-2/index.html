@@ -1518,6 +1518,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <select class="fs" id="filterRag" aria-label="RAG filter"><option value="all">All RAG</option><option value="green">On Track</option><option value="yellow">At Risk</option><option value="red">Critical</option></select>
       <select class="fs" id="filterLifecycle" aria-label="Lifecycle filter"><option value="all">All Lifecycles</option><option value="active">Active</option><option value="on-hold">On Hold</option><option value="completed">Completed</option></select>
       <select class="fs" id="filterProductFamily" aria-label="Product family filter"><option value="all">All Product Families</option></select>
+      <select class="fs" id="filterProjectType" aria-label="Project type filter"><option value="all">All Project Types</option></select>
+      <select class="fs" id="filterClassification" aria-label="Classification filter"><option value="all">All Classifications</option></select>
     </div>
   </div>
   <div id="normalView">
@@ -2022,7 +2024,9 @@ function getPortfolioFilters() {
     pm: document.getElementById('filterPm')?.value || 'all',
     rag: document.getElementById('filterRag')?.value || 'all',
     lifecycle: document.getElementById('filterLifecycle')?.value || 'all',
-    productFamily: document.getElementById('filterProductFamily')?.value || 'all'
+    productFamily: document.getElementById('filterProductFamily')?.value || 'all',
+    projectType: document.getElementById('filterProjectType')?.value || 'all',
+    classification: document.getElementById('filterClassification')?.value || 'all'
   };
 }
 
@@ -2091,6 +2095,8 @@ function replaceProjectEditorOptions(selectId, values, selectedValue) {
 function refreshPortfolioToolbar(projects) {
   replacePortfolioOptions('filterPm', projects.map(project => project.pm ?? project.projectManager ?? project.owner), 'All PMs');
   replacePortfolioOptions('filterProductFamily', projects.map(project => normalizeProject(project).productFamily), 'All Product Families');
+  replacePortfolioOptions('filterProjectType', projects.map(project => normalizeProject(project).projectType), 'All Project Types');
+  replacePortfolioOptions('filterClassification', projects.map(project => normalizeProject(project).classification), 'All Classifications');
   document.querySelectorAll('#portfolioScope [data-scope]').forEach(button => {
     button.classList.toggle('active', button.dataset.scope === portfolioScope);
     button.setAttribute('aria-pressed', button.dataset.scope === portfolioScope ? 'true' : 'false');
@@ -2104,7 +2110,7 @@ document.querySelectorAll('#portfolioScope [data-scope]').forEach(button => {
     window.render();
   });
 });
-['projectSearch', 'filterPm', 'filterRag', 'filterLifecycle', 'filterProductFamily'].forEach(id => {
+['projectSearch', 'filterPm', 'filterRag', 'filterLifecycle', 'filterProductFamily', 'filterProjectType', 'filterClassification'].forEach(id => {
   const control = document.getElementById(id);
   control?.addEventListener(id === 'projectSearch' ? 'input' : 'change', () => window.render());
 });
