@@ -747,9 +747,15 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 /* Resource & Budget Prototype */
 .proto-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
 .proto-editor-section { margin-top:20px; padding:16px; border:1px solid var(--border); border-radius:10px; background:var(--s2); }
-.schedule-editor-list { display:grid; gap:8px; margin-top:10px; padding-bottom:18px; overflow-x:auto; }
+.schedule-editor-scroll { margin-top:10px; padding-bottom:18px; overflow-x:auto; }
+.schedule-editor-list { display:grid; gap:8px; }
 .schedule-edit-row { display:grid; grid-template-columns:30px minmax(130px,1.4fr) 125px 125px 120px 80px minmax(130px,1fr) 30px 30px 34px; gap:7px; align-items:start; min-width:920px; padding:8px; border:1px solid var(--border); border-radius:8px; background:#fff; }
 .schedule-edit-row .drag-handle { cursor:grab; color:var(--muted); min-height:32px; border:1px solid var(--border); border-radius:5px; background:#fff; }
+.editor-row-head { display:grid; gap:7px; margin:0 8px 5px; color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+.schedule-row-head { grid-template-columns:30px minmax(130px,1.4fr) 125px 125px 120px 80px minmax(130px,1fr) 30px 30px 34px; min-width:920px; }
+.schedule-row-head .row-actions-label { grid-column:8 / 11; text-align:center; }
+.team-row-head { grid-template-columns:1.2fr 1fr .55fr 32px; margin:4px 0 6px; }
+.inline-field-guide { margin:5px 0 8px; color:var(--muted); font-size:10px; line-height:1.45; }
 .schedule-edit-row.has-error { border-color:var(--red); background:#fff8f8; }
 .schedule-field-error { border-color:var(--red) !important; outline:1px solid var(--red); }
 .schedule-error-summary { display:none; color:var(--red); font-size:11px; margin-top:8px; }
@@ -879,6 +885,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 }
 @media(max-width: 760px) {
   .team-row, .budget-plan-row, .budget-actual-row { grid-template-columns:1fr; }
+  .team-row-head { display:none; }
   .budget-table-head { display:none; }
   .budget-tabs { align-items:stretch; flex-direction:column; }
   .resource-row, .budget-row { grid-template-columns:1fr; }
@@ -1652,10 +1659,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div class="resource-validation error" id="projectMutationError" role="alert" aria-live="assertive"></div>
   <div style="display:flex; gap:16px;">
     <div class="fg"><label class="fl">RAG Status</label><select class="fs" id="pe_status"><option value="green">🟢 On Track</option><option value="yellow">🟡 At Risk</option><option value="red">🔴 Critical</option></select></div>
-    <div class="fg"><label class="fl">Progress %</label><input class="fi" type="number" id="pe_progress" min="0" max="100"></div>
-    <div class="fg"><label class="fl">Attention Matrix</label><select class="fs" id="pe_attention"></select></div>
+    <div class="fg"><label class="fl">Overall Progress %</label><input class="fi" type="number" id="pe_progress" min="0" max="100" placeholder="0–100" title="Overall project completion from 0% to 100%"></div>
+    <div class="fg"><label class="fl">Attention Matrix</label><select class="fs" id="pe_attention" title="Executive priority used in Overview"></select></div>
   </div>
-  <div class="fg"><label class="fl">Highlight (Press Enter for new bullet point)</label><textarea class="ft" id="pe_highlight" rows="3"></textarea></div>
+  <div class="fg"><label class="fl">Highlight (Press Enter for new bullet point)</label><textarea class="ft" id="pe_highlight" rows="3" placeholder="Key accomplishments, decisions, or changes this week."></textarea></div>
   <div class="fg"><label class="fl">Weekly Key Actions (execution focus for next week)</label><textarea class="ft" id="pe_weekly_actions" rows="3" placeholder="Actions the team needs to execute next week. Press Enter for new bullet point."></textarea></div>
   <div class="fg">
     <label class="fl">Risk Action Pairs (maps directly to Overview Risk Action Table)</label>
@@ -1676,43 +1683,50 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     </summary>
     <div class="settings-content">
       <div style="display:flex; gap:16px; margin-bottom:10px;">
-        <div class="fg" style="flex:2"><label class="fl">Project Name</label><input class="fi" id="pe_name"></div>
-        <div class="fg"><label class="fl">Code</label><input class="fi" id="pe_code"></div>
+        <div class="fg" style="flex:2"><label class="fl">Project Name</label><input class="fi" id="pe_name" placeholder="e.g. 60kW Dual Gun"></div>
+        <div class="fg"><label class="fl">Code</label><input class="fi" id="pe_code" placeholder="e.g. SYS-001"></div>
       </div>
       <div style="display:flex; gap:16px;">
         <div class="fg"><label class="fl">Owner</label><select class="fs" id="pe_owner"></select></div>
         <div class="fg"><label class="fl">Deputy</label><select class="fs" id="pe_deputy"></select></div>
       </div>
       <div style="display:flex; gap:16px; margin-top:10px;">
-        <div class="fg"><label class="fl">Customer</label><input class="fi" id="pe_customer"></div>
-        <div class="fg"><label class="fl">Location</label><input class="fi" id="pe_location"></div>
+        <div class="fg"><label class="fl">Customer</label><input class="fi" id="pe_customer" placeholder="e.g. Internal or customer name"></div>
+        <div class="fg"><label class="fl">Location</label><input class="fi" id="pe_location" placeholder="e.g. Taiwan or Texas, US"></div>
       </div>
       <div style="display:flex; gap:16px; margin-top:10px;">
         <div class="fg"><label class="fl">Project Level</label><select class="fs" id="pe_project_level"><option value="system">System</option><option value="hardware-module">Hardware Module</option></select></div>
         <div class="fg"><label class="fl">Lifecycle</label><select class="fs" id="pe_lifecycle"><option value="active">Active</option><option value="on-hold">On Hold</option><option value="completed">Completed</option></select></div>
       </div>
       <div style="display:flex; gap:16px; margin-top:10px;">
-        <div class="fg"><label class="fl">Project Type</label><input class="fi" id="pe_project_type"></div>
-        <div class="fg"><label class="fl">Classification</label><input class="fi" id="pe_classification"></div>
-        <div class="fg"><label class="fl">Product Family</label><input class="fi" id="pe_product_family"></div>
+        <div class="fg"><label class="fl">Project Type</label><input class="fi" id="pe_project_type" placeholder="e.g. Market Launch or Internal Use"></div>
+        <div class="fg"><label class="fl">Classification</label><input class="fi" id="pe_classification" placeholder="e.g. Major - Full NPD"></div>
+        <div class="fg"><label class="fl">Product Family</label><input class="fi" id="pe_product_family" placeholder="e.g. Rectifier or EV Charger"></div>
       </div>
       <div style="margin-top:20px;">
         <label class="fl">Milestones</label>
+        <div class="inline-field-guide">Enter the milestone name, target date, and current status.</div>
         <div id="msListContainer" style="margin-top:10px;"></div>
         <button class="btn btn-ghost" onclick="addMilestoneRow()" style="width:100%; margin-top:10px;">+ Add Milestone</button>
       </div>
       <div style="margin-top:20px;">
         <label class="fl">Quarterly Milestones</label>
+        <div class="inline-field-guide">Select the quarter, business target, target month, and current status.</div>
         <div id="qmsListContainer" style="margin-top:10px;"></div>
         <button class="btn btn-ghost" onclick="addQuarterlyMilestoneRow()" style="width:100%; margin-top:10px;">+ Add Quarterly Milestone</button>
       </div>
 
       <section class="proto-editor-section">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-          <div><label class="fl">Schedule</label><div class="proto-section-note">Plan project workstreams and optionally link them to milestones.</div></div>
+          <div><label class="fl">Schedule</label><div class="proto-section-note">Plan project workstreams and optionally link them to milestones. Progress % is completion from 0% to 100%.</div></div>
           <button type="button" class="btn btn-ghost" onclick="addWorkstreamRow()">+ Add</button>
         </div>
-        <div id="workstreamListContainer" class="schedule-editor-list" aria-label="Workstreams; drop below the final row to move an item to the end"></div>
+        <div class="schedule-editor-scroll">
+          <div class="editor-row-head schedule-row-head" aria-hidden="true">
+            <span></span><span>Workstream</span><span>Start date</span><span>End date</span><span>Status</span><span>Progress %</span><span>Linked milestone</span><span class="row-actions-label">Actions</span>
+          </div>
+          <div id="workstreamListContainer" class="schedule-editor-list" aria-label="Workstreams; drop below the final row to move an item to the end"></div>
+        </div>
         <div id="workstreamAnnouncements" class="sr-only" aria-live="polite"></div>
         <div id="workstreamErrors" class="schedule-error-summary" role="alert"></div>
       </section>
@@ -1737,9 +1751,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
           </summary>
           <div class="resource-panel-body">
             <div class="proto-section-head">
-              <div class="proto-section-note">Role can be selected from saved roles or typed as a new role.</div>
+              <div class="proto-section-note">Role can be selected from saved roles or typed as a new role. Allocation % is the person's planned capacity assigned to this project, from 0% to 100%.</div>
               <button class="btn btn-ghost" onclick="addTeamMemberRow()">+ Add Member</button>
             </div>
+            <div class="editor-row-head team-row-head" aria-hidden="true"><span>Name</span><span>Role</span><span>Allocation %</span><span>Actions</span></div>
             <div id="teamMemberContainer"></div>
             <label class="resource-check"><input type="checkbox" id="pe_team_not_required" onchange="markResourceSectionDirty('team')"> No allocation information required for this project</label>
             <div class="resource-validation" id="teamValidation"></div>
@@ -1763,7 +1778,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
                 </div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                   <div class="fg"><label class="fl">Budget Currency</label><select class="fs" id="pe_budget_currency"></select></div>
-                  <div class="fg"><label class="fl">Total Estimated Budget</label><input class="fi" type="number" id="pe_budget_total" min="0" step="1000"></div>
+                  <div class="fg"><label class="fl">Total Estimated Budget</label><input class="fi" type="number" id="pe_budget_total" min="0" step="1000" placeholder="Budget ceiling amount"></div>
                 </div>
                 <label class="resource-check" id="overBudgetAckWrap" style="display:none;"><input type="checkbox" id="pe_over_budget_ack" onchange="markResourceSectionDirty('budgetPlan')"> Over budget plan acknowledged</label>
               </div>
@@ -1807,18 +1822,19 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <div class="proto-section-title">Discipline Hours</div>
         <div class="proto-section-note">Estimated hours are required; actual hours remain optional.</div>
         <div class="resource-editor-grid">
-          <div class="resource-editor-row" data-resource-discipline="hardware"><div class="resource-discipline">Hardware</div><div class="fg"><label class="fl">Estimated</label><input class="fi resource-estimated" type="number" min="0" step="any" required></div><div class="fg"><label class="fl">Actual (optional)</label><input class="fi resource-actual" type="number" min="0" step="any"></div></div>
-          <div class="resource-editor-row" data-resource-discipline="firmware"><div class="resource-discipline">Firmware</div><div class="fg"><label class="fl">Estimated</label><input class="fi resource-estimated" type="number" min="0" step="any" required></div><div class="fg"><label class="fl">Actual (optional)</label><input class="fi resource-actual" type="number" min="0" step="any"></div></div>
-          <div class="resource-editor-row" data-resource-discipline="systemElectrical"><div class="resource-discipline">System Electrical</div><div class="fg"><label class="fl">Estimated</label><input class="fi resource-estimated" type="number" min="0" step="any" required></div><div class="fg"><label class="fl">Actual (optional)</label><input class="fi resource-actual" type="number" min="0" step="any"></div></div>
-          <div class="resource-editor-row" data-resource-discipline="mechanical"><div class="resource-discipline">Mechanical</div><div class="fg"><label class="fl">Estimated</label><input class="fi resource-estimated" type="number" min="0" step="any" required></div><div class="fg"><label class="fl">Actual (optional)</label><input class="fi resource-actual" type="number" min="0" step="any"></div></div>
-          <div class="resource-editor-row" data-resource-discipline="pmo"><div class="resource-discipline">PMO</div><div class="fg"><label class="fl">Estimated</label><input class="fi resource-estimated" type="number" min="0" step="any" required></div><div class="fg"><label class="fl">Actual (optional)</label><input class="fi resource-actual" type="number" min="0" step="any"></div></div>
+          <div class="resource-editor-row" data-resource-discipline="hardware"><div class="resource-discipline">Hardware</div><div class="fg"><label class="fl">Estimated hours</label><input class="fi resource-estimated" type="number" min="0" step="any" required aria-label="Hardware estimated hours"></div><div class="fg"><label class="fl">Actual hours (optional)</label><input class="fi resource-actual" type="number" min="0" step="any" aria-label="Hardware actual hours"></div></div>
+          <div class="resource-editor-row" data-resource-discipline="firmware"><div class="resource-discipline">Firmware</div><div class="fg"><label class="fl">Estimated hours</label><input class="fi resource-estimated" type="number" min="0" step="any" required aria-label="Firmware estimated hours"></div><div class="fg"><label class="fl">Actual hours (optional)</label><input class="fi resource-actual" type="number" min="0" step="any" aria-label="Firmware actual hours"></div></div>
+          <div class="resource-editor-row" data-resource-discipline="systemElectrical"><div class="resource-discipline">System Electrical</div><div class="fg"><label class="fl">Estimated hours</label><input class="fi resource-estimated" type="number" min="0" step="any" required aria-label="System Electrical estimated hours"></div><div class="fg"><label class="fl">Actual hours (optional)</label><input class="fi resource-actual" type="number" min="0" step="any" aria-label="System Electrical actual hours"></div></div>
+          <div class="resource-editor-row" data-resource-discipline="mechanical"><div class="resource-discipline">Mechanical</div><div class="fg"><label class="fl">Estimated hours</label><input class="fi resource-estimated" type="number" min="0" step="any" required aria-label="Mechanical estimated hours"></div><div class="fg"><label class="fl">Actual hours (optional)</label><input class="fi resource-actual" type="number" min="0" step="any" aria-label="Mechanical actual hours"></div></div>
+          <div class="resource-editor-row" data-resource-discipline="pmo"><div class="resource-discipline">PMO</div><div class="fg"><label class="fl">Estimated hours</label><input class="fi resource-estimated" type="number" min="0" step="any" required aria-label="PMO estimated hours"></div><div class="fg"><label class="fl">Actual hours (optional)</label><input class="fi resource-actual" type="number" min="0" step="any" aria-label="PMO actual hours"></div></div>
         </div>
       </section>
       
       <div style="margin-top:24px; padding-top:16px; border-top:1px dashed var(--border);" id="adminProjActions">
         <label class="fl" style="color:var(--red);">Admin Actions</label>
         <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
-          <select class="fs" id="pe_visibility" style="width:130px; font-weight:600;">
+          <label class="fl" for="pe_visibility" style="margin:0;">Project visibility</label>
+          <select class="fs" id="pe_visibility" aria-label="Project visibility" style="width:130px; font-weight:600;">
             <option value="active">🟢 Active</option>
             <option value="hidden">👻 Hidden</option>
             <option value="archived">📦 Archived</option>
@@ -6736,9 +6752,9 @@ window.addRiskActionPairRow = (item = {}) => {
   row.dataset.riskActionId = item.id || newEditorRowId('risk-action');
   row.innerHTML = `
     <label class="risk-primary-control"><input type="radio" name="riskActionPrimary" class="rap-primary" ${primary || isFirst ? 'checked' : ''}> Primary</label>
-    <textarea class="ft rap-risk" rows="2" placeholder="Risk / Blocker shown in Overview">${escHtml(risk)}</textarea>
-    <textarea class="ft rap-action" rows="2" placeholder="Required Action shown in Overview">${escHtml(action)}</textarea>
-    <button class="risk-pair-delete" onclick="this.parentElement.remove(); ensurePrimaryRiskActionPair();" title="Delete risk/action pair">&#128465;&#65039;</button>
+    <textarea class="ft rap-risk" rows="2" placeholder="Risk / Blocker shown in Overview" aria-label="Risk or blocker">${escHtml(risk)}</textarea>
+    <textarea class="ft rap-action" rows="2" placeholder="Required Action shown in Overview" aria-label="Required action">${escHtml(action)}</textarea>
+    <button type="button" class="risk-pair-delete" onclick="this.parentElement.remove(); ensurePrimaryRiskActionPair();" title="Delete risk/action pair" aria-label="Delete risk/action pair">&#128465;&#65039;</button>
   `;
   container.appendChild(row);
   row.querySelector('.rap-primary').addEventListener('change', ensurePrimaryRiskActionPair);
@@ -6936,10 +6952,10 @@ window.addTeamMemberRow = (member = {}) => {
   row.className = 'team-row';
   row.dataset.teamMemberId = member.id || newEditorRowId('team');
   row.innerHTML = `
-    <input class="fi team-name" value="${escHtml(member.name || '')}" placeholder="Name">
-    <input class="fi team-role" list="teamRoleOptions" value="${escHtml(member.roleName || member.role || '')}" placeholder="Role">
-    <input class="fi team-effort" type="number" min="0" max="200" value="${Number(member.effortPct || member.effort || 0)}" placeholder="Effort %">
-    <button class="row-delete" onclick="this.parentElement.remove(); markResourceSectionDirty('team');" title="Delete member">&#128465;&#65039;</button>
+    <input class="fi team-name" value="${escHtml(member.name || '')}" placeholder="Name" aria-label="Team member name">
+    <input class="fi team-role" list="teamRoleOptions" value="${escHtml(member.roleName || member.role || '')}" placeholder="Role" aria-label="Team member role">
+    <input class="fi team-effort" type="number" min="0" max="100" value="${Number(member.effortPct || member.effort || 0)}" placeholder="0–100" aria-label="Allocation percent" title="Planned capacity assigned to this project, from 0% to 100%">
+    <button type="button" class="row-delete" onclick="this.parentElement.remove(); markResourceSectionDirty('team');" title="Delete member" aria-label="Delete team member">&#128465;&#65039;</button>
   `;
   row.addEventListener('input', () => markResourceSectionDirty('team'));
   container.appendChild(row);
@@ -6953,11 +6969,11 @@ window.addBudgetPlanRow = (item = {}) => {
   row.className = 'budget-plan-row';
   row.dataset.budgetRowId = item.id || newEditorRowId('budget-plan');
   row.innerHTML = `
-    <input class="fi budget-month" type="month" value="${escHtml(item.month || monthValue(0))}" onchange="updateBudgetLinkSummary()">
-    <input class="fi budget-category" list="budgetCategoryOptions" value="${escHtml(item.categoryName || item.category || 'NRE')}" placeholder="Category">
-    <select class="fs budget-currency" onchange="updateBudgetLinkSummary()">${currencyOptions(item.currency || document.getElementById('pe_budget_currency')?.value || 'USD')}</select>
-    <input class="fi budget-amount" type="number" min="0" step="100" value="${Number(item.amount || 0)}" placeholder="Amount" oninput="updateBudgetLinkSummary()">
-    <button class="row-delete" onclick="this.parentElement.remove(); markResourceSectionDirty('budgetPlan'); updateBudgetLinkSummary();" title="Delete plan">&#128465;&#65039;</button>
+    <input class="fi budget-month" type="month" value="${escHtml(item.month || monthValue(0))}" onchange="updateBudgetLinkSummary()" aria-label="Planned month">
+    <input class="fi budget-category" list="budgetCategoryOptions" value="${escHtml(item.categoryName || item.category || 'NRE')}" placeholder="Category" aria-label="Planned category">
+    <select class="fs budget-currency" onchange="updateBudgetLinkSummary()" aria-label="Planned currency">${currencyOptions(item.currency || document.getElementById('pe_budget_currency')?.value || 'USD')}</select>
+    <input class="fi budget-amount" type="number" min="0" step="100" value="${Number(item.amount || 0)}" placeholder="Amount" oninput="updateBudgetLinkSummary()" aria-label="Planned amount">
+    <button type="button" class="row-delete" onclick="this.parentElement.remove(); markResourceSectionDirty('budgetPlan'); updateBudgetLinkSummary();" title="Delete plan" aria-label="Delete budget plan">&#128465;&#65039;</button>
   `;
   row.addEventListener('input', () => markResourceSectionDirty('budgetPlan'));
   row.addEventListener('change', () => markResourceSectionDirty('budgetPlan'));
@@ -6973,12 +6989,12 @@ window.addBudgetActualRow = (item = {}) => {
   row.className = 'budget-actual-row';
   row.dataset.budgetRowId = item.id || newEditorRowId('budget-actual');
   row.innerHTML = `
-    <input class="fi budget-month" type="month" value="${escHtml(item.month || monthValue(0))}">
-    <input class="fi budget-category" list="budgetCategoryOptions" value="${escHtml(item.categoryName || item.category || 'Sample fee')}" placeholder="Category">
-    <select class="fs budget-currency">${currencyOptions(item.currency || document.getElementById('pe_budget_currency')?.value || 'USD')}</select>
-    <input class="fi budget-amount" type="number" min="0" step="100" value="${Number(item.amount || 0)}" placeholder="Amount">
-    <input class="fi budget-note" value="${escHtml(item.note || '')}" placeholder="Note">
-    <button class="row-delete" onclick="this.parentElement.remove(); markResourceSectionDirty('budgetActual'); updateBudgetLinkSummary();" title="Delete actual">&#128465;&#65039;</button>
+    <input class="fi budget-month" type="month" value="${escHtml(item.month || monthValue(0))}" aria-label="Actual month">
+    <input class="fi budget-category" list="budgetCategoryOptions" value="${escHtml(item.categoryName || item.category || 'Sample fee')}" placeholder="Category" aria-label="Actual category">
+    <select class="fs budget-currency" aria-label="Actual currency">${currencyOptions(item.currency || document.getElementById('pe_budget_currency')?.value || 'USD')}</select>
+    <input class="fi budget-amount" type="number" min="0" step="100" value="${Number(item.amount || 0)}" placeholder="Amount" aria-label="Actual amount">
+    <input class="fi budget-note" value="${escHtml(item.note || '')}" placeholder="Note or source" aria-label="Actual spend note">
+    <button type="button" class="row-delete" onclick="this.parentElement.remove(); markResourceSectionDirty('budgetActual'); updateBudgetLinkSummary();" title="Delete actual" aria-label="Delete actual spend">&#128465;&#65039;</button>
   `;
   row.addEventListener('input', () => markResourceSectionDirty('budgetActual'));
   row.addEventListener('change', () => markResourceSectionDirty('budgetActual'));
@@ -7052,17 +7068,17 @@ window.addWorkstreamRow = (source = {}, untouched = false) => {
   div.dataset.sortOrder = row.sortOrder;
   div.innerHTML = `
     <button type="button" class="drag-handle" draggable="true" title="Drag to reorder" aria-label="Drag ${escHtml(row.name || 'workstream')} to reorder">☰</button>
-    <input class="fi ws-name" value="${escHtml(row.name)}" placeholder="Workstream name" aria-label="Workstream name">
-    <input class="fi ws-start" type="date" value="${escHtml(row.startDate)}" aria-label="Start date">
-    <input class="fi ws-end" type="date" value="${escHtml(row.endDate)}" aria-label="End date">
-    <select class="fs ws-status" aria-label="Status">
-      ${['not-started','on-track','at-risk','delayed','completed'].map(status => `<option value="${status}" ${status === row.status ? 'selected' : ''}>${status}</option>`).join('')}
+    <input class="fi ws-name" value="${escHtml(row.name)}" placeholder="Workstream name" aria-label="Workstream name" title="A major stream of project work">
+    <input class="fi ws-start" type="date" value="${escHtml(row.startDate)}" aria-label="Start date" title="Planned workstream start date">
+    <input class="fi ws-end" type="date" value="${escHtml(row.endDate)}" aria-label="End date" title="Planned workstream end date">
+    <select class="fs ws-status" aria-label="Status" title="Current workstream status">
+      ${[['not-started','Not started'],['on-track','On track'],['at-risk','At risk'],['delayed','Delayed'],['completed','Completed']].map(([status,label]) => `<option value="${status}" ${status === row.status ? 'selected' : ''}>${label}</option>`).join('')}
     </select>
-    <input class="fi ws-progress" type="number" min="0" max="100" value="${row.progress}" aria-label="Progress percent">
-    <select class="fs ws-milestone" aria-label="Linked milestone">${editorMilestoneOptions(row.milestoneId)}</select>
+    <input class="fi ws-progress" type="number" min="0" max="100" value="${row.progress}" aria-label="Progress percent" title="Workstream completion from 0% to 100%">
+    <select class="fs ws-milestone" aria-label="Linked milestone" title="Optional milestone associated with this workstream">${editorMilestoneOptions(row.milestoneId)}</select>
     <button type="button" class="row-move" title="Move up" aria-label="Move workstream up" onclick="moveWorkstreamRow(this, -1)">↑</button>
     <button type="button" class="row-move" title="Move down" aria-label="Move workstream down" onclick="moveWorkstreamRow(this, 1)">↓</button>
-    <button type="button" class="row-delete" title="Remove workstream" onclick="this.parentElement.remove(); newProjectScheduleUntouched=false;">🗑️</button>`;
+    <button type="button" class="row-delete" title="Remove workstream" aria-label="Remove workstream" onclick="this.parentElement.remove(); newProjectScheduleUntouched=false;">🗑️</button>`;
   div.addEventListener('input', () => { newProjectScheduleUntouched = false; clearWorkstreamErrors(); });
   const handle = div.querySelector('.drag-handle');
   handle.ondragstart = event => {
@@ -7600,15 +7616,15 @@ window.addMilestoneRow = (name='', status='to-do', dateStr='', planData = null) 
   
   div.innerHTML = `
     <span style="cursor:grab; color:var(--muted)">☰</span>
-    <input class="fi ms-name" style="flex:2" value="${escHtml(name)}" placeholder="Milestone Name">
-    <input type="date" class="fi ms-date" value="${escHtml(dateStr)}" onchange="checkMsDates()">
-    <select class="fs ms-status">
+    <input class="fi ms-name" style="flex:2" value="${escHtml(name)}" placeholder="Milestone name" aria-label="Milestone name">
+    <input type="date" class="fi ms-date" value="${escHtml(dateStr)}" onchange="checkMsDates()" aria-label="Milestone date">
+    <select class="fs ms-status" aria-label="Milestone status">
       <option ${status==='to-do'?'selected':''}>to-do</option>
       <option ${status==='in-progress'?'selected':''}>in-progress</option>
       <option ${status==='at-risk'?'selected':''}>at-risk</option>
       <option ${status==='done'?'selected':''}>done</option>
     </select>
-    <button onclick="removeMilestoneRow(this)" style="border:none; background:none; cursor:pointer;">🗑️</button>
+    <button type="button" onclick="removeMilestoneRow(this)" style="border:none; background:none; cursor:pointer;" title="Delete milestone" aria-label="Delete milestone">🗑️</button>
   `;
   div.insertAdjacentHTML('beforeend', milestoneHistoryHtml(normalized));
   document.getElementById('msListContainer').appendChild(div);
@@ -7627,15 +7643,15 @@ window.addQuarterlyMilestoneRow = (item = {}) => {
   div.className = "qms-row";
   div.dataset.quarterlyMilestoneId = item.id || newEditorRowId('qms');
   div.innerHTML = `
-    <select class="fs qms-quarter">${quarterSelectOptions(selectedQuarter).map(q => `<option value="${escHtml(q)}" ${q === selectedQuarter ? 'selected' : ''}>${escHtml(q)}</option>`).join('')}</select>
-    <input class="fi qms-goal" value="${escHtml(goal || '')}" placeholder="Quarterly target / business objective">
-    <select class="fs qms-window">${monthSelectOptions(selectedQuarter, selectedMonth)}</select>
-    <select class="fs qms-status">
+    <select class="fs qms-quarter" aria-label="Quarter">${quarterSelectOptions(selectedQuarter).map(q => `<option value="${escHtml(q)}" ${q === selectedQuarter ? 'selected' : ''}>${escHtml(q)}</option>`).join('')}</select>
+    <input class="fi qms-goal" value="${escHtml(goal || '')}" placeholder="Quarterly target / business objective" aria-label="Quarterly target">
+    <select class="fs qms-window" aria-label="Target month">${monthSelectOptions(selectedQuarter, selectedMonth)}</select>
+    <select class="fs qms-status" aria-label="Quarterly status">
       <option value="planned" ${status==='planned'||!status?'selected':''}>planned</option>
       <option value="done" ${status==='done'?'selected':''}>done</option>
       <option value="at-risk" ${status==='at-risk'||status==='risk'?'selected':''}>at-risk</option>
     </select>
-    <button class="qms-delete" onclick="this.parentElement.remove();" title="Delete quarterly milestone">&#128465;&#65039;</button>
+    <button type="button" class="qms-delete" onclick="this.parentElement.remove();" title="Delete quarterly milestone" aria-label="Delete quarterly milestone">&#128465;&#65039;</button>
   `;
   const quarterSelect = div.querySelector('.qms-quarter');
   const monthSelect = div.querySelector('.qms-window');

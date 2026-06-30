@@ -344,7 +344,8 @@ test('resource editor exposes fixed disciplines with estimated and optional actu
   assert.ok(dashboard.includes('class="fi resource-estimated"'));
   assert.ok(dashboard.includes('class="fi resource-actual"'));
   assert.ok(dashboard.includes('min="0"'));
-  assert.ok(dashboard.includes('Actual (optional)'));
+  assert.ok(dashboard.includes('Estimated hours'));
+  assert.ok(dashboard.includes('Actual hours (optional)'));
 });
 
 test('resource save validates user input and only timestamps changed values', () => {
