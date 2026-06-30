@@ -85,3 +85,79 @@ test('template listener setup and callbacks share the current auth generation gu
   assert.ok(source.includes('authGeneration === authSessionGeneration'));
   assert.ok(source.includes('isAuthInitializationCurrent('));
 });
+
+test('an initialized user is quiesced before a replacement user waits for access', () => {
+  const authStart = dashboard.indexOf('onAuthStateChanged(auth, async user =>');
+  const authEnd = dashboard.indexOf('function getUserDisplayName(', authStart);
+  const source = dashboard.slice(authStart, authEnd);
+  const generation = source.indexOf('const authGeneration = ++authSessionGeneration;');
+  const quiesce = source.indexOf('quiesceDashboardForAuthTransition();');
+  const assignUser = source.indexOf('currentUser = user;');
+  const roleAwait = source.indexOf('await getDoc(doc(db, "users", authEmail))');
+
+  assert.ok(generation >= 0 && quiesce > generation);
+  assert.ok(quiesce < assignUser && assignUser < roleAwait);
+
+  const quiesceStart = dashboard.indexOf('function quiesceDashboardForAuthTransition()');
+  const quiesceEnd = dashboard.indexOf('// ── AUTH ──', quiesceStart);
+  const quiesceSource = dashboard.slice(quiesceStart, quiesceEnd);
+  assert.ok(quiesceSource.includes('stopPresenceSystem();'));
+  assert.ok(quiesceSource.includes('weeksUnsub();'));
+  assert.ok(quiesceSource.includes('stopGanttTemplateConfigSubscription();'));
+  assert.ok(quiesceSource.includes('clearExcelImportForAuthTransition();'));
+  assert.ok(quiesceSource.includes('invalidateProjectEditorSession();'));
+  assert.ok(quiesceSource.includes('invalidateGanttTemplateSession();'));
+  assert.ok(quiesceSource.includes("currentRole = 'pending';"));
+  assert.ok(quiesceSource.includes('setDashboardAccessPending();'));
+});
+
+test('replacement auth owns the only new weeks and presence callbacks', () => {
+  const dataStart = dashboard.indexOf('function initData(');
+  const dataEnd = dashboard.indexOf('function canEditProject(', dataStart);
+  const dataSource = dashboard.slice(dataStart, dataEnd);
+  assert.ok(dataSource.includes('authGeneration'));
+  assert.ok(dataSource.includes('isAuthInitializationCurrent('));
+  assert.ok(dataSource.includes('if (!isCurrentDataSession()) return;'));
+
+  const presenceStart = dashboard.indexOf('function startPresenceSystem(');
+  const presenceEnd = dashboard.indexOf('function stopPresenceSystem()', presenceStart);
+  const presenceSource = dashboard.slice(presenceStart, presenceEnd);
+  assert.ok(presenceSource.includes('authGeneration'));
+  assert.ok(presenceSource.includes('isAuthInitializationCurrent('));
+  assert.ok(presenceSource.includes('if (!isCurrentPresenceSession()) return;'));
+
+  const authStart = dashboard.indexOf('onAuthStateChanged(auth, async user =>');
+  const authEnd = dashboard.indexOf('function getUserDisplayName(', authStart);
+  const authSource = dashboard.slice(authStart, authEnd);
+  assert.equal(
+    authSource.match(/initData\(authGeneration, user\);/g)?.length,
+    1,
+  );
+  assert.equal(
+    authSource.match(/startPresenceSystem\(authGeneration, user\);/g)?.length,
+    1,
+  );
+});
+
+test('a pending auth transition cancels an older delayed loader hide', () => {
+  const helpersStart = dashboard.indexOf('// ── UI HELPERS ──');
+  const helpersEnd = dashboard.indexOf('// ── ROLE LOOKUP ──', helpersStart);
+  const source = dashboard.slice(helpersStart, helpersEnd);
+  assert.ok(source.includes('let hideLoaderTimer = null;'));
+  assert.ok(source.includes('if (hideLoaderTimer) clearTimeout(hideLoaderTimer);'));
+  assert.ok(source.includes('hideLoaderTimer = setTimeout('));
+});
+
+test('an older session cannot render after its FX refresh resolves', () => {
+  const start = dashboard.indexOf('async function refreshFxRates(');
+  const end = dashboard.indexOf('function convertCurrency(', start);
+  const source = dashboard.slice(start, end);
+  const fetchAwait = source.indexOf('await fetch(');
+  const fetchGuard = source.indexOf('isCurrentFxSession()', fetchAwait);
+  const jsonAwait = source.indexOf('await res.json()');
+  const jsonGuard = source.indexOf('isCurrentFxSession()', jsonAwait);
+  const render = source.indexOf('render();');
+  assert.ok(source.includes('isAuthInitializationCurrent('));
+  assert.ok(fetchAwait >= 0 && fetchGuard > fetchAwait && fetchGuard < jsonAwait);
+  assert.ok(jsonGuard > jsonAwait && jsonGuard < render);
+});

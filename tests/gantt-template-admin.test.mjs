@@ -62,7 +62,13 @@ test('authenticated setup subscribes to multi-session template updates before en
   const authStart = dashboard.indexOf('onAuthStateChanged(auth, async user =>');
   const setupStart = dashboard.indexOf('function setupUI()', authStart);
   const authSource = dashboard.slice(authStart, setupStart);
-  assert.ok(authSource.includes('stopGanttTemplateConfigSubscription();'));
+  const quiesceStart = dashboard.indexOf('function quiesceDashboardForAuthTransition()');
+  const quiesceEnd = dashboard.indexOf('// ── AUTH ──', quiesceStart);
+  assert.ok(authSource.includes('quiesceDashboardForAuthTransition();'));
+  assert.ok(
+    dashboard.slice(quiesceStart, quiesceEnd)
+      .includes('stopGanttTemplateConfigSubscription();'),
+  );
   assert.ok(authSource.includes('await loadGanttTemplateConfig(authGeneration, user)'));
   assert.ok(
     authSource.indexOf('await loadGanttTemplateConfig(authGeneration, user)')

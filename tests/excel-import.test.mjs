@@ -669,8 +669,11 @@ test('all auth transitions and user setup force-clear import state', () => {
   const logoutStart = dashboard.indexOf('window.handleLogout = async () =>');
   const authStart = dashboard.indexOf('onAuthStateChanged(auth, async user =>');
   const setupStart = dashboard.indexOf('function setupUI()');
+  const quiesceStart = dashboard.indexOf('function quiesceDashboardForAuthTransition()');
+  const quiesceEnd = dashboard.indexOf('// ── AUTH ──', quiesceStart);
   assert.ok(dashboard.slice(logoutStart, authStart).includes('clearExcelImportForAuthTransition();'));
-  assert.ok(dashboard.slice(authStart, setupStart).includes('clearExcelImportForAuthTransition();'));
+  assert.ok(dashboard.slice(authStart, setupStart).includes('quiesceDashboardForAuthTransition();'));
+  assert.ok(dashboard.slice(quiesceStart, quiesceEnd).includes('clearExcelImportForAuthTransition();'));
   assert.ok(dashboard.slice(setupStart, dashboard.indexOf('// ── DATA ──', setupStart))
     .includes('clearExcelImportForAuthTransition();'));
 

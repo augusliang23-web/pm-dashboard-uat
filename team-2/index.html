@@ -2492,9 +2492,11 @@ let presenceSessionState = 'active';
 let presenceSessionClosed = false;
 let presenceSessionWriteChain = Promise.resolve();
 let presenceSessionHeartbeatInterval = null;
+let presenceActivityHandler = null;
 
 let activityThrottle = null;
-const handleUserActivity = () => {
+const handleUserActivity = (isCurrentPresenceSession = () => Boolean(currentUser)) => {
+  if (!isCurrentPresenceSession()) return;
   if (activityThrottle) return;
   activityThrottle = setTimeout(() => { activityThrottle = null; }, 2000);
 
@@ -2514,6 +2516,7 @@ const handleUserActivity = () => {
   
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
+    if (!isCurrentPresenceSession()) return;
     isIdle = true;
     if(heartbeatInterval) clearInterval(heartbeatInterval); 
     setDoc(doc(db, "presence", getEmailKey(currentUser)), {
@@ -2525,14 +2528,21 @@ const handleUserActivity = () => {
 };
 
 // ── UI HELPERS ──
+let hideLoaderTimer = null;
 const showLoader = (text = "Processing...") => {
+  if (hideLoaderTimer) clearTimeout(hideLoaderTimer);
+  hideLoaderTimer = null;
   document.getElementById('loaderText').textContent = text;
   document.getElementById('globalLoader').style.display = 'flex';
   document.getElementById('globalLoader').style.opacity = '1';
 };
 const hideLoader = () => {
+  if (hideLoaderTimer) clearTimeout(hideLoaderTimer);
   document.getElementById('globalLoader').style.opacity = '0';
-  setTimeout(() => document.getElementById('globalLoader').style.display = 'none', 300);
+  hideLoaderTimer = setTimeout(() => {
+    document.getElementById('globalLoader').style.display = 'none';
+    hideLoaderTimer = null;
+  }, 300);
 };
 let _toastTimer = null;
 const showSaveToast = (msg = "Saved successfully") => {
@@ -2607,13 +2617,13 @@ function showDataLoadError(error) {
 }
 
 // ── PRESENCE USAGE COUNTER ──
-function getPresenceUsageStorageKey() {
-  return `presenceUsage12h:${FIREBASE_CONFIG.projectId}:${getEmailKey(currentUser) || 'anonymous'}`;
+function getPresenceUsageStorageKey(owner = currentUser) {
+  return `presenceUsage12h:${FIREBASE_CONFIG.projectId}:${getEmailKey(owner) || 'anonymous'}`;
 }
 
-function getPresenceUsageBuffer() {
+function getPresenceUsageBuffer(owner = currentUser) {
   try {
-    const raw = localStorage.getItem(getPresenceUsageStorageKey());
+    const raw = localStorage.getItem(getPresenceUsageStorageKey(owner));
     const parsed = raw ? JSON.parse(raw) : null;
     return parsed && parsed.buckets ? parsed : { buckets: {} };
   } catch {
@@ -2621,8 +2631,8 @@ function getPresenceUsageBuffer() {
   }
 }
 
-function savePresenceUsageBuffer(buffer) {
-  localStorage.setItem(getPresenceUsageStorageKey(), JSON.stringify(buffer));
+function savePresenceUsageBuffer(buffer, owner = currentUser) {
+  localStorage.setItem(getPresenceUsageStorageKey(owner), JSON.stringify(buffer));
 }
 
 function getPresenceUsageBucket(ts = Date.now()) {
@@ -2636,9 +2646,10 @@ function getPresenceUsageBucket(ts = Date.now()) {
 
 function queuePresenceUsage(type) {
   if (!currentUser) return;
+  const owner = currentUser;
   const field = `${type}Writes`;
   const bucket = getPresenceUsageBucket();
-  const buffer = getPresenceUsageBuffer();
+  const buffer = getPresenceUsageBuffer(owner);
   const record = buffer.buckets[bucket.id] || {
     bucketId: bucket.id,
     bucketLabel: bucket.label,
@@ -2652,21 +2663,21 @@ function queuePresenceUsage(type) {
   record[field] = (record[field] || 0) + 1;
   record.totalPresenceWrites = (record.totalPresenceWrites || 0) + 1;
   buffer.buckets[bucket.id] = record;
-  savePresenceUsageBuffer(buffer);
-  flushDuePresenceUsage().catch(e => console.warn("Presence usage flush skipped:", e));
+  savePresenceUsageBuffer(buffer, owner);
+  flushDuePresenceUsage(false, owner).catch(e => console.warn("Presence usage flush skipped:", e));
 }
 
-async function flushDuePresenceUsage(force = false) {
-  if (!currentUser) return;
+async function flushDuePresenceUsage(force = false, owner = currentUser) {
+  if (!owner) return;
   const now = Date.now();
-  const buffer = getPresenceUsageBuffer();
+  const buffer = getPresenceUsageBuffer(owner);
   const entries = Object.entries(buffer.buckets).filter(([, item]) => {
     return item.totalPresenceWrites > 0 && (force || now >= item.bucketEnd);
   });
 
   for (const [bucketId, item] of entries) {
     const bucketPath = `usageBuckets.${bucketId}`;
-    await updateDoc(doc(db, "presence", getEmailKey(currentUser)), {
+    await updateDoc(doc(db, "presence", getEmailKey(owner)), {
       [`${bucketPath}.bucketId`]: bucketId,
       [`${bucketPath}.bucketLabel`]: item.bucketLabel,
       [`${bucketPath}.bucketStart`]: item.bucketStart,
@@ -2681,12 +2692,13 @@ async function flushDuePresenceUsage(force = false) {
     delete buffer.buckets[bucketId];
   }
 
-  savePresenceUsageBuffer(buffer);
+  savePresenceUsageBuffer(buffer, owner);
 }
 
-function startPresenceUsageFlushTimer() {
+function startPresenceUsageFlushTimer(isCurrentPresenceSession) {
   if (presenceUsageFlushTimer) clearInterval(presenceUsageFlushTimer);
   presenceUsageFlushTimer = setInterval(() => {
+    if (!isCurrentPresenceSession()) return;
     flushDuePresenceUsage().catch(e => console.warn("Presence usage flush skipped:", e));
   }, 10 * 60 * 1000);
 }
@@ -2735,6 +2747,8 @@ function startPresenceSession() {
 
 function trackPresenceSession(nextState = 'active', options = {}) {
   if (!currentUser || !presenceSessionId || presenceSessionClosed) return presenceSessionWriteChain;
+  const sessionId = presenceSessionId;
+  const precedingWrite = presenceSessionWriteChain;
   const now = Date.now();
   const close = options.close === true;
   const rawElapsed = Math.max(0, now - presenceSessionLastEventAt);
@@ -2755,8 +2769,8 @@ function trackPresenceSession(nextState = 'active', options = {}) {
   }
   presenceSessionLastEventAt = now;
   presenceSessionState = nextState;
-  presenceSessionWriteChain = presenceSessionWriteChain
-    .then(() => updateDoc(doc(db, PRESENCE_SESSION_COLLECTION, presenceSessionId), patch))
+  presenceSessionWriteChain = precedingWrite
+    .then(() => updateDoc(doc(db, PRESENCE_SESSION_COLLECTION, sessionId), patch))
     .catch(error => console.warn('Presence session update skipped:', error));
   return presenceSessionWriteChain;
 }
@@ -3143,8 +3157,8 @@ window.openPresenceUsage = async () => {
 };
 
 // ── PRESENCE SYSTEM ──
-const pingPresence = () => {
-  if (!currentUser || isIdle) return;
+const pingPresence = (isCurrentPresenceSession = () => Boolean(currentUser)) => {
+  if (!isCurrentPresenceSession() || !currentUser || isIdle) return;
   setDoc(doc(db, "presence", getEmailKey(currentUser)), {
     name: getUserDisplayName(currentUser.email),
     role: currentRole,
@@ -3152,6 +3166,7 @@ const pingPresence = () => {
     lastActive: Date.now()
   }, { merge: true })
     .then(() => {
+      if (!isCurrentPresenceSession()) return;
       queuePresenceUsage('active');
       trackPresenceSession('active');
     })
@@ -3177,51 +3192,96 @@ function updatePresenceUI() {
   renderOnlineUsers(onlineUsers);
 }
 
-function startPresenceSystem() {
+function startPresenceSystem(authGeneration, authUser) {
+  const ownerUid = authUser?.uid || '';
+  const ownerEmail = getEmailKey(authUser);
+  const isCurrentPresenceSession = () => isAuthInitializationCurrent(
+    authSessionGeneration,
+    authGeneration,
+    currentUser,
+    ownerUid,
+    ownerEmail,
+  );
+  if (!isCurrentPresenceSession()) return;
   startPresenceSession();
-  pingPresence();
-  heartbeatInterval = setInterval(pingPresence, PRESENCE_HEARTBEAT_MS);
+  pingPresence(isCurrentPresenceSession);
+  heartbeatInterval = setInterval(
+    () => pingPresence(isCurrentPresenceSession),
+    PRESENCE_HEARTBEAT_MS,
+  );
   presenceSessionHeartbeatInterval = setInterval(
     () => {
+      if (!isCurrentPresenceSession()) return;
       if (isIdle) trackPresenceSession('idle');
     },
     PRESENCE_HEARTBEAT_MS
   );
-  startPresenceUsageFlushTimer();
+  startPresenceUsageFlushTimer(isCurrentPresenceSession);
 
+  presenceActivityHandler = () => handleUserActivity(isCurrentPresenceSession);
   ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-    window.addEventListener(evt, handleUserActivity, { passive: true });
+    window.addEventListener(evt, presenceActivityHandler, { passive: true });
   });
-  handleUserActivity();
+  handleUserActivity(isCurrentPresenceSession);
 
   presenceUnsub = onSnapshot(collection(db, "presence"), snap => {
+    if (!isCurrentPresenceSession()) return;
     latestPresenceDocs = snap.docs.map(d => d.data());
     updatePresenceUI(); 
   }, err => {
+    if (!isCurrentPresenceSession()) return;
     console.error("Presence DB Error:", err);
   });
 
-  presenceUITimer = setInterval(updatePresenceUI, 10000);
+  presenceUITimer = setInterval(() => {
+    if (!isCurrentPresenceSession()) return;
+    updatePresenceUI();
+  }, 10000);
 }
 
 function stopPresenceSystem() {
+  const hadActivePresence = Boolean(
+    heartbeatInterval
+    || presenceSessionHeartbeatInterval
+    || presenceUITimer
+    || presenceUnsub
+    || presenceSessionId
+  );
   if (heartbeatInterval) clearInterval(heartbeatInterval);
   if (presenceSessionHeartbeatInterval) clearInterval(presenceSessionHeartbeatInterval);
   if (presenceUITimer) clearInterval(presenceUITimer);
   if (idleTimer) clearTimeout(idleTimer);
+  if (activityThrottle) clearTimeout(activityThrottle);
   if (presenceUnsub) presenceUnsub();
   
   ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-    window.removeEventListener(evt, handleUserActivity);
+    if (presenceActivityHandler) window.removeEventListener(evt, presenceActivityHandler);
   });
 
-  if (currentUser) {
+  if (currentUser && hadActivePresence) {
+    const stoppedGeneration = authSessionGeneration;
+    const stoppedUid = currentUser.uid || '';
+    const stoppedEmail = getEmailKey(currentUser);
     setDoc(doc(db, "presence", getEmailKey(currentUser)), { lastActive: 0 }, { merge: true })
-      .then(() => queuePresenceUsage('logout'))
+      .then(() => {
+        if (
+          authSessionGeneration === stoppedGeneration
+          && (currentUser?.uid || '') === stoppedUid
+          && getEmailKey(currentUser) === stoppedEmail
+        ) queuePresenceUsage('logout');
+      })
       .catch(()=>{});
   }
-  closePresenceSession('logout');
+  if (hadActivePresence) closePresenceSession('logout');
+  resetPresenceSessionState();
+  heartbeatInterval = null;
   presenceSessionHeartbeatInterval = null;
+  presenceUITimer = null;
+  presenceUnsub = null;
+  presenceActivityHandler = null;
+  idleTimer = null;
+  activityThrottle = null;
+  isIdle = false;
   stopPresenceUsageFlushTimer();
 }
 
@@ -3260,6 +3320,47 @@ window.addEventListener('beforeunload', () => {
     closePresenceSession('page-close');
   }
 });
+
+function setDashboardAccessPending() {
+  showLoader('Verifying dashboard access...');
+  const dot = document.getElementById('syncDot');
+  dot.classList.remove('ok');
+  dot.title = 'Verifying dashboard access...';
+  document.getElementById('displayUser').textContent = '...';
+  const roleBadge = document.getElementById('displayRole');
+  roleBadge.textContent = 'PENDING';
+  roleBadge.className = 'role-badge';
+  document.querySelectorAll('header button, header select').forEach(control => {
+    control.disabled = true;
+  });
+  document.querySelectorAll('.admin-only').forEach(control => {
+    control.style.display = 'none';
+  });
+  document.getElementById('presenceUsageBtn').style.display = 'none';
+  document.getElementById('onlineUsersContainer').style.display = 'none';
+  document.getElementById('projGrid').innerHTML = '';
+  document.getElementById('execView').innerHTML = '';
+  document.getElementById('bannerTitle').textContent = 'Loading...';
+  document.getElementById('bannerMeta').textContent = 'Verifying dashboard access...';
+  document.getElementById('topMetricsGrid').style.display = 'none';
+}
+
+function quiesceDashboardForAuthTransition() {
+  stopPresenceSystem();
+  if (weeksUnsub) {
+    weeksUnsub();
+    weeksUnsub = null;
+  }
+  stopGanttTemplateConfigSubscription();
+  clearExcelImportForAuthTransition();
+  invalidateProjectEditorSession();
+  invalidateGanttTemplateSession();
+  currentRole = 'pending';
+  isAdminVipPreview = false;
+  allWeeks = [];
+  currentIdx = -1;
+  setDashboardAccessPending();
+}
 
 // ── AUTH ──
 window.handleLogin = async () => {
@@ -3358,6 +3459,8 @@ onAuthStateChanged(auth, async user => {
   const authGeneration = ++authSessionGeneration;
   const authUid = user?.uid || '';
   const authEmail = getEmailKey(user);
+  quiesceDashboardForAuthTransition();
+  currentUser = user;
   const isCurrentAuthInitialization = () => isAuthInitializationCurrent(
     authSessionGeneration,
     authGeneration,
@@ -3365,17 +3468,10 @@ onAuthStateChanged(auth, async user => {
     authUid,
     authEmail,
   );
-  clearExcelImportForAuthTransition();
-  invalidateProjectEditorSession();
-  invalidateGanttTemplateSession();
-  stopGanttTemplateConfigSubscription();
   const dot = document.getElementById('syncDot');
   if (user) {
     try {
-      currentUser = user;
       document.getElementById('loginOverlay').style.display = 'none';
-      dot.classList.add('ok');
-      dot.title = "Connected as " + user.email;
 
       const userDoc = await getDoc(doc(db, "users", authEmail));
       if (!isCurrentAuthInitialization()) return;
@@ -3387,8 +3483,10 @@ onAuthStateChanged(auth, async user => {
       if (!isCurrentAuthInitialization()) return;
       PM_LIST = nextPMList;
       setupUI();
-      initData();
-      startPresenceSystem();
+      initData(authGeneration, user);
+      startPresenceSystem(authGeneration, user);
+      dot.classList.add('ok');
+      dot.title = "Connected as " + user.email;
     } catch (e) {
       if (!isCurrentAuthInitialization()) return;
       console.error("Login initialization failed:", e);
@@ -3402,12 +3500,6 @@ onAuthStateChanged(auth, async user => {
     }
   } else {
     hideLoader();
-    if (weeksUnsub) {
-      weeksUnsub();
-      weeksUnsub = null;
-    }
-    resetPresenceSessionState();
-    currentUser = null;
     currentRole = 'pm';
     currentGanttTemplateConfig = resolveWorkstreamTemplateConfig();
     currentGanttTemplateRevision = 0;
@@ -3466,6 +3558,9 @@ function setupUI() {
   document.getElementById('displayUser').textContent = getEmailKey(currentUser).split('@')[0].toUpperCase();
   const rBadge = document.getElementById('displayRole');
   rBadge.textContent = currentRole.toUpperCase();
+  document.querySelectorAll('header button, header select').forEach(control => {
+    control.disabled = false;
+  });
   
   rBadge.className = 'role-badge';
   document.querySelectorAll('.vip-hidden').forEach(el => el.style.display = '');
@@ -3533,7 +3628,7 @@ window.toggleReleaseWeek = async () => {
   showSaveToast(newStatus ? "Week released to VIP!" : "Week reverted to Draft");
 };
 
-function initData() {
+function initData(authGeneration, authUser) {
   if (weeksUnsub) {
     weeksUnsub();
     weeksUnsub = null;
@@ -3543,8 +3638,18 @@ function initData() {
   const weeksQuery = currentRole === 'vip'
     ? query(weeksRef, where("isReleased", "==", true))
     : query(weeksRef, orderBy("weekLabel"));
+  const ownerUid = authUser?.uid || '';
+  const ownerEmail = getEmailKey(authUser);
+  const isCurrentDataSession = () => isAuthInitializationCurrent(
+    authSessionGeneration,
+    authGeneration,
+    currentUser,
+    ownerUid,
+    ownerEmail,
+  );
 
   weeksUnsub = onSnapshot(weeksQuery, snap => {
+    if (!isCurrentDataSession()) return;
     let fetchedWeeks = snap.docs.map(d => {
       const week = d.data();
       const normalizedWeek = {
@@ -3580,7 +3685,10 @@ function initData() {
     invalidateExcelImportForWeekChange();
     render();
     hideLoader();
-  }, showDataLoadError);
+  }, error => {
+    if (!isCurrentDataSession()) return;
+    showDataLoadError(error);
+  });
 }
 
 function canEditProject(proj) {
@@ -3959,11 +4067,25 @@ function buildPrototypeWeeks() {
   }];
 }
 
-async function refreshFxRates() {
+async function refreshFxRates(
+  authGeneration = authSessionGeneration,
+  authUser = currentUser,
+) {
+  const ownerUid = authUser?.uid || '';
+  const ownerEmail = getEmailKey(authUser);
+  const isCurrentFxSession = () => isAuthInitializationCurrent(
+    authSessionGeneration,
+    authGeneration,
+    currentUser,
+    ownerUid,
+    ownerEmail,
+  );
   try {
     const res = await fetch('https://api.frankfurter.dev/v2/rates?base=USD&quotes=TWD,SGD', { cache: 'no-store' });
+    if (!isCurrentFxSession()) return;
     if (!res.ok) throw new Error(`FX HTTP ${res.status}`);
     const data = await res.json();
+    if (!isCurrentFxSession()) return;
     const rates = { USD: 1 };
     if (Array.isArray(data)) {
       data.forEach(row => { if (row.quote && row.rate) rates[row.quote] = Number(row.rate); });
