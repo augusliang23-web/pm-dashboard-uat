@@ -445,7 +445,9 @@ test('project writes re-authorize at the mutation boundary', () => {
   assert.ok(dashboard.includes('applyProjectSave(liveSnapshot.data(), {'));
   assert.ok(dashboard.includes('applyProjectDelete(liveSnapshot.data(), {'));
   assert.ok(dashboard.includes('role: currentRole'));
-  assert.ok(dashboard.includes('canEdit: project => canEditProject(project)'));
+  assert.ok(dashboard.includes('canEdit: project => projectOwnershipMatchesIdentity(project, {'));
+  assert.ok(dashboard.includes('email: session.authEmail'));
+  assert.ok(dashboard.includes('expectedFingerprint: session.revisionFingerprint'));
   assert.ok(dashboard.includes('await transaction.get(targetWeekRef)'));
   assert.ok(dashboard.includes("if (currentRole !== 'admin') return;"));
   assert.ok(dashboard.includes('transaction.update(targetWeekRef'));

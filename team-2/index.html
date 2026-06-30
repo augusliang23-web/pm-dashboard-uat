@@ -1953,7 +1953,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script type="module">
 import { RESOURCE_DISCIPLINES, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, validateResourceInput, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { assertReasonableWeekDocument, buildImportResults, formatImportPreviewRow, importResultsToCsv, mergeReadyImportRows, planImport } from "./js/excel-import.mjs";
-import { applyProjectDelete, applyProjectSave } from "./js/project-mutations.mjs";
+import { applyProjectDelete, applyProjectSave, projectRevisionFingerprint } from "./js/project-mutations.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -1992,6 +1992,9 @@ const canManageStrategy = () => currentRole === 'admin' && !isAdminVipPreview;
 let editingProjCode = null;
 let isCreatingNew = false;
 let projectMutationInFlight = false;
+let projectMutationInFlightToken = null;
+let projectEditorSession = null;
+let projectEditorSessionSequence = 0;
 let newProjectScheduleUntouched = false;
 let ganttScale = 'month';
 let editorResourceStatus = normalizeResourceBudgetStatus({});
@@ -2978,6 +2981,7 @@ window.saveNewPassword = async () => {
 
 window.handleLogout = async () => {
   clearExcelImportForAuthTransition();
+  invalidateProjectEditorSession();
   showLoader("Logging out...");
   stopPresenceSystem();
   if (weeksUnsub) {
@@ -2997,6 +3001,7 @@ window.handleLogout = async () => {
 
 onAuthStateChanged(auth, async user => {
   clearExcelImportForAuthTransition();
+  invalidateProjectEditorSession();
   const dot = document.getElementById('syncDot');
   if (user) {
     try {
@@ -3078,6 +3083,7 @@ async function fetchDynamicPMList() {
 
 function setupUI() {
   clearExcelImportForAuthTransition();
+  invalidateProjectEditorSession();
   loadOverviewScopeForCurrentUser();
   isAdminVipPreview = false;
   document.getElementById('dashboardVersion').textContent = `${DASHBOARD_RELEASE} · base ${DASHBOARD_BASE_COMMIT}`;
@@ -3164,10 +3170,15 @@ function initData() {
   weeksUnsub = onSnapshot(weeksQuery, snap => {
     let fetchedWeeks = snap.docs.map(d => {
       const week = d.data();
-      return {
+      const normalizedWeek = {
         ...week,
         projects: (week.projects || []).map(normalizeProject)
       };
+      Object.defineProperty(normalizedWeek, '__documentId', {
+        value: d.id,
+        enumerable: false
+      });
+      return normalizedWeek;
     });
     if (!fetchedWeeks.length) fetchedWeeks = buildPrototypeWeeks();
     allWeeks = sortWeeksByLabel(fetchedWeeks);
@@ -6079,6 +6090,12 @@ window.closeModal = id => {
   if (id === 'projEditOverlay' && projectMutationInFlight) return;
   const modal = document.getElementById(id);
   if (id === 'excelImportOverlay') clearExcelImport();
+  if (id === 'projEditOverlay') {
+    projectEditorSession = null;
+    editingProjCode = null;
+    isCreatingNew = false;
+    clearProjectMutationError();
+  }
   modal?.classList.remove('open');
   if (id === 'onePageStatusModal') restoreProjectDetailModalState();
   if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
@@ -6122,7 +6139,7 @@ function collectRiskActionPairs() {
   return pairs.sort((a, b) => Number(b.primary) - Number(a.primary));
 }
 
-function collectMilestonesWithHistory(previousProject) {
+function collectMilestonesWithHistory(previousProject, editorSession) {
   const previous = (previousProject?.milestones || []).map((m, index) => normalizeMilestonePlan(m, index));
   const previousById = new Map(previous.map(m => [m.planId, m]));
   return Array.from(document.querySelectorAll('.ms-row')).map((div, index) => {
@@ -6140,8 +6157,8 @@ function collectMilestonesWithHistory(previousProject) {
     if (normalizedPrev && milestoneChanged(milestoneSnapshot(normalizedPrev), current)) {
       history.push({
         changedAt: new Date().toISOString(),
-        weekLabel: allWeeks[currentIdx]?.weekLabel || '',
-        changedBy: currentUser?.email || '',
+        weekLabel: editorSession?.weekLabel || '',
+        changedBy: editorSession?.authEmail || '',
         from: milestoneSnapshot(normalizedPrev),
         to: milestoneSnapshot(current)
       });
@@ -6593,16 +6610,51 @@ function showProjectMutationError(error, fallback) {
   errorElement.classList.add('show');
 }
 
-function applyCommittedWeek(targetWeekId, committedWeek) {
-  const committedIndex = allWeeks.findIndex(week => (
-    week?.weekLabel?.replace(/\s+/g, '-') === targetWeekId
-  ));
-  if (committedIndex < 0) return;
-  allWeeks[committedIndex] = {
-    ...committedWeek,
-    projects: (committedWeek.projects || []).map(normalizeProject)
-  };
-  if (currentIdx === committedIndex) render();
+function isProjectEditorSessionCurrent(session) {
+  return Boolean(
+    session
+    && projectEditorSession === session
+    && session.token === projectEditorSession.token
+    && document.getElementById('projEditOverlay')?.classList.contains('open')
+    && session.authUid === (currentUser?.uid || '')
+    && session.authEmail === getEmailKey(currentUser)
+    && session.role === currentRole
+  );
+}
+
+function assertProjectEditorSessionCurrent(session) {
+  if (!isProjectEditorSessionCurrent(session)) {
+    throw new Error(
+      'The project editor session changed. Close and reopen the project before trying again.'
+    );
+  }
+}
+
+function invalidateProjectEditorSession() {
+  projectEditorSession = null;
+  projectMutationInFlight = false;
+  projectMutationInFlightToken = null;
+  editingProjCode = null;
+  isCreatingNew = false;
+  setProjectMutationControlsDisabled(false);
+  clearProjectMutationError();
+  const overlay = document.getElementById('projEditOverlay');
+  overlay?.classList.remove('open');
+  overlay?.querySelectorAll('input, textarea').forEach(control => {
+    if (control.type === 'checkbox' || control.type === 'radio') control.checked = false;
+    else control.value = '';
+  });
+  for (const id of [
+    'riskActionPairContainer',
+    'msListContainer',
+    'workstreamListContainer',
+    'qmsListContainer',
+    'teamMemberContainer',
+    'budgetPlanContainer',
+    'budgetActualContainer'
+  ]) {
+    document.getElementById(id)?.replaceChildren();
+  }
 }
 
 window.openProjEdit = (code, isNew = false) => {
@@ -6709,6 +6761,18 @@ window.openProjEdit = (code, isNew = false) => {
     actionDiv.style.display = 'none';
   }
 
+  projectEditorSession = Object.freeze({
+    token: `project-editor-${++projectEditorSessionSequence}`,
+    weekId: week.__documentId || week.weekLabel.replace(/\s+/g, '-'),
+    weekLabel: week.weekLabel,
+    authUid: currentUser?.uid || '',
+    authEmail: getEmailKey(currentUser),
+    role: currentRole,
+    isNew,
+    code,
+    revisionFingerprint: projectRevisionFingerprint(existingProject),
+    originalProject: isNew ? null : p
+  });
   document.getElementById('pe_details').open = isNew;
   document.getElementById('projEditOverlay').classList.add('open');
 };
@@ -6757,12 +6821,15 @@ function collectEditorResources(previousResources = {}) {
 
 window.saveProjEdit = async () => {
   if (projectMutationInFlight) return;
-  const week = allWeeks[currentIdx];
-  if (!week) {
-    showProjectMutationError(null, 'The selected week is unavailable. Refresh the dashboard and try again.');
+  const session = projectEditorSession;
+  if (!isProjectEditorSessionCurrent(session)) {
+    showProjectMutationError(
+      null,
+      'The project editor session is no longer current. Close and reopen the project before saving.'
+    );
     return;
   }
-  const previousProject = isCreatingNew ? null : week.projects.find(x => x.code === editingProjCode);
+  const previousProject = session.originalProject;
   const editorResources = collectEditorResources(previousProject?.resources);
   if (!editorResources) return;
   const ganttWorkstreams = collectWorkstreams();
@@ -6772,7 +6839,7 @@ window.saveProjEdit = async () => {
     showWorkstreamErrors(workstreamErrors);
     return;
   }
-  const milestones = collectMilestonesWithHistory(previousProject);
+  const milestones = collectMilestonesWithHistory(previousProject, session);
   const quarterlyMilestones = Array.from(document.querySelectorAll('.qms-row')).map(div => ({
     quarter: div.querySelector('.qms-quarter').value,
     goal: div.querySelector('.qms-goal').value,
@@ -6822,53 +6889,59 @@ window.saveProjEdit = async () => {
     },
     dataStatus: collectResourceBudgetStatus()
   };
-  const targetWeekId = week.weekLabel.replace(/\s+/g, '-');
-  const targetWeekRef = doc(db, 'weeks', targetWeekId);
-  const originalCode = editingProjCode;
-  const creatingNew = isCreatingNew;
+  const targetWeekRef = doc(db, 'weeks', session.weekId);
   let transactionResult = null;
 
   clearProjectMutationError();
   projectMutationInFlight = true;
+  projectMutationInFlightToken = session.token;
   setProjectMutationControlsDisabled(true);
   showLoader("Saving Project...");
   try {
     transactionResult = await runTransaction(db, async transaction => {
+      assertProjectEditorSessionCurrent(session);
       const liveSnapshot = await transaction.get(targetWeekRef);
+      assertProjectEditorSessionCurrent(session);
       if (!liveSnapshot.exists()) {
         throw new Error('The selected week no longer exists. Refresh the dashboard and try again.');
       }
-      const actorEmail = currentUser?.email;
-      if (!actorEmail) {
-        throw new Error('Your session changed before the save completed. Sign in and try again.');
-      }
       const result = applyProjectSave(liveSnapshot.data(), {
         draft: pData,
-        originalCode,
-        isNew: creatingNew,
-        role: currentRole,
-        canEdit: project => canEditProject(project),
-        lastModifiedBy: actorEmail
+        originalCode: session.code,
+        isNew: session.isNew,
+        role: session.role,
+        canEdit: project => projectOwnershipMatchesIdentity(project, {
+          displayName: getUserDisplayName(session.authEmail),
+          email: session.authEmail
+        }),
+        expectedFingerprint: session.revisionFingerprint,
+        fingerprintProject: project => projectRevisionFingerprint(normalizeProject(project)),
+        lastModifiedBy: session.authEmail
       });
       transaction.update(targetWeekRef, {
         projects: result.week.projects,
-        lastModifiedBy: actorEmail
+        lastModifiedBy: session.authEmail
       });
       return result;
     });
   } catch (error) {
-    showProjectMutationError(
-      error,
-      'Project save failed. Check your connection, refresh the dashboard, and try again.'
-    );
+    if (isProjectEditorSessionCurrent(session)) {
+      showProjectMutationError(
+        error,
+        'Project save failed. Check your connection, refresh the dashboard, and try again.'
+      );
+    }
   } finally {
-    projectMutationInFlight = false;
-    setProjectMutationControlsDisabled(false);
-    hideLoader();
+    if (projectMutationInFlightToken === session.token) {
+      projectMutationInFlight = false;
+      projectMutationInFlightToken = null;
+      setProjectMutationControlsDisabled(false);
+      hideLoader();
+    }
   }
   if (!transactionResult) return;
+  if (!isProjectEditorSessionCurrent(session)) return;
 
-  applyCommittedWeek(targetWeekId, transactionResult.week);
   closeModal('projEditOverlay');
   const pendingSections = [
     transactionResult.project.dataStatus.team.state !== 'confirmed' && 'team',
@@ -6882,56 +6955,63 @@ window.saveProjEdit = async () => {
 
 window.deleteProject = async () => {
   if (projectMutationInFlight) return;
-  if (currentRole !== 'admin') return;
-  if(!confirm("Are you sure you want to permanently DELETE this project? This cannot be undone.")) return;
-  const week = allWeeks[currentIdx];
-  if (!week) {
-    showProjectMutationError(null, 'The selected week is unavailable. Refresh the dashboard and try again.');
+  const session = projectEditorSession;
+  if (!isProjectEditorSessionCurrent(session)) {
+    showProjectMutationError(
+      null,
+      'The project editor session is no longer current. Close and reopen the project before deleting.'
+    );
     return;
   }
-  const targetWeekId = week.weekLabel.replace(/\s+/g, '-');
-  const targetWeekRef = doc(db, 'weeks', targetWeekId);
-  const originalCode = editingProjCode;
+  if (session.role !== 'admin') return;
+  if(!confirm("Are you sure you want to permanently DELETE this project? This cannot be undone.")) return;
+  const targetWeekRef = doc(db, 'weeks', session.weekId);
   let transactionResult = null;
 
   clearProjectMutationError();
   projectMutationInFlight = true;
+  projectMutationInFlightToken = session.token;
   setProjectMutationControlsDisabled(true);
   showLoader("Deleting Project...");
   try {
     transactionResult = await runTransaction(db, async transaction => {
+      assertProjectEditorSessionCurrent(session);
       const liveSnapshot = await transaction.get(targetWeekRef);
+      assertProjectEditorSessionCurrent(session);
       if (!liveSnapshot.exists()) {
         throw new Error('The selected week no longer exists. Refresh the dashboard and try again.');
       }
-      const actorEmail = currentUser?.email;
-      if (!actorEmail) {
-        throw new Error('Your session changed before the delete completed. Sign in and try again.');
-      }
       const result = applyProjectDelete(liveSnapshot.data(), {
-        originalCode,
-        role: currentRole,
-        lastModifiedBy: actorEmail
+        originalCode: session.code,
+        role: session.role,
+        expectedFingerprint: session.revisionFingerprint,
+        fingerprintProject: project => projectRevisionFingerprint(normalizeProject(project)),
+        lastModifiedBy: session.authEmail
       });
       transaction.update(targetWeekRef, {
         projects: result.week.projects,
-        lastModifiedBy: actorEmail
+        lastModifiedBy: session.authEmail
       });
       return result;
     });
   } catch (error) {
-    showProjectMutationError(
-      error,
-      'Project deletion failed. Check your connection, refresh the dashboard, and try again.'
-    );
+    if (isProjectEditorSessionCurrent(session)) {
+      showProjectMutationError(
+        error,
+        'Project deletion failed. Check your connection, refresh the dashboard, and try again.'
+      );
+    }
   } finally {
-    projectMutationInFlight = false;
-    setProjectMutationControlsDisabled(false);
-    hideLoader();
+    if (projectMutationInFlightToken === session.token) {
+      projectMutationInFlight = false;
+      projectMutationInFlightToken = null;
+      setProjectMutationControlsDisabled(false);
+      hideLoader();
+    }
   }
   if (!transactionResult) return;
+  if (!isProjectEditorSessionCurrent(session)) return;
 
-  applyCommittedWeek(targetWeekId, transactionResult.week);
   closeModal('projEditOverlay');
   showSaveToast("Project deleted");
 };

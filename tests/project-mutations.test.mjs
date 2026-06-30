@@ -5,6 +5,8 @@ import test from 'node:test';
 import {
   applyProjectDelete,
   applyProjectSave,
+  mergePreservingUnknown,
+  projectRevisionFingerprint,
 } from '../team-2/js/project-mutations.mjs';
 
 const dashboard = await readFile(
@@ -183,6 +185,104 @@ test('delete removes only the exact live target and preserves concurrent week da
   assert.equal(liveWeek.projects.length, 2);
 });
 
+test('recursive merge preserves unknown nested fields while honoring deliberate array removals', () => {
+  const liveProject = {
+    code: 'NESTED',
+    name: 'Nested',
+    budget: {
+      mode: 'manual',
+      unknownBudgetField: 'keep',
+      monthlyPlans: [
+        { id: 'plan-1', amount: 10, unknownPlanField: 'keep' },
+        { id: 'plan-2', amount: 15, unknownPlanField: 'follow-reorder' },
+        { id: 'plan-removed', amount: 20, unknownPlanField: 'remove-with-row' },
+      ],
+    },
+    dataStatus: {
+      team: { state: 'draft', unknownTeamStatus: 'keep' },
+      unknownDataStatus: 'keep',
+    },
+    teamMembers: [
+      { name: 'Alice', role: 'Engineer', directoryId: 'keep' },
+      { name: 'Removed', role: 'Engineer', directoryId: 'remove-with-row' },
+    ],
+    milestones: [
+      { planId: 'milestone-1', name: 'Gate', status: 'to-do', unknownMilestone: 'keep' },
+      { planId: 'milestone-removed', name: 'Removed gate', unknownMilestone: 'remove-with-row' },
+    ],
+  };
+  const draft = {
+    code: 'NESTED',
+    name: 'Nested edited',
+    budget: {
+      mode: 'auto',
+      monthlyPlans: [
+        { id: 'plan-2', amount: 25 },
+        { id: 'plan-1', amount: 15 },
+      ],
+    },
+    dataStatus: {
+      team: { state: 'confirmed' },
+    },
+    teamMembers: [{ name: 'Alice', role: 'Lead' }],
+    milestones: [{ planId: 'milestone-1', name: 'Gate renamed', status: 'done' }],
+  };
+
+  const merged = mergePreservingUnknown(liveProject, draft);
+
+  assert.equal(merged.budget.unknownBudgetField, 'keep');
+  assert.equal(merged.budget.monthlyPlans.length, 2);
+  assert.equal(merged.budget.monthlyPlans[0].unknownPlanField, 'follow-reorder');
+  assert.equal(merged.budget.monthlyPlans[1].unknownPlanField, 'keep');
+  assert.equal(merged.dataStatus.unknownDataStatus, 'keep');
+  assert.equal(merged.dataStatus.team.unknownTeamStatus, 'keep');
+  assert.equal(merged.teamMembers.length, 1);
+  assert.equal(merged.teamMembers[0].directoryId, 'keep');
+  assert.equal(merged.milestones.length, 1);
+  assert.equal(merged.milestones[0].unknownMilestone, 'keep');
+});
+
+test('canonical project fingerprints ignore object key order and reject concurrent nested edits', () => {
+  const original = {
+    code: 'CONFLICT',
+    name: 'Conflict',
+    budget: { currency: 'USD', totalEstimated: 10 },
+  };
+  assert.equal(
+    projectRevisionFingerprint(original),
+    projectRevisionFingerprint({
+      budget: { totalEstimated: 10, currency: 'USD' },
+      name: 'Conflict',
+      code: 'CONFLICT',
+    }),
+  );
+
+  const concurrentlyChanged = {
+    ...original,
+    budget: { ...original.budget, totalEstimated: 11 },
+  };
+  assert.throws(
+    () => applyProjectSave({ projects: [concurrentlyChanged] }, {
+      originalCode: 'CONFLICT',
+      draft: { code: 'CONFLICT', name: 'My draft' },
+      isNew: false,
+      role: 'admin',
+      expectedFingerprint: projectRevisionFingerprint(original),
+      lastModifiedBy: 'admin@example.com',
+    }),
+    /changed since.*reopen/i,
+  );
+  assert.throws(
+    () => applyProjectDelete({ projects: [concurrentlyChanged] }, {
+      originalCode: 'CONFLICT',
+      role: 'admin',
+      expectedFingerprint: projectRevisionFingerprint(original),
+      lastModifiedBy: 'admin@example.com',
+    }),
+    /changed since.*reopen/i,
+  );
+});
+
 test('project save and delete use retryable transactions and commit UI state only after await', () => {
   const saveStart = dashboard.indexOf('window.saveProjEdit = async () =>');
   const deleteStart = dashboard.indexOf('window.deleteProject = async () =>');
@@ -218,4 +318,39 @@ test('project save and delete use retryable transactions and commit UI state onl
     deleteSource.slice(0, deleteSource.indexOf('await runTransaction')),
     /week\.projects\.(?:push|splice)|week\.projects\[[^\]]+\]\s*=/,
   );
+});
+
+test('project editor pins week and identity session and stale completions cannot close a newer modal', () => {
+  const saveStart = dashboard.indexOf('window.saveProjEdit = async () =>');
+  const deleteStart = dashboard.indexOf('window.deleteProject = async () =>');
+  const deleteEnd = dashboard.indexOf('window.addMilestoneRow', deleteStart);
+  const saveSource = dashboard.slice(saveStart, deleteStart);
+  const deleteSource = dashboard.slice(deleteStart, deleteEnd);
+  const authStart = dashboard.indexOf('window.handleLogout = async () =>');
+  const authEnd = dashboard.indexOf('function getUserDisplayName', authStart);
+  const authSource = dashboard.slice(authStart, authEnd);
+
+  assert.ok(dashboard.includes('let projectEditorSession = null;'));
+  assert.ok(dashboard.includes('projectEditorSession = Object.freeze({'));
+  assert.ok(dashboard.includes('weekId: week.__documentId ||'));
+  assert.ok(dashboard.includes('revisionFingerprint: projectRevisionFingerprint(existingProject)'));
+  assert.ok(dashboard.includes("Object.defineProperty(normalizedWeek, '__documentId'"));
+  assert.ok(dashboard.includes('session.authUid === (currentUser?.uid ||'));
+  assert.ok(dashboard.includes('session.authEmail === getEmailKey(currentUser)'));
+  assert.ok(dashboard.includes('session.role === currentRole'));
+  assert.ok(authSource.includes('invalidateProjectEditorSession();'));
+
+  for (const source of [saveSource, deleteSource]) {
+    assert.ok(source.includes('const session = projectEditorSession;'));
+    assert.ok(source.includes("doc(db, 'weeks', session.weekId)"));
+    assert.ok(source.includes('assertProjectEditorSessionCurrent(session);'));
+    assert.ok(source.includes('expectedFingerprint: session.revisionFingerprint'));
+    assert.doesNotMatch(source, /allWeeks\[currentIdx\]/);
+    assert.ok(source.includes('if (!isProjectEditorSessionCurrent(session)) return;'));
+    assert.ok(
+      source.indexOf('if (!isProjectEditorSessionCurrent(session)) return;')
+        < source.indexOf("closeModal('projEditOverlay')"),
+    );
+  }
+  assert.doesNotMatch(dashboard, /function applyCommittedWeek|applyCommittedWeek\(/);
 });
