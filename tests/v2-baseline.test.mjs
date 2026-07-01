@@ -432,12 +432,15 @@ test('project detail renders resource values without modifying RAG status', () =
   assert.ok(!dashboard.slice(resourceRenderStart, resourceRenderEnd).includes('.status'));
 });
 
-test('one-page project status view is present and accessible to every project role', () => {
+test('one-page project status renderer remains available without a Single Project entry point', () => {
   assert.match(dashboard, /id="onePageStatusModal"/);
   assert.match(dashboard, /id="onePageStatusModal"[^>]+role="dialog"[^>]+aria-modal="true"[^>]+aria-labelledby="onePageTitle"/);
   assert.match(dashboard, /function renderOnePageStatus\(/);
-  assert.ok(dashboard.includes('One-page Status'));
-  assert.ok(dashboard.includes("openOnePageStatus(document.getElementById('projDetailOverlay').dataset.projectCode)"));
+  const detailStart = dashboard.indexOf('<div class="overlay" id="projDetailOverlay">');
+  const detailEnd = dashboard.indexOf('<div class="overlay" id="onePageStatusModal"', detailStart);
+  const detailSource = dashboard.slice(detailStart, detailEnd);
+  assert.doesNotMatch(detailSource, /One-page Status/);
+  assert.doesNotMatch(detailSource, /openOnePageStatus/);
   assert.ok(dashboard.includes("renderProjectGantt(normalized, 'onePageGantt')"));
   assert.ok(dashboard.includes('normalized.highlight'));
   assert.ok(dashboard.includes('normalized.weeklyActions || normalized.weeklyAction'));
