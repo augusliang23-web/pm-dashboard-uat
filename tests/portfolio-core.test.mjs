@@ -5,6 +5,7 @@ import {
   BUILT_IN_WORKSTREAM_TEMPLATES,
   PROJECT_LEVEL,
   PROJECT_LIFECYCLE,
+  buildGanttCalendarAxis,
   calculateDropIndex,
   createTimelineTicks,
   createDefaultWorkstreams,
@@ -34,6 +35,70 @@ import {
   validateWorkstreamTemplateConfig,
   validateWorkstreams,
 } from '../team-2/js/portfolio-core.mjs';
+
+test('weekly Gantt axis aligns to Mondays and groups labelled ISO weeks by month', () => {
+  const axis = buildGanttCalendarAxis(
+    new Date(Date.UTC(2026, 5, 30)),
+    new Date(Date.UTC(2026, 6, 15)),
+    'week',
+  );
+
+  assert.equal(axis.axisStart.toISOString(), '2026-06-29T00:00:00.000Z');
+  assert.equal(axis.axisEnd.toISOString(), '2026-07-20T00:00:00.000Z');
+  assert.deepEqual(axis.ticks.map(tick => tick.label), [
+    'W27 · Jun 29',
+    'W28 · Jul 6',
+    'W29 · Jul 13',
+  ]);
+  assert.deepEqual(axis.groups.map(group => ({
+    label: group.label,
+    span: group.span,
+  })), [
+    { label: 'Jun 2026', span: 1 },
+    { label: 'Jul 2026', span: 2 },
+  ]);
+  assert.equal(axis.guidance, 'Each grid column represents one calendar week.');
+  assert.equal(axis.rangeLabel, 'Jun 30, 2026 – Jul 15, 2026');
+});
+
+test('weekly Gantt axis uses the correct ISO week across a year boundary', () => {
+  const axis = buildGanttCalendarAxis(
+    new Date(Date.UTC(2025, 11, 29)),
+    new Date(Date.UTC(2026, 0, 4)),
+    'week',
+  );
+
+  assert.equal(axis.ticks[0].label, 'W01 · Dec 29');
+});
+
+test('monthly Gantt axis aligns to month boundaries and groups months by year', () => {
+  const axis = buildGanttCalendarAxis(
+    new Date(Date.UTC(2026, 10, 18)),
+    new Date(Date.UTC(2027, 1, 3)),
+    'month',
+  );
+
+  assert.equal(axis.axisStart.toISOString(), '2026-11-01T00:00:00.000Z');
+  assert.equal(axis.axisEnd.toISOString(), '2027-03-01T00:00:00.000Z');
+  assert.deepEqual(axis.ticks.map(tick => tick.label), ['Nov', 'Dec', 'Jan', 'Feb']);
+  assert.deepEqual(axis.groups.map(group => ({
+    label: group.label,
+    span: group.span,
+  })), [
+    { label: '2026', span: 2 },
+    { label: '2027', span: 2 },
+  ]);
+  assert.equal(axis.guidance, 'Each grid column represents one calendar month.');
+});
+
+test('Gantt calendar axis rejects invalid or reversed ranges', () => {
+  assert.equal(buildGanttCalendarAxis(new Date('invalid'), new Date(), 'week'), null);
+  assert.equal(buildGanttCalendarAxis(
+    new Date(Date.UTC(2026, 1, 1)),
+    new Date(Date.UTC(2026, 0, 1)),
+    'month',
+  ), null);
+});
 
 test('portfolio order follows attention priority and is stable within each group', () => {
   const projects = [

@@ -247,6 +247,135 @@ export function parseIsoDate(value) {
     : null;
 }
 
+const CALENDAR_DAY_MS = 86400000;
+const CALENDAR_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function utcDay(date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function utcWeekStart(date) {
+  const value = utcDay(date);
+  const mondayOffset = (value.getUTCDay() + 6) % 7;
+  value.setUTCDate(value.getUTCDate() - mondayOffset);
+  return value;
+}
+
+function utcMonthStart(date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+function addUtcDays(date, days) {
+  return new Date(date.getTime() + days * CALENDAR_DAY_MS);
+}
+
+function addUtcMonths(date, months) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
+}
+
+function isoWeekNumber(date) {
+  const thursday = utcDay(date);
+  thursday.setUTCDate(thursday.getUTCDate() + 3 - ((thursday.getUTCDay() + 6) % 7));
+  const firstThursday = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 4));
+  firstThursday.setUTCDate(
+    firstThursday.getUTCDate() + 3 - ((firstThursday.getUTCDay() + 6) % 7),
+  );
+  return 1 + Math.round(
+    (thursday.getTime() - firstThursday.getTime()) / (7 * CALENDAR_DAY_MS),
+  );
+}
+
+function calendarDateLabel(date, includeYear = false) {
+  const month = CALENDAR_MONTHS[date.getUTCMonth()];
+  return includeYear
+    ? `${month} ${date.getUTCDate()}, ${date.getUTCFullYear()}`
+    : `${month} ${date.getUTCDate()}`;
+}
+
+function groupCalendarTicks(ticks, axisEnd, keyForTick, labelForTick) {
+  const groups = [];
+  ticks.forEach((tick, index) => {
+    const key = keyForTick(tick.date);
+    const end = ticks[index + 1]?.date || axisEnd;
+    const current = groups.at(-1);
+    if (current?.key === key) {
+      current.end = end;
+      current.span += 1;
+      return;
+    }
+    groups.push({
+      key,
+      label: labelForTick(tick.date),
+      start: tick.date,
+      end,
+      span: 1,
+    });
+  });
+  return groups;
+}
+
+export function buildGanttCalendarAxis(start, end, scale = 'month') {
+  if (!(start instanceof Date) || !(end instanceof Date)
+    || !Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())
+    || start > end) return null;
+
+  const actualStart = utcDay(start);
+  const actualEnd = utcDay(end);
+  const normalizedScale = scale === 'week' ? 'week' : 'month';
+  const axisStart = normalizedScale === 'week'
+    ? utcWeekStart(actualStart)
+    : utcMonthStart(actualStart);
+  const finalIntervalStart = normalizedScale === 'week'
+    ? utcWeekStart(actualEnd)
+    : utcMonthStart(actualEnd);
+  const axisEnd = normalizedScale === 'week'
+    ? addUtcDays(finalIntervalStart, 7)
+    : addUtcMonths(finalIntervalStart, 1);
+  const ticks = [];
+
+  for (
+    let cursor = new Date(axisStart);
+    cursor < axisEnd;
+    cursor = normalizedScale === 'week' ? addUtcDays(cursor, 7) : addUtcMonths(cursor, 1)
+  ) {
+    ticks.push({
+      date: cursor,
+      label: normalizedScale === 'week'
+        ? `W${String(isoWeekNumber(cursor)).padStart(2, '0')} · ${calendarDateLabel(cursor)}`
+        : CALENDAR_MONTHS[cursor.getUTCMonth()],
+    });
+  }
+
+  const groups = normalizedScale === 'week'
+    ? groupCalendarTicks(
+      ticks,
+      axisEnd,
+      date => `${date.getUTCFullYear()}-${date.getUTCMonth()}`,
+      date => `${CALENDAR_MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`,
+    )
+    : groupCalendarTicks(
+      ticks,
+      axisEnd,
+      date => String(date.getUTCFullYear()),
+      date => String(date.getUTCFullYear()),
+    );
+
+  return {
+    scale: normalizedScale,
+    actualStart,
+    actualEnd,
+    axisStart,
+    axisEnd,
+    ticks,
+    groups,
+    guidance: normalizedScale === 'week'
+      ? 'Each grid column represents one calendar week.'
+      : 'Each grid column represents one calendar month.',
+    rangeLabel: `${calendarDateLabel(actualStart, true)} – ${calendarDateLabel(actualEnd, true)}`,
+  };
+}
+
 export function createTimelineTicks(start, end, scale = 'month', maxTicks = 60) {
   if (!(start instanceof Date) || !(end instanceof Date) || start > end) return [];
   const candidates = [new Date(start)];
