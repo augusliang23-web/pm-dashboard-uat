@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email != null
+        && get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin';
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /weeks/{weekId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /logs/{logId} {
+      allow create, read: if isSignedIn();
+    }
+
+    match /presence/{document} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /presenceSessions/{sessionId} {
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.userKey == request.auth.token.email
+        && request.resource.data.sessionId == sessionId;
+
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.userKey == resource.data.userKey
+        && request.resource.data.sessionId == resource.data.sessionId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'lastSeenAt',
+          'endedAt',
+          'activeMs',
+          'idleMs',
+          'state',
+          'endReason',
+          'updatedAt'
+        ]);
+
+      allow read: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /presenceDailyRollups/{rollupId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+  }
+}
