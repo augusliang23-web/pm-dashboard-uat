@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+test('project cards display member count, average allocation, and FTE', async () => {
+  const html = await readFile(
+    new URL('../team-2/index.html', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(html, /summarizeTeamEffort/);
+  assert.match(
+    html,
+    /Avg \$\{teamEffort\.averagePct\}% · \$\{teamEffort\.fte\.toFixed\(1\)\} FTE/,
+  );
+  assert.doesNotMatch(html, /\$\{teamTotal\}%/);
+});

@@ -2055,7 +2055,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
-import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
+import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { assertReasonableWeekDocument, buildImportResults, formatImportPreviewRow, importResultsToCsv, mergeReadyImportRows, planImport } from "./js/excel-import.mjs";
 import { applyProjectAttentionUpdate, applyProjectDelete, applyProjectSave, ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
 import { buildLastSeenPresenceActivities, buildPresenceTimelineLanes, selectPresenceWriteScale } from "./js/presence-usage.mjs";
@@ -5731,7 +5731,7 @@ function renderNormal(projs) {
     const visibility = ['hidden', 'archived'].includes(p.visibility) ? p.visibility : '';
     const statusLabel = getStatusLabel(status).toUpperCase();
     const highlightText = p.highlight || 'No updates.';
-    const teamTotal = (p.teamMembers || []).reduce((sum, m) => sum + Number(m.effortPct || m.effort || 0), 0);
+    const teamEffort = summarizeTeamEffort(p.teamMembers);
     const budgetTotals = projectBudgetTotals(p, overviewCurrency);
 
     return `
@@ -5768,7 +5768,7 @@ function renderNormal(projs) {
         <div class="card-extra-signals">
           <div class="card-signal">
             <div class="card-signal-label">Team Effort</div>
-            <div class="card-signal-value">${(p.teamMembers || []).length} members · ${teamTotal}%</div>
+            <div class="card-signal-value">${teamEffort.memberCount} member${teamEffort.memberCount === 1 ? '' : 's'} · Avg ${teamEffort.averagePct}% · ${teamEffort.fte.toFixed(1)} FTE</div>
           </div>
           <div class="card-signal">
             <div class="card-signal-label">Budget Used</div>

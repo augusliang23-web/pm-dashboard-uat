@@ -512,6 +512,19 @@ export function normalizeOverviewPercent(value) {
   return Number.isFinite(number) ? Math.min(100, Math.max(0, number)) : 0;
 }
 
+export function summarizeTeamEffort(members = []) {
+  const rows = Array.isArray(members) ? members : [];
+  const totalPct = rows.reduce((sum, member) => {
+    const effort = Number(member?.effortPct ?? member?.effort);
+    return sum + (Number.isFinite(effort) && effort >= 0 && effort <= 100 ? effort : 0);
+  }, 0);
+  return {
+    memberCount: rows.length,
+    averagePct: rows.length ? Math.round(totalPct / rows.length) : 0,
+    fte: Math.round(totalPct / 10) / 10,
+  };
+}
+
 export function filterRoleVisibleProjects(source = [], options = {}) {
   const projects = Array.isArray(source) ? source : [];
   const role = stringValue(options.role).toLocaleLowerCase() || 'pm';

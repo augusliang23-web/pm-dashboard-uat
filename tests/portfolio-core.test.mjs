@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as portfolioCore from '../team-2/js/portfolio-core.mjs';
 
 import {
   BUILT_IN_WORKSTREAM_TEMPLATES,
@@ -35,6 +36,28 @@ import {
   validateWorkstreamTemplateConfig,
   validateWorkstreams,
 } from '../team-2/js/portfolio-core.mjs';
+
+test('team effort summary reports average allocation and FTE instead of a summed percent', () => {
+  assert.equal(typeof portfolioCore.summarizeTeamEffort, 'function');
+  const members = [
+    ...Array.from({ length: 14 }, (_, index) => ({
+      name: `Member ${index + 1}`,
+      effortPct: 100,
+    })),
+    { name: 'Member 15', effortPct: 70 },
+  ];
+
+  assert.deepEqual(portfolioCore.summarizeTeamEffort(members), {
+    memberCount: 15,
+    averagePct: 98,
+    fte: 14.7,
+  });
+  assert.deepEqual(portfolioCore.summarizeTeamEffort([]), {
+    memberCount: 0,
+    averagePct: 0,
+    fte: 0,
+  });
+});
 
 test('weekly Gantt axis aligns to Mondays and groups labelled ISO weeks by month', () => {
   const axis = buildGanttCalendarAxis(
