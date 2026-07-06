@@ -1,6 +1,7 @@
 export const PROJECT_LEVEL = Object.freeze({
   SYSTEM: 'system',
   HARDWARE_MODULE: 'hardware-module',
+  SOFTWARE: 'software',
 });
 
 export const PROJECT_LIFECYCLE = Object.freeze({
@@ -12,6 +13,7 @@ export const PROJECT_LIFECYCLE = Object.freeze({
 export const OVERVIEW_SCOPE = Object.freeze({
   SYSTEM: PROJECT_LEVEL.SYSTEM,
   HARDWARE_MODULE: PROJECT_LEVEL.HARDWARE_MODULE,
+  SOFTWARE: PROJECT_LEVEL.SOFTWARE,
   ALL: 'all',
 });
 
@@ -33,6 +35,7 @@ const WORKSTREAM_STATUSES = new Set(['not-started', 'on-track', 'at-risk', 'dela
 export const BUILT_IN_WORKSTREAM_TEMPLATES = Object.freeze({
   [PROJECT_LEVEL.SYSTEM]: Object.freeze(['Design', 'Integration', 'Validation', 'Certification', 'Launch']),
   [PROJECT_LEVEL.HARDWARE_MODULE]: Object.freeze(['Documentation', 'BOM Verification', 'Procurement', 'Assembly/Test', 'Certification']),
+  [PROJECT_LEVEL.SOFTWARE]: Object.freeze(['Requirements', 'Development', 'Integration', 'Validation', 'Release']),
 });
 
 export function formatStatusDate(value) {
@@ -71,7 +74,7 @@ export function resolveProjectStatusDate(project = {}, reportingPeriod = {}) {
 
   const rangeEnd = String(reportingPeriod.weekDate || '').split(/\s+-\s+/).at(-1);
   const year = String(reportingPeriod.weekLabel || '').match(/\b(20\d{2})\b/)?.[1];
-  return rangeEnd && year ? formatStatusDate(`${rangeEnd}, ${year}`) : 'Not available';
+  return rangeEnd && year ? formatStatusDate(`${rangeEnd}, ${year} UTC`) : 'Not available';
 }
 
 function contentLines(value) {
@@ -183,10 +186,57 @@ function validateWorkstreamTemplateNames(source) {
   return { names, errors };
 }
 
+function comparableRole(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
+function roleResourceKey(label) {
+  const comparable = comparableRole(label);
+  const legacyKeys = {
+    hardware: 'hardware',
+    firmware: 'firmware',
+    'system electrical': 'systemElectrical',
+    mechanical: 'mechanical',
+    pmo: 'pmo',
+  };
+  return legacyKeys[comparable]
+    || `role_${comparable.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'unassigned'}`;
+}
+
+export function deriveRoleResourceRows(teamMembers = [], resources = {}, noAllocationRequired = false) {
+  if (noAllocationRequired || !Array.isArray(teamMembers) || !teamMembers.length) return [];
+  const sourceResources = resources && typeof resources === 'object' ? resources : {};
+  const uniqueRoles = new Map();
+  teamMembers.forEach(member => {
+    const label = String(member?.roleName || member?.role || '').trim().replace(/\s+/g, ' ');
+    const comparable = comparableRole(label);
+    if (comparable && !uniqueRoles.has(comparable)) uniqueRoles.set(comparable, label);
+  });
+
+  return Array.from(uniqueRoles.entries()).map(([comparable, label]) => {
+    const generatedKey = roleResourceKey(label);
+    const matchingEntry = Object.entries(sourceResources).find(([key, entry]) => {
+      const storedLabel = entry && typeof entry === 'object' ? entry.role || entry.label : '';
+      return comparableRole(storedLabel) === comparable
+        || comparableRole(key.replace(/^role_/, '').replace(/_/g, ' ')) === comparable;
+    });
+    const key = matchingEntry?.[0] || generatedKey;
+    const source = matchingEntry?.[1] || sourceResources[generatedKey] || {};
+    return {
+      key,
+      label,
+      entry: {
+        ...(source && typeof source === 'object' ? source : {}),
+        ...normalizeResourceEntry(source),
+      },
+    };
+  });
+}
+
 export function validateWorkstreamTemplateConfig(source = {}) {
   const config = {};
   const errors = {};
-  for (const level of Object.values(PROJECT_LEVEL)) {
+  for (const level of [PROJECT_LEVEL.SYSTEM, PROJECT_LEVEL.HARDWARE_MODULE]) {
     const result = validateWorkstreamTemplateNames(source?.[level]);
     config[level] = result.names;
     if (result.errors.length) errors[level] = result.errors;
@@ -204,6 +254,7 @@ export function resolveWorkstreamTemplateConfig(source) {
   return {
     [PROJECT_LEVEL.SYSTEM]: [...selected[PROJECT_LEVEL.SYSTEM]],
     [PROJECT_LEVEL.HARDWARE_MODULE]: [...selected[PROJECT_LEVEL.HARDWARE_MODULE]],
+    [PROJECT_LEVEL.SOFTWARE]: [...(selected[PROJECT_LEVEL.SOFTWARE] || BUILT_IN_WORKSTREAM_TEMPLATES[PROJECT_LEVEL.SOFTWARE])],
   };
 }
 
@@ -496,7 +547,10 @@ export function getOverviewProjects(source = [], scope = OVERVIEW_SCOPE.SYSTEM) 
 
 export function getOverviewProjectBadgeLabel(project = {}, scope = OVERVIEW_SCOPE.SYSTEM) {
   if (normalizeOverviewScope(scope) !== OVERVIEW_SCOPE.ALL) return '';
-  return normalizeProject(project).projectLevel === PROJECT_LEVEL.HARDWARE_MODULE ? 'Module' : 'System';
+  const level = normalizeProject(project).projectLevel;
+  if (level === PROJECT_LEVEL.HARDWARE_MODULE) return 'Module';
+  if (level === PROJECT_LEVEL.SOFTWARE) return 'Software';
+  return 'System';
 }
 
 export function normalizeOverviewRagStatus(value) {

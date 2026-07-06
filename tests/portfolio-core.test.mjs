@@ -335,6 +335,44 @@ test('normalizeProject preserves unknown resource disciplines and known-entry me
   assert.deepEqual(project.resources.quality, { headcount: 2, note: 'legacy discipline' });
 });
 
+test('software is a supported project level with its own default workstreams', () => {
+  const project = normalizeProject({ projectLevel: PROJECT_LEVEL.SOFTWARE });
+  assert.equal(project.projectLevel, 'software');
+  assert.deepEqual(
+    createDefaultWorkstreams(PROJECT_LEVEL.SOFTWARE).map(item => item.name),
+    [...BUILT_IN_WORKSTREAM_TEMPLATES[PROJECT_LEVEL.SOFTWARE]],
+  );
+});
+
+test('role resource rows are case-insensitive and preserve matching legacy hours', () => {
+  const rows = portfolioCore.deriveRoleResourceRows(
+    [
+      { role: 'Firmware' },
+      { roleName: 'firmware' },
+      { role: 'Software QA' },
+      { role: '' },
+    ],
+    {
+      firmware: { estimated: 120, actual: 40 },
+      role_software_qa: { role: 'Software QA', estimated: 80, actual: null },
+    },
+  );
+
+  assert.deepEqual(rows.map(row => row.label), ['Firmware', 'Software QA']);
+  assert.equal(rows[0].key, 'firmware');
+  assert.equal(rows[0].entry.estimated, 120);
+  assert.equal(rows[1].key, 'role_software_qa');
+  assert.equal(rows[1].entry.estimated, 80);
+});
+
+test('role resource rows are hidden when allocation is absent or not required', () => {
+  assert.deepEqual(portfolioCore.deriveRoleResourceRows([], { hardware: { estimated: 10 } }), []);
+  assert.deepEqual(
+    portfolioCore.deriveRoleResourceRows([{ role: 'Hardware' }], { hardware: { estimated: 10 } }, true),
+    [],
+  );
+});
+
 test('filterProjects combines portfolio filters and case-insensitive search', () => {
   const projects = [
     {

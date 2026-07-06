@@ -107,6 +107,7 @@ test('exposes an Overview-only scope control with an independent persisted Syste
   assert.match(dashboard, /id="overviewScope"/);
   assert.match(dashboard, /data-overview-scope="system"[^>]*>System Projects<\/button>/);
   assert.match(dashboard, /data-overview-scope="hardware-module"[^>]*>Hardware Modules<\/button>/);
+  assert.match(dashboard, /data-overview-scope="software"[^>]*>Software<\/button>/);
   assert.match(dashboard, /data-overview-scope="all"[^>]*>All Projects<\/button>/);
   assert.ok(dashboard.includes('getOverviewScopeStorageKey(currentUser?.uid || getEmailKey(currentUser))'));
   assert.ok(dashboard.includes('normalizeOverviewScope(localStorage.getItem(storageKey))'));
@@ -329,10 +330,11 @@ test('milestone deletion confirms linked schedule updates', () => {
   assert.ok(dashboard.includes('validateWorkstreams(ganttWorkstreams, milestoneIds)'));
 });
 
-test('resource editor exposes fixed disciplines with estimated and optional actual inputs', () => {
-  for (const discipline of ['hardware', 'firmware', 'systemElectrical', 'mechanical', 'pmo']) {
-    assert.match(dashboard, new RegExp(`data-resource-discipline=["']${discipline}["']`));
-  }
+test('resource editor derives discipline rows from unique team roles', () => {
+  assert.ok(dashboard.includes('deriveRoleResourceRows('));
+  assert.ok(dashboard.includes('id="disciplineHoursSection" hidden'));
+  assert.ok(dashboard.includes('id="disciplineHoursGrid"'));
+  assert.ok(dashboard.includes('refreshDisciplineHoursEditor'));
   assert.ok(dashboard.includes('class="fi resource-estimated"'));
   assert.ok(dashboard.includes('class="fi resource-actual"'));
   assert.ok(dashboard.includes('min="0"'));

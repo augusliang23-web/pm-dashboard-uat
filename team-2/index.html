@@ -690,10 +690,18 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-outcome-progress { display:flex; align-items:center; gap:7px; margin-top:5px; }
 .exec-outcome-progress-track { flex:1; height:5px; overflow:hidden; border-radius:999px; background:var(--s3); }
 .exec-outcome-progress-fill { height:100%; background:var(--green); border-radius:inherit; }
-.exec-outcome-progress-fill.yellow { background:var(--yellow); }
-.exec-outcome-progress-fill.red { background:var(--red); }
 .exec-outcome-progress-label { width:30px; text-align:right; color:var(--text-light); font-family:'IBM Plex Mono',monospace; font-size:9px; }
 .exec-outcome-relink { margin-top:3px; color:#A85454; font-size:9px; font-weight:700; }
+.exec-category-summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; padding:14px; background:#F7FAFC; border-bottom:1px solid var(--border); }
+.exec-category-summary { min-width:0; padding:12px; border:1px solid var(--border); border-top:4px solid var(--green); border-radius:9px; background:#fff; }
+.exec-category-summary.yellow { border-top-color:var(--yellow); }
+.exec-category-summary.red { border-top-color:var(--red); }
+.exec-category-summary-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.exec-category-summary-title { font-size:12px; line-height:1.3; font-weight:850; color:var(--text); }
+.exec-category-summary-value { margin-top:8px; font-size:24px; line-height:1; font-weight:900; color:var(--text); }
+.exec-category-summary-track { height:7px; margin-top:9px; overflow:hidden; border-radius:999px; background:var(--s3); }
+.exec-category-summary-fill { height:100%; border-radius:inherit; background:var(--green); }
+.exec-category-summary-note { margin-top:7px; color:var(--muted); font-size:9px; line-height:1.35; }
 .dcdc-phase-row { display:grid; grid-template-columns:150px repeat(4,minmax(0,1fr)); align-items:stretch; background:#F1F7FB; }
 .dcdc-phase-spacer { border-right:1px solid #C8DDEB; }
 .dcdc-phase { padding:12px 10px; text-align:center; color:#005BAA; font-size:15px; line-height:1.15; font-weight:900; border-right:1px solid #C8DDEB; }
@@ -774,6 +782,29 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-outcome-row .fi, .exec-outcome-row .fs { min-width:0; width:100%; font-size:10px; padding:6px; }
 .exec-outcome-row button { min-height:27px; border:1px solid var(--border2); border-radius:5px; background:#fff; color:var(--text-light); cursor:pointer; }
 .exec-outcome-add, .exec-source-add { margin-top:5px; width:100%; padding:6px; border:1px dashed var(--border2); border-radius:6px; background:#fff; color:var(--text-light); cursor:pointer; font-size:10px; font-weight:700; }
+.exec-category-editor { border:1px solid var(--border); border-radius:9px; background:#fff; overflow:hidden; }
+.exec-category-editor > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 14px; cursor:pointer; list-style:none; font-weight:850; color:var(--text); }
+.exec-category-editor > summary::-webkit-details-marker { display:none; }
+.exec-category-editor > summary::after { content:'＋'; color:var(--muted); font-size:18px; }
+.exec-category-editor[open] > summary::after { content:'−'; }
+.exec-category-editor-body { padding:0 14px 14px; border-top:1px solid var(--border); }
+.exec-category-override { display:grid; grid-template-columns:auto 120px 130px minmax(180px,1fr); gap:8px; align-items:center; margin:12px 0; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
+.exec-category-override-toggle { display:flex; align-items:center; gap:6px; color:var(--text-light); font-size:10px; font-weight:800; }
+.exec-quarter-tabs { display:flex; gap:5px; margin:12px 0 9px; padding:4px; border-radius:8px; background:var(--s3); }
+.exec-quarter-tab { flex:1; padding:7px 10px; border:0; border-radius:6px; background:transparent; color:var(--muted); cursor:pointer; font-size:11px; font-weight:850; }
+.exec-quarter-tab.active { background:#fff; color:var(--blue); box-shadow:0 1px 3px rgba(38,53,70,.12); }
+.exec-quarter-panel { display:none; }
+.exec-quarter-panel.active { display:block; }
+.exec-progress-segments { display:flex; gap:3px; }
+.exec-progress-segments button { flex:1; min-width:39px; padding:6px 4px; border:1px solid var(--border); border-radius:5px; background:#fff; color:var(--muted); cursor:pointer; font-size:10px; font-weight:800; }
+.exec-progress-segments button.active { border-color:#72B493; background:var(--gdim); color:#37775A; }
+.exec-evidence-details { border-top:1px dashed var(--border); padding-top:6px; }
+.exec-evidence-details > summary { color:var(--muted); cursor:pointer; font-size:10px; font-weight:750; }
+.exec-evidence-details[open] > summary { margin-bottom:6px; }
+@media (max-width:900px) {
+  .exec-category-summary-grid { grid-template-columns:1fr; }
+  .exec-category-override { grid-template-columns:1fr; }
+}
 
 /* Resource & Budget Prototype */
 .proto-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
@@ -1597,6 +1628,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button type="button" data-scope="all">All</button>
       <button type="button" data-scope="system">System</button>
       <button type="button" data-scope="hardware-module">Hardware Module</button>
+      <button type="button" data-scope="software">Software</button>
     </div>
     <div class="portfolio-controls">
       <input class="fi portfolio-search" id="projectSearch" type="search" placeholder="Search project name or code">
@@ -1755,7 +1787,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <div class="fg"><label class="fl">Location</label><input class="fi" id="pe_location" placeholder="e.g. Taiwan or Texas, US"></div>
       </div>
       <div style="display:flex; gap:16px; margin-top:10px;">
-        <div class="fg"><label class="fl">Project Level</label><select class="fs" id="pe_project_level"><option value="system">System</option><option value="hardware-module">Hardware Module</option></select></div>
+        <div class="fg"><label class="fl">Project Level</label><select class="fs" id="pe_project_level"><option value="system">System</option><option value="hardware-module">Hardware Module</option><option value="software">Software</option></select></div>
         <div class="fg"><label class="fl">Lifecycle</label><select class="fs" id="pe_lifecycle"><option value="active">Active</option><option value="on-hold">On Hold</option><option value="completed">Completed</option></select></div>
       </div>
       <div style="margin-top:20px;">
@@ -1824,7 +1856,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
             </div>
             <div class="editor-row-head team-row-head" aria-hidden="true"><span>Name</span><span>Role</span><span>Allocation %</span><span>Actions</span></div>
             <div id="teamMemberContainer"></div>
-            <label class="resource-check"><input type="checkbox" id="pe_team_not_required" onchange="markResourceSectionDirty('team')"> No allocation information required for this project</label>
+            <label class="resource-check"><input type="checkbox" id="pe_team_not_required" onchange="markResourceSectionDirty('team'); refreshDisciplineHoursEditor()"> No allocation information required for this project</label>
             <div class="resource-validation" id="teamValidation"></div>
             <div class="resource-panel-actions"><button class="btn btn-primary" type="button" onclick="confirmResourceSection('team')">Confirm team allocation</button></div>
           </div>
@@ -1886,16 +1918,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
           </div>
         </details>
       </section>
-      <section class="proto-editor-section">
+      <section class="proto-editor-section" id="disciplineHoursSection" hidden>
         <div class="proto-section-title">Discipline Hours</div>
-        <div class="proto-section-note">Estimated hours are required; actual hours remain optional.</div>
-        <div class="resource-editor-grid">
-          <div class="resource-editor-row" data-resource-discipline="hardware"><div class="resource-discipline">Hardware</div><div class="fg"><label class="fl">Estimated hours</label><input class="fi resource-estimated" type="number" min="0" step="any" required aria-label="Hardware estimated hours"></div><div class="fg"><label class="fl">Actual hours (optional)</label><input class="fi resource-actual" type="number" min="0" step="any" aria-label="Hardware actual hours"></div></div>
-          <div class="resource-editor-row" data-resource-discipline="firmware"><div class="resource-discipline">Firmware</div><div class="fg"><label class="fl">Estimated hours</label><input class="fi resource-estimated" type="number" min="0" step="any" required aria-label="Firmware estimated hours"></div><div class="fg"><label class="fl">Actual hours (optional)</label><input class="fi resource-actual" type="number" min="0" step="any" aria-label="Firmware actual hours"></div></div>
-          <div class="resource-editor-row" data-resource-discipline="systemElectrical"><div class="resource-discipline">System Electrical</div><div class="fg"><label class="fl">Estimated hours</label><input class="fi resource-estimated" type="number" min="0" step="any" required aria-label="System Electrical estimated hours"></div><div class="fg"><label class="fl">Actual hours (optional)</label><input class="fi resource-actual" type="number" min="0" step="any" aria-label="System Electrical actual hours"></div></div>
-          <div class="resource-editor-row" data-resource-discipline="mechanical"><div class="resource-discipline">Mechanical</div><div class="fg"><label class="fl">Estimated hours</label><input class="fi resource-estimated" type="number" min="0" step="any" required aria-label="Mechanical estimated hours"></div><div class="fg"><label class="fl">Actual hours (optional)</label><input class="fi resource-actual" type="number" min="0" step="any" aria-label="Mechanical actual hours"></div></div>
-          <div class="resource-editor-row" data-resource-discipline="pmo"><div class="resource-discipline">PMO</div><div class="fg"><label class="fl">Estimated hours</label><input class="fi resource-estimated" type="number" min="0" step="any" required aria-label="PMO estimated hours"></div><div class="fg"><label class="fl">Actual hours (optional)</label><input class="fi resource-actual" type="number" min="0" step="any" aria-label="PMO actual hours"></div></div>
-        </div>
+        <div class="proto-section-note">Functions follow the unique roles entered in Team allocation. Estimated hours are required; actual hours remain optional.</div>
+        <div class="resource-editor-grid" id="disciplineHoursGrid"></div>
       </section>
       
       <div style="margin-top:24px; padding-top:16px; border-top:1px dashed var(--border);" id="adminProjActions">
@@ -2051,9 +2077,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
-import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
+import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
-import { calculateExecutiveOutcome, executiveSourceKey, normalizeExecutiveOutcome } from "./js/executive-outcomes.mjs";
+import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcomeStatusLabel, executiveSourceKey, normalizeExecutiveCategoryOverride, normalizeExecutiveOutcome } from "./js/executive-outcomes.mjs";
 import { applyProjectAttentionUpdate, applyProjectDelete, applyProjectSave, ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
 import { buildLastSeenPresenceActivities, buildPresenceTimelineLanes, selectPresenceWriteScale } from "./js/presence-usage.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -4408,6 +4434,16 @@ const DCDC_EXECUTIVE_MILESTONE_TIMELINE = {
   ]
 };
 
+const EXECUTIVE_CATEGORY_LABELS = [
+  'Solution & ecosystem',
+  'Customers & GTM',
+  'Investors & Others',
+];
+
+function executiveCategoryKey(label = '') {
+  return String(label).trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 function normalizeExecutiveMilestoneTimeline(raw = {}) {
   const source = raw && raw.rows ? raw : DCDC_EXECUTIVE_MILESTONE_TIMELINE;
   const quarters = (source.quarters || ['Q1', 'Q2', 'Q3', 'Q4']).slice(0, 4);
@@ -4420,11 +4456,17 @@ function normalizeExecutiveMilestoneTimeline(raw = {}) {
     })
   })).filter(row => row.label || row.cells.some(cell => cell.length));
   const phases = Array.from({ length: 4 }, (_, index) => String(source.phases?.[index] || ''));
+  const categoryOverrides = {};
+  rows.forEach(row => {
+    const key = executiveCategoryKey(row.label);
+    categoryOverrides[key] = normalizeExecutiveCategoryOverride(source.categoryOverrides?.[key] || {});
+  });
   return {
     title: String(source.title || 'Selected 2026 DCDC Milestone Timeline'),
     quarters,
     rows: rows.length ? rows : DCDC_EXECUTIVE_MILESTONE_TIMELINE.rows,
-    phases: phases.some(Boolean) ? phases : DCDC_EXECUTIVE_MILESTONE_TIMELINE.phases
+    phases: phases.some(Boolean) ? phases : DCDC_EXECUTIVE_MILESTONE_TIMELINE.phases,
+    categoryOverrides,
   };
 }
 
@@ -5093,6 +5135,7 @@ function renderExecutiveOutcomeDisplay(source, catalog, reportingLabel) {
   const outcome = normalizeExecutiveOutcome(source);
   const result = calculateExecutiveOutcome(outcome, catalog.lookup);
   const progressLabel = result.progress === null ? 'N/A' : `${result.progress}%`;
+  const statusLabel = executiveOutcomeStatusLabel(result.progress, result.health);
   const evidence = result.validSources.map(item => item.label).filter(Boolean);
   const tooltip = [
     ...evidence.map(label => `Evidence: ${label}`),
@@ -5104,15 +5147,34 @@ function renderExecutiveOutcomeDisplay(source, catalog, reportingLabel) {
       <span>${escHtml(outcome.text)}</span>
       <span class="exec-outcome-badges">
         <span class="exec-outcome-badge">${result.mode === 'auto' ? 'Auto' : 'Manual'}</span>
-        <span class="exec-outcome-badge ${result.health}">${escHtml(result.health === 'green' ? 'On Track' : result.health === 'yellow' ? 'At Risk' : result.health === 'red' ? 'Delayed' : 'Unknown')}</span>
+        <span class="exec-outcome-badge ${result.health}">${escHtml(statusLabel)}</span>
       </span>
     </div>
     <div class="exec-outcome-progress">
-      <span class="exec-outcome-progress-track"><span class="exec-outcome-progress-fill ${result.health}" style="width:${result.progress ?? 0}%"></span></span>
+      <span class="exec-outcome-progress-track"><span class="exec-outcome-progress-fill" style="width:${result.progress ?? 0}%"></span></span>
       <span class="exec-outcome-progress-label">${progressLabel}</span>
     </div>
     ${result.missingSources.length ? '<div class="exec-outcome-relink">Needs relink</div>' : ''}
   </li>`;
+}
+
+function renderExecutiveCategorySummaries(timeline, catalog) {
+  return `<div class="exec-category-summary-grid">${(timeline.rows || []).map(row => {
+    const results = (row.cells || []).flat().map(item => calculateExecutiveOutcome(normalizeExecutiveOutcome(item), catalog.lookup));
+    const summary = calculateExecutiveCategory(results, timeline.categoryOverrides?.[executiveCategoryKey(row.label)]);
+    const progress = summary.progress ?? 0;
+    const label = summary.progress === null ? 'N/A' : `${summary.progress}%`;
+    const status = summary.progress === 100 ? 'Done' : summary.health === 'red' ? 'Delayed' : summary.health === 'yellow' ? 'At Risk' : 'On Track';
+    return `<article class="exec-category-summary ${summary.health}">
+      <div class="exec-category-summary-head">
+        <div class="exec-category-summary-title">${escHtml(row.label)}</div>
+        <span class="exec-outcome-badge ${summary.health}">${escHtml(status)}</span>
+      </div>
+      <div class="exec-category-summary-value">${label}</div>
+      <div class="exec-category-summary-track"><div class="exec-category-summary-fill" style="width:${progress}%"></div></div>
+      <div class="exec-category-summary-note">${summary.overridden ? `Manual override · ${escHtml(summary.reason)}` : 'Equal-weight average of recorded outcomes'}</div>
+    </article>`;
+  }).join('')}</div>`;
 }
 
 function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
@@ -5133,6 +5195,7 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
     </div>
     <div class="dcdc-timeline">
       <div class="dcdc-title">${escHtml(timeline.title || 'Selected 2026 DCDC Milestone Timeline')}</div>
+      ${renderExecutiveCategorySummaries(timeline, catalog)}
       <div class="dcdc-grid">
         <div class="dcdc-cell dcdc-corner"></div>
         ${quarters.map(q => `<div class="dcdc-cell dcdc-quarter">${escHtml(q)}</div>`).join('')}
@@ -5558,11 +5621,21 @@ function formatResourceUpdatedAt(value) {
 
 function renderProjectResources(project) {
   const resources = project?.resources || {};
-  document.getElementById('pd_resources').innerHTML = `<table class="resource-detail-table">
+  const rows = deriveRoleResourceRows(
+    project?.teamMembers || [],
+    resources,
+    project?.dataStatus?.team?.noAllocationRequired === true,
+  );
+  const container = document.getElementById('pd_resources');
+  container.closest('.detail-resources-section').hidden = rows.length === 0;
+  if (!rows.length) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = `<table class="resource-detail-table">
     <thead><tr><th>Discipline</th><th>Estimated</th><th>Actual</th><th>Remaining</th><th>Last updated</th></tr></thead>
-    <tbody>${RESOURCE_DISCIPLINES.map(discipline => {
-      const entry = normalizeResourceEntry(resources[discipline]);
-      return `<tr><td>${RESOURCE_LABELS[discipline]}</td><td>${formatResourceValue(entry.estimated)}</td><td>${formatResourceValue(entry.actual)}</td><td>${formatResourceValue(entry.remaining)}</td><td>${formatResourceUpdatedAt(entry.updatedAt)}</td></tr>`;
+    <tbody>${rows.map(({ label, entry }) => {
+      return `<tr><td>${escHtml(label)}</td><td>${formatResourceValue(entry.estimated)}</td><td>${formatResourceValue(entry.actual)}</td><td>${formatResourceValue(entry.remaining)}</td><td>${formatResourceUpdatedAt(entry.updatedAt)}</td></tr>`;
     }).join('')}</tbody>
   </table>`;
 }
@@ -5829,7 +5902,7 @@ function renderNormal(projs) {
       <div class="card-body">
         <div class="card-summary">
           <div class="card-summary-left">
-            <div class="proj-name">${escHtml(p.name)}<span class="project-level-badge">${p.projectLevel === 'hardware-module' ? 'Module' : 'System'}</span>${visibility ? `<span class="muted-badge">[${visibility.toUpperCase()}]</span>` : ''}</div>
+            <div class="proj-name">${escHtml(p.name)}<span class="project-level-badge">${escHtml(getOverviewProjectBadgeLabel(p, 'all'))}</span>${visibility ? `<span class="muted-badge">[${visibility.toUpperCase()}]</span>` : ''}</div>
             <div class="proj-code">${escHtml(p.code)}</div>
           </div>
           <div class="card-summary-right">
@@ -5940,6 +6013,7 @@ function renderExec(projs, summary, allProjects = projs) {
             <div class="overview-scope no-print" id="overviewScope" aria-label="Overview project scope">
               <button type="button" data-overview-scope="system" class="${overviewScope === 'system' ? 'active' : ''}" aria-pressed="${overviewScope === 'system'}" onclick="setOverviewScope('system')">System Projects</button>
               <button type="button" data-overview-scope="hardware-module" class="${overviewScope === 'hardware-module' ? 'active' : ''}" aria-pressed="${overviewScope === 'hardware-module'}" onclick="setOverviewScope('hardware-module')">Hardware Modules</button>
+              <button type="button" data-overview-scope="software" class="${overviewScope === 'software' ? 'active' : ''}" aria-pressed="${overviewScope === 'software'}" onclick="setOverviewScope('software')">Software</button>
               <button type="button" data-overview-scope="all" class="${overviewScope === 'all' ? 'active' : ''}" aria-pressed="${overviewScope === 'all'}" onclick="setOverviewScope('all')">All Projects</button>
             </div>
             <div class="exec-panel-note">${total} projects</div>
@@ -6169,9 +6243,10 @@ function renderExecutiveOutcomeEditor(source = {}) {
         <option value="manual" ${outcome.progressMode === 'manual' ? 'selected' : ''}>Manual</option>
         <option value="auto" ${outcome.progressMode === 'auto' ? 'selected' : ''}>Auto</option>
       </select>
-      <select class="fs etm-manual-progress" aria-label="Manual progress">
-        ${[0,25,50,75,100].map(value => `<option value="${value}" ${outcome.manualProgress === value ? 'selected' : ''}>${value}%</option>`).join('')}
-      </select>
+      <div class="exec-progress-segments" aria-label="Manual progress">
+        ${[0,25,50,75,100].map(value => `<button type="button" class="${outcome.manualProgress === value ? 'active' : ''}" onclick="setExecutiveOutcomeProgress(this, ${value})">${value}%</button>`).join('')}
+        <input class="fs etm-manual-progress" type="hidden" value="${outcome.manualProgress}">
+      </div>
       <select class="fs etm-manual-health" aria-label="Manual health">
         <option value="on-track" ${outcome.manualHealth === 'on-track' ? 'selected' : ''}>On Track</option>
         <option value="at-risk" ${outcome.manualHealth === 'at-risk' ? 'selected' : ''}>At Risk</option>
@@ -6179,8 +6254,11 @@ function renderExecutiveOutcomeEditor(source = {}) {
       </select>
       <button type="button" onclick="this.closest('.exec-outcome-row').remove()" aria-label="Delete executive outcome">×</button>
     </div>
-    <div class="exec-outcome-sources">${references.map(renderExecutiveSourceSelect).join('')}</div>
-    <button type="button" class="exec-source-add" onclick="addExecutiveOutcomeSource(this)">+ Evidence</button>
+    <details class="exec-evidence-details">
+      <summary>Evidence (${outcome.sources.length})</summary>
+      <div class="exec-outcome-sources">${references.map(renderExecutiveSourceSelect).join('')}</div>
+      <button type="button" class="exec-source-add" onclick="addExecutiveOutcomeSource(this)">+ Evidence</button>
+    </details>
   </div>`;
 }
 
@@ -6198,16 +6276,40 @@ function renderExecutiveMilestoneEditor(timeline) {
       <label class="fl">Timeline Title</label>
       <input class="fi etm-title" value="${escHtml(data.title)}">
     </div>
-    <div class="exec-timeline-head"><span>Category</span>${data.quarters.map(q => `<span>${escHtml(q)}</span>`).join('')}</div>
     <div id="execTimelineRows">
-      ${data.rows.map(row => `
-        <div class="exec-timeline-row">
-          <input class="fi etm-row-label" value="${escHtml(row.label)}" placeholder="Category">
-          ${Array.from({ length: 4 }, (_, index) => renderExecutiveTimelineCell(row.cells[index] || [])).join('')}
-        </div>
-      `).join('')}
+      ${data.rows.map((row, rowIndex) => {
+        const key = executiveCategoryKey(row.label);
+        const override = data.categoryOverrides?.[key] || {};
+        return `<details class="exec-category-editor" data-category-key="${escHtml(key)}" ${rowIndex === 0 ? 'open' : ''}>
+          <summary>
+            <span>${escHtml(row.label)}</span>
+            <span class="exec-outcome-badge">${(row.cells || []).flat().length} outcomes</span>
+          </summary>
+          <div class="exec-category-editor-body">
+            <input class="etm-row-label" type="hidden" value="${escHtml(row.label)}">
+            <div class="exec-category-override">
+              <label class="exec-category-override-toggle">
+                <input class="etm-override-enabled" type="checkbox" ${override.enabled ? 'checked' : ''} onchange="syncExecutiveCategoryOverride(this)">
+                Manual category override
+              </label>
+              <select class="fs etm-override-progress" ${override.enabled ? '' : 'disabled'} aria-label="Category progress override">
+                ${[0,25,50,75,100].map(value => `<option value="${value}" ${override.progress === value ? 'selected' : ''}>${value}%</option>`).join('')}
+              </select>
+              <select class="fs etm-override-health" ${override.enabled ? '' : 'disabled'} aria-label="Category health override">
+                <option value="on-track" ${override.health === 'on-track' ? 'selected' : ''}>On Track</option>
+                <option value="at-risk" ${override.health === 'at-risk' ? 'selected' : ''}>At Risk</option>
+                <option value="delayed" ${override.health === 'delayed' ? 'selected' : ''}>Delayed</option>
+              </select>
+              <input class="fi etm-override-reason" value="${escHtml(override.reason || '')}" placeholder="Required reason for manual override" ${override.enabled ? '' : 'disabled'}>
+            </div>
+            <div class="exec-quarter-tabs">
+              ${data.quarters.map((q, index) => `<button type="button" class="exec-quarter-tab ${index === 0 ? 'active' : ''}" onclick="setExecutiveEditorQuarter(this, ${index})">${escHtml(q)}</button>`).join('')}
+            </div>
+            ${Array.from({ length: 4 }, (_, index) => `<div class="exec-quarter-panel ${index === 0 ? 'active' : ''}" data-quarter-index="${index}">${renderExecutiveTimelineCell(row.cells[index] || [])}</div>`).join('')}
+          </div>
+        </details>`;
+      }).join('')}
     </div>
-    <button class="btn btn-ghost" onclick="addExecutiveTimelineRow()" style="width:100%;">+ Add Timeline Category</button>
     <div class="exec-timeline-head"><span>Phase</span>${data.quarters.map(q => `<span>${escHtml(q)}</span>`).join('')}</div>
     <div class="exec-timeline-phase-row">
       <span class="fl" style="padding-top:9px;">Bottom phase labels</span>
@@ -6216,11 +6318,32 @@ function renderExecutiveMilestoneEditor(timeline) {
   </div>`;
 }
 
+function setExecutiveEditorQuarter(button, index) {
+  const editor = button.closest('.exec-category-editor');
+  editor?.querySelectorAll('.exec-quarter-tab').forEach((tab, tabIndex) => tab.classList.toggle('active', tabIndex === index));
+  editor?.querySelectorAll('.exec-quarter-panel').forEach(panel => panel.classList.toggle('active', Number(panel.dataset.quarterIndex) === index));
+}
+window.setExecutiveEditorQuarter = setExecutiveEditorQuarter;
+
+window.setExecutiveOutcomeProgress = (button, value) => {
+  const segments = button.closest('.exec-progress-segments');
+  segments?.querySelectorAll('button').forEach(item => item.classList.toggle('active', item === button));
+  const input = segments?.querySelector('.etm-manual-progress');
+  if (input) input.value = String(value);
+};
+
+window.syncExecutiveCategoryOverride = checkbox => {
+  const editor = checkbox.closest('.exec-category-editor');
+  editor?.querySelectorAll('.etm-override-progress, .etm-override-health, .etm-override-reason').forEach(control => {
+    control.disabled = !checkbox.checked;
+  });
+};
+
 window.syncExecutiveOutcomeMode = select => {
   const row = select.closest('.exec-outcome-row');
   const isAuto = select.value === 'auto';
   row?.classList.toggle('is-auto', isAuto);
-  row?.querySelectorAll('.etm-manual-progress, .etm-manual-health').forEach(control => {
+  row?.querySelectorAll('.etm-manual-progress, .etm-manual-health, .exec-progress-segments button').forEach(control => {
     control.disabled = isAuto;
   });
 };
@@ -6266,18 +6389,33 @@ function collectExecutiveOutcomeRows(cell) {
   })).filter(outcome => outcome.text);
 }
 
+function collectExecutiveCategoryOverrides() {
+  return Object.fromEntries(Array.from(document.querySelectorAll('#execTimelineRows .exec-category-editor')).map(editor => {
+    const enabled = editor.querySelector('.etm-override-enabled')?.checked === true;
+    const reason = editor.querySelector('.etm-override-reason')?.value.trim() || '';
+    if (enabled && !reason) throw new Error('A reason is required when overriding an executive category.');
+    return [editor.dataset.categoryKey, normalizeExecutiveCategoryOverride({
+      enabled,
+      progress: Number(editor.querySelector('.etm-override-progress')?.value || 0),
+      health: editor.querySelector('.etm-override-health')?.value || 'on-track',
+      reason,
+    })];
+  }));
+}
+
 function collectExecutiveMilestoneTimeline() {
   const title = document.querySelector('.etm-title')?.value.trim() || 'Selected 2026 DCDC Milestone Timeline';
-  const rows = Array.from(document.querySelectorAll('#execTimelineRows .exec-timeline-row')).map(row => ({
+  const rows = Array.from(document.querySelectorAll('#execTimelineRows .exec-category-editor')).map(row => ({
     label: row.querySelector('.etm-row-label')?.value.trim() || '',
-    cells: Array.from(row.querySelectorAll('.etm-cell')).map(collectExecutiveOutcomeRows)
+    cells: Array.from(row.querySelectorAll('.exec-quarter-panel .etm-cell')).map(collectExecutiveOutcomeRows)
   })).filter(row => row.label || row.cells.some(cell => cell.length));
   const phases = Array.from(document.querySelectorAll('.etm-phase')).map(input => input.value.trim());
   return normalizeExecutiveMilestoneTimeline({
     title,
     quarters: ['Q1', 'Q2', 'Q3', 'Q4'],
     rows,
-    phases
+    phases,
+    categoryOverrides: collectExecutiveCategoryOverrides(),
   });
 }
 
@@ -6699,6 +6837,43 @@ function collectTeamMembers() {
   })).filter(item => item.name || item.roleName || item.effortPct);
 }
 
+let editorDisciplineSourceResources = {};
+
+function readDisciplineHoursDraft(source = editorDisciplineSourceResources) {
+  const resources = { ...(source || {}) };
+  document.querySelectorAll('#disciplineHoursGrid .resource-editor-row').forEach(row => {
+    const key = row.dataset.resourceDiscipline;
+    if (!key) return;
+    resources[key] = {
+      ...(resources[key] && typeof resources[key] === 'object' ? resources[key] : {}),
+      role: row.dataset.resourceLabel || '',
+      estimated: Number(row.querySelector('.resource-estimated')?.value || 0),
+      actual: row.querySelector('.resource-actual')?.value.trim() === ''
+        ? null
+        : Number(row.querySelector('.resource-actual')?.value || 0),
+    };
+  });
+  return resources;
+}
+
+window.refreshDisciplineHoursEditor = (sourceResources = null) => {
+  if (sourceResources) editorDisciplineSourceResources = { ...sourceResources };
+  else editorDisciplineSourceResources = readDisciplineHoursDraft();
+  const noAllocationRequired = document.getElementById('pe_team_not_required')?.checked === true;
+  const rows = deriveRoleResourceRows(collectTeamMembers(), editorDisciplineSourceResources, noAllocationRequired);
+  const section = document.getElementById('disciplineHoursSection');
+  const grid = document.getElementById('disciplineHoursGrid');
+  if (!section || !grid) return;
+  section.hidden = rows.length === 0;
+  grid.innerHTML = rows.map(({ key, label, entry }) => `
+    <div class="resource-editor-row" data-resource-discipline="${escHtml(key)}" data-resource-label="${escHtml(label)}">
+      <div class="resource-discipline">${escHtml(label)}</div>
+      <div class="fg"><label class="fl">Estimated hours</label><input class="fi resource-estimated" type="number" min="0" step="any" required value="${entry.estimated}" aria-label="${escHtml(label)} estimated hours"></div>
+      <div class="fg"><label class="fl">Actual hours (optional)</label><input class="fi resource-actual" type="number" min="0" step="any" value="${entry.actual ?? ''}" aria-label="${escHtml(label)} actual hours"></div>
+    </div>
+  `).join('');
+};
+
 function collectBudgetRows(selector) {
   return Array.from(document.querySelectorAll(selector)).map(row => ({
     id: row.dataset.budgetRowId,
@@ -6884,9 +7059,10 @@ window.addTeamMemberRow = (member = {}) => {
     <input class="fi team-name" value="${escHtml(member.name || '')}" placeholder="Name" aria-label="Team member name">
     <input class="fi team-role" list="teamRoleOptions" value="${escHtml(member.roleName || member.role || '')}" placeholder="Role" aria-label="Team member role">
     <input class="fi team-effort" type="number" min="0" max="100" value="${Number(member.effortPct || member.effort || 0)}" placeholder="0–100" aria-label="Allocation percent" title="Planned capacity assigned to this project, from 0% to 100%">
-    <button type="button" class="row-delete" onclick="this.parentElement.remove(); markResourceSectionDirty('team');" title="Delete member" aria-label="Delete team member">&#128465;&#65039;</button>
+    <button type="button" class="row-delete" onclick="this.parentElement.remove(); markResourceSectionDirty('team'); refreshDisciplineHoursEditor();" title="Delete member" aria-label="Delete team member">&#128465;&#65039;</button>
   `;
   row.addEventListener('input', () => markResourceSectionDirty('team'));
+  row.querySelector('.team-role')?.addEventListener('change', () => refreshDisciplineHoursEditor());
   container.appendChild(row);
   markResourceSectionDirty('team');
 };
@@ -7216,6 +7392,7 @@ function invalidateProjectEditorSession() {
     'workstreamListContainer',
     'qmsListContainer',
     'teamMemberContainer',
+    'disciplineHoursGrid',
     'budgetPlanContainer',
     'budgetActualContainer'
   ]) {
@@ -7269,11 +7446,6 @@ window.openProjEdit = (code, isNew = false) => {
   document.getElementById('pe_location').value = p.location || '';
   document.getElementById('pe_project_level').value = p.projectLevel;
   document.getElementById('pe_lifecycle').value = p.lifecycle;
-  document.querySelectorAll('.resource-editor-row').forEach(row => {
-    const entry = normalizeResourceEntry(p.resources?.[row.dataset.resourceDiscipline]);
-    row.querySelector('.resource-estimated').value = entry.estimated;
-    row.querySelector('.resource-actual').value = entry.actual ?? '';
-  });
   document.getElementById('pe_visibility').value = p.visibility || 'active';
   
   const msCont = document.getElementById('msListContainer');
@@ -7312,6 +7484,7 @@ window.openProjEdit = (code, isNew = false) => {
   planCont.innerHTML = '';
   actualCont.innerHTML = '';
   (p.teamMembers || []).forEach(member => addTeamMemberRow(member));
+  refreshDisciplineHoursEditor(p.resources || {});
   (p.budget?.monthlyPlans || []).forEach(item => addBudgetPlanRow(item));
   (p.budget?.actuals || []).forEach(item => addBudgetActualRow(item));
   resourceEditorHydrating = false;
@@ -7353,8 +7526,8 @@ function getEditorPortfolioValue(id, fallback = '') {
 
 function collectEditorResources(previousResources = {}) {
   const resources = { ...previousResources };
-  for (const discipline of RESOURCE_DISCIPLINES) {
-    const row = document.querySelector(`[data-resource-discipline="${discipline}"]`);
+  for (const row of document.querySelectorAll('#disciplineHoursGrid .resource-editor-row')) {
+    const discipline = row.dataset.resourceDiscipline;
     const estimatedInput = row.querySelector('.resource-estimated');
     const actualInput = row.querySelector('.resource-actual');
     for (const input of [estimatedInput, actualInput]) {
@@ -7379,7 +7552,7 @@ function collectEditorResources(previousResources = {}) {
     const estimated = estimatedResult.value;
     const actual = actualResult.value;
     resources[discipline] = mergeResourceEntry(
-      previousSource,
+      { ...previousSource, role: row.dataset.resourceLabel || previousSource.role || '' },
       estimated,
       actual,
       new Date().toISOString()

@@ -41,3 +41,25 @@ test('evidence catalog links stable project and quarterly milestone identities',
   assert.match(dashboard, /ensureStableEditorRowId/);
   assert.match(dashboard, /executiveSourceKey/);
 });
+
+test('executive editor uses category summaries and quarterly disclosure', () => {
+  assert.match(dashboard, /class="exec-category-summary-grid"/);
+  assert.match(dashboard, /class="exec-category-editor"/);
+  assert.match(dashboard, /class="exec-quarter-tabs"/);
+  assert.match(dashboard, /class="exec-progress-segments"/);
+  assert.match(dashboard, /class="exec-evidence-details"/);
+  assert.match(dashboard, /function setExecutiveEditorQuarter\(/);
+  assert.match(dashboard, /function collectExecutiveCategoryOverrides\(/);
+});
+
+test('executive progress bars keep a green fill and show Done at 100 percent', () => {
+  assert.match(dashboard, /executiveOutcomeStatusLabel\(result\.progress, result\.health\)/);
+  assert.match(
+    dashboard,
+    /class="exec-outcome-progress-fill" style="width:\$\{result\.progress \?\? 0\}%"/,
+  );
+  assert.doesNotMatch(
+    dashboard,
+    /class="exec-outcome-progress-fill \$\{result\.health\}"/,
+  );
+});

@@ -55,6 +55,47 @@ function displayHealth(value, overdue = false) {
   return 'green';
 }
 
+export function executiveOutcomeStatusLabel(progress, health) {
+  if (Number(progress) === 100) return 'Achieved / Done';
+  const normalizedHealth = displayHealth(health);
+  if (normalizedHealth === 'red') return 'Delayed';
+  if (normalizedHealth === 'yellow') return 'At Risk';
+  return 'On Track';
+}
+
+export function normalizeExecutiveCategoryOverride(source = {}) {
+  const progress = Number(source.progress);
+  const reason = String(source.reason || '').trim();
+  return {
+    enabled: source.enabled === true && reason.length > 0,
+    progress: PROGRESS_LEVELS.has(progress) ? progress : 0,
+    health: HEALTH_LEVELS.has(source.health) ? source.health : 'on-track',
+    reason,
+  };
+}
+
+export function calculateExecutiveCategory(outcomes = [], override = {}) {
+  const valid = outcomes.filter(item => Number.isFinite(item?.progress));
+  const automaticProgress = valid.length
+    ? Math.round(valid.reduce((sum, item) => sum + Math.max(0, Math.min(100, item.progress)), 0) / valid.length)
+    : null;
+  const automaticHealth = valid.some(item => displayHealth(item.health, item.overdue) === 'red')
+    ? 'red'
+    : valid.some(item => displayHealth(item.health, item.overdue) === 'yellow') ? 'yellow' : 'green';
+  const manual = normalizeExecutiveCategoryOverride(override);
+  const progress = manual.enabled ? manual.progress : automaticProgress;
+  const health = manual.enabled ? displayHealth(manual.health) : automaticHealth;
+  return {
+    progress,
+    health,
+    status: progress === 100
+      ? 'done'
+      : health === 'red' ? 'delayed' : health === 'yellow' ? 'at-risk' : 'on-track',
+    overridden: manual.enabled,
+    reason: manual.enabled ? manual.reason : '',
+  };
+}
+
 export function calculateExecutiveOutcome(source, sourceLookup = {}) {
   const outcome = normalizeExecutiveOutcome(source);
   if (outcome.progressMode === 'manual') {
