@@ -1544,7 +1544,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { confirmWeekMutation, getWriteErrorMessage } from "./sync-core.js";
-import { getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline } from "./executive-timeline-core.js";
+import { getExecutiveTimelineCell, getExecutiveTimelineItemText, serializeExecutiveMilestoneTimeline } from "./executive-timeline-core.js";
 import { canUserEditProject } from "./project-permissions.mjs";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 
@@ -2766,7 +2766,7 @@ function normalizeExecutiveMilestoneTimeline(raw = {}) {
     label: String(row.label || ''),
     cells: Array.from({ length: 4 }, (_, index) => {
       const cell = getExecutiveTimelineCell(row.cells, index);
-      return Array.isArray(cell) ? cell.map(String).filter(Boolean) : textLines(cell);
+      return Array.isArray(cell) ? cell.map(getExecutiveTimelineItemText).filter(Boolean) : textLines(cell);
     })
   })).filter(row => row.label || row.cells.some(cell => cell.length));
   const phases = Array.from({ length: 4 }, (_, index) => String(source.phases?.[index] || ''));
@@ -4199,7 +4199,7 @@ window.saveStrategyLayer = async () => {
   showLoader("Saving Strategy Layer...");
   try {
     const base = getStrategyLayer(week);
-    const executiveMilestoneTimeline = serializeExecutiveMilestoneTimeline(collectExecutiveMilestoneTimeline());
+    const executiveMilestoneTimeline = serializeExecutiveMilestoneTimeline(collectExecutiveMilestoneTimeline(), base.executiveMilestoneTimeline);
     const projectMap = {};
     document.querySelectorAll('.project-map-row').forEach(row => {
       const code = row.dataset.code || '';

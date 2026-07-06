@@ -25,7 +25,7 @@ test('v2.0 strategy save commits a clone after confirmation', () => {
 test('v2.0 serializes executive timeline cells for Firestore', () => {
   assert.match(
     production,
-    /import \{ getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline \} from "\.\/executive-timeline-core\.js"/
+    /import \{ getExecutiveTimelineCell, getExecutiveTimelineItemText, serializeExecutiveMilestoneTimeline \} from "\.\/executive-timeline-core\.js"/
   );
   assert.match(
     production,
@@ -33,7 +33,7 @@ test('v2.0 serializes executive timeline cells for Firestore', () => {
   );
   assert.match(
     production,
-    /serializeExecutiveMilestoneTimeline\(collectExecutiveMilestoneTimeline\(\)\)/
+    /serializeExecutiveMilestoneTimeline\(collectExecutiveMilestoneTimeline\(\), base\.executiveMilestoneTimeline\)/
   );
 });
 
