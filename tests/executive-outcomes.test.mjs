@@ -14,6 +14,9 @@ test('legacy executive text becomes a manual outcome without rewriting history',
     progressMode: 'manual',
     manualProgress: 0,
     manualHealth: 'on-track',
+    statusReason: '',
+    statusUpdatedAt: '',
+    statusUpdatedBy: '',
     sources: [],
   });
 });

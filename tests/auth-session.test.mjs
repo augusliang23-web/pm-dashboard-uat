@@ -147,6 +147,12 @@ test('a pending auth transition cancels an older delayed loader hide', () => {
   assert.ok(source.includes('hideLoaderTimer = setTimeout('));
 });
 
+test('startup watchdog prevents the secure-system loader from hanging forever', () => {
+  assert.match(dashboard, /__dashboardBootStarted/);
+  assert.match(dashboard, /__dashboardAuthObserved/);
+  assert.match(dashboard, /Dashboard is still waiting for secure access/);
+});
+
 test('an older session cannot render after its FX refresh resolves', () => {
   const start = dashboard.indexOf('async function refreshFxRates(');
   const end = dashboard.indexOf('function convertCurrency(', start);

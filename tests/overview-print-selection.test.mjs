@@ -28,15 +28,24 @@ test('every Overview report section has a selectable print identity', () => {
   }
 });
 
-test('print selection requires one section and does not persist to storage or Firebase', () => {
+test('print selection renders a dedicated presentation report and does not persist to storage or Firebase', () => {
   const start = dashboard.indexOf('window.confirmOverviewPrint =');
   const end = dashboard.indexOf('window.setOverviewScope', start);
   const source = dashboard.slice(start, end);
   assert.ok(source.includes('Select at least one section to export.'));
-  assert.ok(source.includes("classList.toggle('print-excluded'"));
+  assert.ok(source.includes('renderOverviewPrintReport'));
   assert.ok(source.includes('window.print()'));
   assert.doesNotMatch(source, /localStorage|setDoc|updateDoc|runTransaction/);
-  assert.match(dashboard, /\[data-print-section\]\.print-excluded \{ display:none !important; \}/);
+  assert.match(dashboard, /function renderOverviewPrintReport\(/);
+  assert.match(dashboard, /function renderPresentationReportPage\(/);
+  assert.match(dashboard, /document\.body\.classList\.add\('print-presentation-report'\)/);
+});
+
+test('Overview project portfolio repeats its heading while preserving complete project cards', () => {
+  assert.match(dashboard, /function renderOverviewPortfolioReportPages\(/);
+  assert.match(dashboard, /\.exec-project-card/);
+  assert.match(dashboard, /portfolioCards\.slice\(index, index \+ 1\)/);
+  assert.match(dashboard, /Project Portfolio/);
 });
 
 test('resource and budget are separate PDF export choices', () => {

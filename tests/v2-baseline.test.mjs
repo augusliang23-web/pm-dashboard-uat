@@ -191,6 +191,26 @@ test('escapes standard project cards and binds stored project codes without inli
   assert.ok(normalSource.includes("button.addEventListener('click', event =>"));
 });
 
+test('released weeks retain a disabled project edit control with an explanatory tooltip', () => {
+  const normalStart = dashboard.indexOf('function renderNormal(');
+  const normalEnd = dashboard.indexOf('function renderExec(', normalStart);
+  const normalSource = dashboard.slice(normalStart, normalEnd);
+  const releasedMessage = 'This week has been released to VIP and project content can no longer be changed. Please contact the system administrator if further changes are required.';
+
+  assert.ok(normalSource.includes('const isReleased = isWeekReleased(allWeeks[currentIdx]);'));
+  assert.ok(normalSource.includes('class="locked-project-edit"'));
+  assert.ok(normalSource.includes('data-project-action="edit-locked"'));
+  assert.ok(normalSource.includes('disabled aria-disabled="true"'));
+  assert.ok(dashboard.includes(releasedMessage));
+  assert.ok(dashboard.includes('.locked-project-edit:focus-within::after'));
+  assert.ok(dashboard.includes('.card-actions .action-icon:disabled'));
+});
+
+test('portfolio cards keep management signals in a full-width horizontal row', () => {
+  assert.match(dashboard, /\.exec-project-signals\s*\{[^}]*grid-template-columns:\s*repeat\(3,minmax\(0,1fr\)\)[^}]*grid-column:\s*1 \/ -1/);
+  assert.match(dashboard, /\.exec-project-top\s*\{[^}]*grid-template-columns:\s*minmax\(240px,1\.1fr\) minmax\(150px,\.65fr\) minmax\(220px,1fr\) minmax\(190px,\.85fr\)/);
+});
+
 test('gates Overview project mutations per project at render and write boundaries', () => {
   const attentionStart = dashboard.indexOf('function renderAttentionMatrix(');
   const attentionEnd = dashboard.indexOf('function renderRiskActionTable(', attentionStart);
@@ -211,8 +231,7 @@ test('gates Overview project mutations per project at render and write boundarie
 
 test('restricts global strategy and executive timeline controls and handlers to administrators', () => {
   assert.ok(dashboard.includes("const canManageStrategy = () => currentRole === 'admin' && !isAdminVipPreview;"));
-  assert.ok(dashboard.includes('${canManageStrategy() ? `<button class="btn btn-ghost no-print"'));
-  assert.ok(dashboard.includes('${canManageStrategy() && editableDecisionView ? `<button class="btn btn-primary no-print"'));
+  assert.ok(dashboard.includes('${executive && canManageStrategy() ? `<button class="btn btn-primary no-print"'));
   for (const handler of [
     'window.addExecutiveTimelineRow = () =>',
     'window.openStrategyLayerModal = () =>',
@@ -255,7 +274,7 @@ test('loads and stores Overview scope under the authenticated user key', () => {
 });
 
 test('labels the global timeline and renders scoped empty panel states', () => {
-  assert.ok(dashboard.includes('Portfolio-wide executive timeline'));
+  assert.ok(dashboard.includes('Portfolio Roadmap'));
   for (const emptyText of [
     'No projects in the selected Overview scope for resource or budget reporting.',
     'No projects in the selected Overview scope for risk reporting.',

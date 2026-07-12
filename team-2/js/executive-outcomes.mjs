@@ -32,16 +32,23 @@ export function normalizeExecutiveOutcome(source = '') {
       progressMode: 'manual',
       manualProgress: 0,
       manualHealth: 'on-track',
+      statusReason: '',
+      statusUpdatedAt: '',
+      statusUpdatedBy: '',
       sources: [],
     };
   }
   const progress = Number(source.manualProgress);
+  const health = source.status || source.manualHealth;
   return {
     id: String(source.id || ''),
     text: String(source.text || source.label || ''),
     progressMode: source.progressMode === 'auto' ? 'auto' : 'manual',
     manualProgress: PROGRESS_LEVELS.has(progress) ? progress : 0,
-    manualHealth: HEALTH_LEVELS.has(source.manualHealth) ? source.manualHealth : 'on-track',
+    manualHealth: HEALTH_LEVELS.has(health) ? health : 'on-track',
+    statusReason: String(source.statusReason || source.reason || '').trim(),
+    statusUpdatedAt: String(source.statusUpdatedAt || ''),
+    statusUpdatedBy: String(source.statusUpdatedBy || ''),
     sources: sourceValues(source.sources)
       .map(normalizeSource)
       .filter(item => item.projectCode && item.milestoneId)
@@ -150,6 +157,7 @@ export function serializeExecutiveOutcome(source) {
   const outcome = normalizeExecutiveOutcome(source);
   return {
     ...outcome,
+    status: outcome.manualHealth,
     sources: Object.fromEntries(
       outcome.sources.map((item, index) => [`source${index + 1}`, item]),
     ),

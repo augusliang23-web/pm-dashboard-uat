@@ -20,6 +20,29 @@ const FIREBASE_CONFIG = {
 };
 const DASHBOARD_RELEASE = 'v2.0T-portfolio';
 const DASHBOARD_BASE_COMMIT = '6d9f7bd';
+window.__dashboardBootStarted = false;
+window.__dashboardAuthObserved = false;
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    const loader = document.getElementById('globalLoader');
+    const loaderText = document.getElementById('loaderText');
+    const loginOverlay = document.getElementById('loginOverlay');
+    const authMsg = document.getElementById('authMsg');
+    if (!loader || !loaderText || getComputedStyle(loader).display === 'none') return;
+    if (window.__dashboardBootStarted && window.__dashboardAuthObserved) return;
+    if (!loaderText.textContent.includes('Connecting to Secure System')) return;
+    if (authMsg) {
+      authMsg.className = 'auth-msg error';
+      authMsg.style.display = 'block';
+      authMsg.textContent = 'Dashboard is still waiting for secure access. Please refresh once, or use the online v2.0T link if this local preview keeps waiting.';
+    }
+    if (loginOverlay) loginOverlay.style.display = 'flex';
+    loader.style.opacity = '0';
+    setTimeout(() => {
+      loader.style.display = 'none';
+    }, 300);
+  }, 12000);
+});
 </script>
 
 <style>
@@ -54,6 +77,7 @@ const DASHBOARD_BASE_COMMIT = '6d9f7bd';
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 .sr-only { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+#printReportRoot { display:none; }
 body { 
   font-family: 'Noto Sans TC', sans-serif; 
   background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; 
@@ -208,6 +232,11 @@ body {
 .card-actions .action-icon { background: var(--s1); border: 1px solid var(--border2); color: var(--muted); width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
 .card-actions .action-icon svg { width: 13px; height: 13px; }
 .card-actions .action-icon:hover { color: var(--text); border-color: var(--muted); background: var(--s2); }
+.card-actions .action-icon:disabled { color: var(--border2); background: var(--s3); border-color: var(--border); cursor: not-allowed; opacity: .72; }
+.card-actions .action-icon:disabled:hover { color: var(--border2); border-color: var(--border); background: var(--s3); }
+.locked-project-edit { position:relative; display:inline-flex; }
+.locked-project-edit::after { content:attr(data-tooltip); position:absolute; right:0; top:calc(100% + 8px); z-index:12; width:min(290px, 66vw); padding:8px 9px; border-radius:7px; background:var(--text); color:#fff; box-shadow:0 8px 18px rgba(30,41,59,.18); font-size:10px; font-weight:600; line-height:1.38; opacity:0; pointer-events:none; transform:translateY(-3px); transition:opacity .16s ease, transform .16s ease; }
+.locked-project-edit:hover::after, .locked-project-edit:focus-within::after { opacity:1; transform:translateY(0); }
 .card-summary { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom: 16px; padding-right: 44px; }
 .card-summary-left { min-width: 0; flex:1; }
 .card-summary-right { min-width: 96px; text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
@@ -269,6 +298,15 @@ body {
 .modal-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .modal-x { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted); }
 #onePageStatusModal .modal { width: min(1120px, 94vw); padding: 24px; overflow-x: hidden; }
+.project-pdf-picker-modal { width: min(620px, 92vw); }
+.project-pdf-picker-note { color: var(--muted); font-size: 12px; line-height: 1.5; margin: -8px 0 18px; }
+.project-pdf-picker-list { display: grid; gap: 10px; margin-bottom: 20px; }
+.project-pdf-picker-option { display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--border); border-radius:10px; background:var(--s2); cursor:pointer; }
+.project-pdf-picker-option:hover { border-color:var(--accent); background:var(--adim); }
+.project-pdf-picker-option input { width:18px; height:18px; accent-color:var(--accent); }
+.project-pdf-picker-option span { font-weight:700; color:var(--text); }
+.project-pdf-picker-actions { display:flex; justify-content:flex-end; gap:10px; }
+.project-pdf-picker-error { min-height:18px; margin-bottom:10px; color:var(--red); font-size:12px; }
 .one-page-status { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
 .one-page-status-header, .one-page-status-gantt, .one-page-status-footer { grid-column: 1 / -1; }
 .one-page-status-gantt { min-width: 0; overflow: hidden; }
@@ -277,9 +315,31 @@ body {
 .one-page-status-section { min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--s2); }
 .one-page-status-section h3 { margin: 0 0 10px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .one-page-status-content { white-space: normal; overflow-wrap: anywhere; }
+.one-page-project-update { grid-column: 1 / -1; }
+.one-page-update-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.one-page-update-card { min-width:0; padding:10px 11px; border:1px solid var(--border); border-radius:8px; background:#fff; }
+.one-page-update-card.risk { background:rgba(228,204,143,.08); }
+.one-page-update-card.next { background:rgba(126,170,200,.08); }
+.one-page-update-label { display:flex; align-items:center; gap:6px; margin-bottom:6px; color:var(--muted); font-size:9px; font-weight:850; letter-spacing:.06em; text-transform:uppercase; }
+.one-page-update-label::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--green); }
+.one-page-update-card.risk .one-page-update-label::before { background:var(--yellow); }
+.one-page-update-card.next .one-page-update-label::before { background:var(--blue); }
+.one-page-update-card ul { margin:0; padding-left:15px; color:var(--text-light); font-size:10px; line-height:1.4; }
+.one-page-update-card li + li { margin-top:3px; }
+.one-page-update-empty { color:var(--muted); font-size:10px; font-style:italic; }
 .one-page-status-list { margin: 0; padding-left: 20px; }
 .one-page-status-list li + li { margin-top: 6px; }
 .one-page-status-empty { color: var(--muted); font-style: italic; }
+.one-page-milestones { display:grid; gap:8px; }
+.one-page-milestone { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; padding:9px 10px; border:1px solid var(--border); border-radius:8px; background:#fff; }
+.one-page-milestone-name { font-weight:700; overflow-wrap:anywhere; }
+.one-page-milestone-meta { color:var(--muted); font-size:11px; margin-top:3px; }
+.one-page-milestone-status { font-size:10px; font-weight:800; white-space:nowrap; }
+.one-page-print-table { width:100%; border-collapse:collapse; font-size:11px; }
+.one-page-print-table th, .one-page-print-table td { padding:8px 9px; border-bottom:1px solid var(--border); text-align:left; }
+.one-page-print-table th { color:var(--muted); background:#fff; font-size:9px; text-transform:uppercase; letter-spacing:.04em; }
+.one-page-print-table th:last-child, .one-page-print-table td:last-child { text-align:right; }
+.one-page-print-table tr:last-child td { border-bottom:0; }
 .one-page-risk-section { grid-column: 1 / -1; }
 .one-page-risk-head, .one-page-risk-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
 .one-page-risk-head { margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; }
@@ -290,6 +350,8 @@ body {
 @media (max-width: 720px) {
   .one-page-status { grid-template-columns: minmax(0, 1fr); }
   .one-page-status-header, .one-page-status-gantt, .one-page-status-footer { grid-column: 1; }
+  .one-page-project-update { grid-column:1; }
+  .one-page-update-grid { grid-template-columns:1fr; }
   .one-page-status-header { flex-direction: column; }
   .one-page-risk-head { display: none; }
   .one-page-risk-row { grid-template-columns: minmax(0, 1fr); }
@@ -471,7 +533,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-project-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:5px; background:var(--green); }
 .exec-project-card.yellow::before { background:var(--yellow); }
 .exec-project-card.red::before { background:var(--red); }
-.exec-project-top { display:grid; grid-template-columns:minmax(220px,1.05fr) minmax(170px,.7fr) minmax(430px,2.2fr); gap:20px; align-items:center; padding:18px 22px 16px 26px; }
+.exec-project-top { display:grid; grid-template-columns:minmax(220px,1.1fr) minmax(130px,.65fr) minmax(210px,1fr) minmax(175px,.85fr); gap:20px; align-items:center; padding:18px 22px 16px 26px; }
 .exec-project-identity { min-width:0; }
 .exec-project-name { font-size:15px; }
 .exec-project-meta { margin-top:7px; gap:7px; }
@@ -486,7 +548,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-progress-fill { height:100%; border-radius:999px; background:var(--green); }
 .exec-progress-fill.yellow { background:var(--yellow); }
 .exec-progress-fill.red { background:var(--red); }
-.exec-project-signals { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; min-width:0; }
+.exec-project-signals { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; min-width:0; grid-column:1 / -1; }
 .exec-signal { min-width:0; min-height:82px; padding:11px 12px; border-radius:9px; background:var(--s2); border:1px solid var(--border); }
 .exec-signal.risk { background:rgba(228,204,143,.09); }
 .exec-signal-label { display:flex; align-items:center; gap:6px; font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; margin-bottom:6px; }
@@ -495,12 +557,18 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-signal.next .exec-signal-label::before { background:var(--blue); }
 .exec-signal .stext { margin:0; font-size:11px; line-height:1.45; color:var(--text-light); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 .exec-signal ul { margin:0; padding-left:14px; }
-.exec-resource-snapshot { margin-top:10px; padding:9px 10px; border:1px solid var(--border); border-radius:9px; background:#FBFDFF; }
-.exec-resource-summary { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:10px; font-weight:850; color:var(--text); }
+.exec-resource-snapshot { min-width:0; padding:9px 10px; border:1px solid var(--border); border-radius:9px; background:#FBFDFF; }
+.exec-resource-summary { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; font-size:10px; font-weight:850; color:var(--text); }
 .exec-resource-summary span:first-child { color:var(--muted); text-transform:uppercase; letter-spacing:.07em; font-size:9px; }
+.exec-resource-summary strong { white-space:nowrap; }
 .exec-resource-chips { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
 .exec-resource-chip { display:inline-flex; align-items:center; gap:4px; max-width:160px; padding:4px 7px; border-radius:999px; background:var(--s3); color:var(--text-light); font-size:9px; font-weight:800; }
 .exec-resource-chip b { color:var(--text); font-family:'IBM Plex Mono',monospace; }
+.exec-budget-snapshot { min-width:0; padding:9px 10px; border:1px solid var(--border); border-radius:9px; background:#FBFDFF; }
+.exec-budget-summary { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; font-size:10px; font-weight:850; color:var(--text); }
+.exec-budget-summary span:first-child { color:var(--muted); text-transform:uppercase; letter-spacing:.07em; font-size:9px; }
+.exec-budget-summary strong { white-space:nowrap; }
+.exec-budget-detail { margin-top:7px; color:var(--text-light); font-family:'IBM Plex Mono',monospace; font-size:9px; line-height:1.35; }
 .exec-project-milestones { padding:13px 22px 17px 26px; border-top:1px solid var(--border); background:linear-gradient(180deg,#FBFCFD 0%,#FFF 100%); }
 .exec-milestone-label { font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; margin-bottom:8px; }
 
@@ -525,7 +593,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-signal-label,
 .exec-milestone-label { font-size:10.5px; color:#66788A; }
 .exec-project-name { font-size:18px; line-height:1.28; font-weight:850; color:var(--text); }
-.exec-project-top { grid-template-columns:minmax(240px,1fr) minmax(160px,.55fr) minmax(500px,2.15fr); }
+.exec-project-top { grid-template-columns:minmax(240px,1.1fr) minmax(150px,.65fr) minmax(220px,1fr) minmax(190px,.85fr); }
 .exec-signal { min-height:96px; padding:13px 14px; }
 .exec-signal .stext { font-size:12px; line-height:1.55; }
 .attention-title { font-size:15px; line-height:1.25; }
@@ -667,6 +735,13 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .quarter-item:hover .strategic-meta-hover { opacity:1; }
 .checkpoint-tag { display:inline-flex; margin-top:6px; padding:3px 7px; border-radius:999px; background:var(--s2); border:1px solid var(--border); font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--muted); }
 .roadmap-layout { display:grid; gap:16px; }
+.portfolio-roadmap { display:grid; gap:14px; }
+.portfolio-roadmap-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.portfolio-roadmap-actions { display:flex; align-items:center; gap:10px; }
+.portfolio-roadmap-tabs { display:flex; gap:6px; padding:4px; width:max-content; max-width:100%; border:1px solid var(--border); border-radius:8px; background:var(--s3); }
+.portfolio-roadmap-tabs button { border:0; border-radius:6px; background:transparent; color:var(--text-light); cursor:pointer; font:inherit; font-size:12px; font-weight:800; padding:7px 12px; }
+.portfolio-roadmap-tabs button.active { background:var(--s1); color:var(--accent-hov); box-shadow:0 1px 3px rgba(0,0,0,.06); }
+.project-roadmap-guidance { padding:10px 12px; border-left:3px solid var(--blue); background:var(--bdim); color:var(--text-light); font-size:12px; }
 .roadmap-block { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#fff; }
 .roadmap-block-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; padding:14px 16px; background:#F7FAFC; border-bottom:1px solid var(--border); }
 .roadmap-block-title { font-size:16px; font-weight:850; color:var(--text); line-height:1.2; }
@@ -682,11 +757,11 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .dcdc-cell { min-width:0; padding:14px 14px; border-right:1px solid #C8DDEB; border-bottom:1px solid #DCE6EF; background:#fff; }
 .dcdc-cell:nth-child(5n) { border-right:0; }
 .dcdc-quarter { padding:11px 14px; background:#005BAA; color:#fff; text-align:center; font-size:15px; font-weight:900; border-right:1px solid rgba(255,255,255,.25); border-bottom:0; }
-.dcdc-quarter-content { display:grid; gap:6px; }
-.dcdc-quarter-main { display:flex; justify-content:center; align-items:center; gap:7px; }
-.dcdc-quarter-percent { font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:800; opacity:.95; }
-.dcdc-quarter-progress { height:5px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.28); }
-.dcdc-quarter-progress-fill { display:block; height:100%; width:var(--pct, 0%); border-radius:inherit; background:var(--green); }
+.dcdc-quarter-content { display:flex; justify-content:center; align-items:center; gap:8px; }
+.dcdc-quarter-rag { display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.55); font-size:10px; font-weight:900; background:rgba(255,255,255,.12); }
+.dcdc-quarter-rag::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 2px rgba(255,255,255,.2); }
+.dcdc-quarter-rag.yellow::before { background:var(--yellow); }
+.dcdc-quarter-rag.red::before { background:var(--red); }
 .dcdc-corner { background:#fff; border-bottom:0; }
 .dcdc-row-label { font-size:14px; font-weight:900; line-height:1.25; color:var(--text); background:#F8FBFD; }
 .dcdc-list { margin:0; padding-left:18px; color:var(--text); }
@@ -698,10 +773,11 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-outcome-badge.yellow { color:#9D7C27; background:var(--ydim); border-color:#E9D59B; }
 .exec-outcome-badge.red { color:#A85454; background:var(--rdim); border-color:#E7B7B7; }
 .exec-outcome-badge.unknown { color:var(--muted); background:var(--s3); }
-.exec-outcome-progress { display:flex; align-items:center; gap:7px; margin-top:5px; }
-.exec-outcome-progress-track { flex:1; height:5px; overflow:hidden; border-radius:999px; background:var(--s3); }
-.exec-outcome-progress-fill { display:block; height:100%; width:var(--pct, 0%); background:var(--green); border-radius:inherit; }
-.exec-outcome-progress-label { width:30px; text-align:right; color:var(--text-light); font-family:'IBM Plex Mono',monospace; font-size:9px; }
+.exec-outcome-rag { display:inline-flex; align-items:center; gap:6px; margin-top:5px; color:var(--text-light); font-size:10px; font-weight:850; }
+.exec-outcome-rag::before { content:''; width:8px; height:8px; border-radius:50%; background:var(--green); }
+.exec-outcome-rag.yellow::before { background:var(--yellow); }
+.exec-outcome-rag.red::before { background:var(--red); }
+.exec-outcome-reason { margin-top:4px; color:var(--muted); font-size:9px; line-height:1.35; }
 .exec-outcome-relink { margin-top:3px; color:#A85454; font-size:9px; font-weight:700; }
 .exec-category-summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; padding:14px; background:#F7FAFC; border-bottom:1px solid var(--border); }
 .exec-category-summary { min-width:0; padding:12px; border:1px solid var(--border); border-top:4px solid var(--green); border-radius:9px; background:#fff; }
@@ -709,9 +785,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-category-summary.red { border-top-color:var(--red); }
 .exec-category-summary-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
 .exec-category-summary-title { font-size:12px; line-height:1.3; font-weight:850; color:var(--text); }
-.exec-category-summary-value { margin-top:8px; font-size:24px; line-height:1; font-weight:900; color:var(--text); }
-.exec-category-summary-track { height:7px; margin-top:9px; overflow:hidden; border-radius:999px; background:var(--s3); }
-.exec-category-summary-fill { height:100%; border-radius:inherit; background:var(--green); }
+.exec-category-summary-value { margin-top:8px; font-size:18px; line-height:1; font-weight:900; color:var(--text); }
+.exec-category-summary-value::before { content:''; display:inline-block; width:11px; height:11px; border-radius:50%; margin-right:8px; background:var(--green); vertical-align:middle; }
+.exec-category-summary.yellow .exec-category-summary-value::before { background:var(--yellow); }
+.exec-category-summary.red .exec-category-summary-value::before { background:var(--red); }
 .exec-category-summary-note { margin-top:7px; color:var(--muted); font-size:9px; line-height:1.35; }
 .dcdc-phase-row { display:grid; grid-template-columns:150px repeat(4,minmax(0,1fr)); align-items:stretch; background:#F1F7FB; }
 .dcdc-phase-spacer { border-right:1px solid #C8DDEB; }
@@ -778,6 +855,12 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .qg-delete { border:none; background:none; cursor:pointer; font-size:15px; line-height:1; }
 .project-map-row { grid-template-columns:1.1fr 1.4fr .9fr; }
 .exec-timeline-editor { display:grid; gap:10px; }
+.exec-editor-summary { margin:0 -1px 2px; border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+.exec-editor-summary .exec-category-summary-grid { padding:10px; background:var(--s2); border-bottom:0; }
+.exec-outcome-detail-head { display:flex; justify-content:space-between; align-items:center; gap:8px; color:var(--text); font-size:11px; }
+.exec-outcome-detail-head span { color:var(--muted); font-size:9px; font-weight:600; }
+.exec-outcome-field { display:grid; gap:5px; }
+.exec-outcome-field > span, .exec-outcome-rag-label { color:var(--muted); font-size:9px; font-weight:850; text-transform:uppercase; letter-spacing:.04em; }
 .exec-timeline-title-row { display:grid; grid-template-columns:1fr; gap:8px; }
 .exec-timeline-head, .exec-timeline-row, .exec-timeline-phase-row { display:grid; grid-template-columns:150px repeat(4,minmax(0,1fr)); gap:8px; align-items:start; }
 .exec-timeline-head { font-family:'IBM Plex Mono', monospace; font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
@@ -786,26 +869,52 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-timeline-cell { min-height:86px; }
 .etm-cell { padding:6px; border:1px solid var(--border); border-radius:7px; background:var(--s2); }
 .etm-outcome-list { display:grid; gap:7px; }
-.exec-outcome-row { display:grid; gap:6px; padding:7px; border:1px solid var(--border); border-radius:7px; background:#fff; }
-.exec-outcome-controls { display:grid; grid-template-columns:.8fr .7fr .9fr 28px; gap:5px; }
+.exec-outcome-row { border:1px solid var(--border); border-radius:7px; background:#fff; overflow:hidden; }
+.exec-outcome-row.open { border-color:var(--border2); box-shadow:0 3px 10px rgba(38,53,70,.06); }
+.exec-outcome-summary { display:grid; grid-template-columns:minmax(0,1fr) auto auto 18px; align-items:center; gap:8px; width:100%; min-height:42px; padding:8px 10px; border:0 !important; border-radius:0 !important; text-align:left; }
+.exec-outcome-summary:hover { background:var(--s2); }
+.exec-outcome-summary-text { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); font-size:11px; font-weight:800; }
+.exec-outcome-summary-meta { color:var(--muted); font-size:9px; white-space:nowrap; }
+.exec-outcome-chevron { color:var(--muted); font-size:18px; transform:rotate(90deg); transition:transform .18s ease; }
+.exec-outcome-row.open .exec-outcome-chevron { transform:rotate(-90deg); }
+.exec-outcome-detail { display:grid; gap:9px; padding:10px; border-top:1px solid var(--border); background:var(--s2); }
+.exec-outcome-detail[hidden] { display:none; }
+.exec-outcome-rag-controls { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px; }
+.exec-rag-button { font-weight:800; }
+.exec-rag-button[data-health="on-track"].active { border-color:var(--green); background:var(--gdim); color:#37775A; }
+.exec-rag-button[data-health="at-risk"].active { border-color:var(--yellow); background:var(--ydim); color:#9A7629; }
+.exec-rag-button[data-health="delayed"].active { border-color:var(--red); background:var(--rdim); color:#A84F4F; }
+.exec-outcome-reason-wrap { display:grid; gap:5px; }
+.exec-outcome-reason-wrap[hidden] { display:none; }
+.exec-outcome-badge.green { background:var(--gdim); color:#37775A; }
+.exec-outcome-badge.yellow { background:var(--ydim); color:#9A7629; }
+.exec-outcome-badge.red { background:var(--rdim); color:#A84F4F; }
 .exec-outcome-sources { display:grid; gap:4px; }
 .exec-outcome-source { display:grid; grid-template-columns:minmax(0,1fr) 26px; gap:4px; }
 .exec-outcome-row .fi, .exec-outcome-row .fs { min-width:0; width:100%; font-size:10px; padding:6px; }
 .exec-outcome-row button { min-height:27px; border:1px solid var(--border2); border-radius:5px; background:#fff; color:var(--text-light); cursor:pointer; }
 .exec-outcome-add, .exec-source-add { margin-top:5px; width:100%; padding:6px; border:1px dashed var(--border2); border-radius:6px; background:#fff; color:var(--text-light); cursor:pointer; font-size:10px; font-weight:700; }
 .exec-category-editor { border:1px solid var(--border); border-radius:9px; background:#fff; overflow:hidden; }
-.exec-category-editor > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 14px; cursor:pointer; list-style:none; font-weight:850; color:var(--text); }
-.exec-category-editor > summary::-webkit-details-marker { display:none; }
-.exec-category-editor > summary::after { content:'＋'; color:var(--muted); font-size:18px; }
-.exec-category-editor[open] > summary::after { content:'−'; }
+.exec-category-editor-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 14px; }
+.exec-category-editor-kicker { color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.exec-category-editor-title { margin:3px 0 0; color:var(--text); font-size:15px; line-height:1.25; }
 .exec-category-editor-body { padding:0 14px 14px; border-top:1px solid var(--border); }
+.exec-category-settings, .exec-timeline-settings { margin:12px 0; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
+.exec-category-settings > summary, .exec-timeline-settings > summary { padding:9px 11px; cursor:pointer; color:var(--text-light); font-size:10px; font-weight:850; }
+.exec-category-settings[open] > summary, .exec-timeline-settings[open] > summary { border-bottom:1px solid var(--border); }
+.exec-category-settings-body, .exec-timeline-settings-body { display:grid; gap:9px; padding:10px; }
 .exec-category-override { display:grid; grid-template-columns:auto 120px 130px minmax(180px,1fr); gap:8px; align-items:center; margin:12px 0; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
 .exec-category-override-toggle { display:flex; align-items:center; gap:6px; color:var(--text-light); font-size:10px; font-weight:800; }
-.exec-quarter-tabs { display:flex; gap:5px; margin:12px 0 9px; padding:4px; border-radius:8px; background:var(--s3); }
-.exec-quarter-tab { flex:1; padding:7px 10px; border:0; border-radius:6px; background:transparent; color:var(--muted); cursor:pointer; font-size:11px; font-weight:850; }
-.exec-quarter-tab.active { background:#fff; color:var(--blue); box-shadow:0 1px 3px rgba(38,53,70,.12); }
-.exec-quarter-panel { display:none; }
-.exec-quarter-panel.active { display:block; }
+.exec-quarter-lane-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; margin-top:12px; }
+.exec-quarter-lane { min-width:0; padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
+.exec-quarter-lane-head { display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:7px; }
+.exec-quarter-lane-title { color:var(--blue); font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:850; letter-spacing:.05em; }
+.exec-quarter-lane-count { color:var(--muted); font-size:9px; font-weight:750; white-space:nowrap; }
+.exec-quarter-lane .etm-cell { padding:0; border:0; border-radius:0; background:transparent; }
+.exec-quarter-lane .exec-outcome-summary { min-height:46px; padding:8px; grid-template-columns:minmax(0,1fr) auto 16px; gap:6px; }
+.exec-quarter-lane .exec-outcome-summary-text { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.exec-quarter-lane .exec-outcome-summary-meta { display:none; }
+.exec-quarter-lane .exec-outcome-detail { padding:8px; }
 .exec-progress-segments { display:flex; gap:3px; }
 .exec-progress-segments button { flex:1; min-width:39px; padding:6px 4px; border:1px solid var(--border); border-radius:5px; background:#fff; color:var(--muted); cursor:pointer; font-size:10px; font-weight:800; }
 .exec-progress-segments button.active { border-color:#72B493; background:var(--gdim); color:#37775A; }
@@ -815,6 +924,13 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 @media (max-width:900px) {
   .exec-category-summary-grid { grid-template-columns:1fr; }
   .exec-category-override { grid-template-columns:1fr; }
+  .exec-quarter-lane-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:760px) {
+  .exec-outcome-summary { grid-template-columns:minmax(0,1fr) auto 18px; }
+  .exec-outcome-summary-meta { grid-column:1 / -1; }
+  .exec-outcome-rag-controls { grid-template-columns:1fr; }
+  .exec-quarter-lane-grid { grid-template-columns:1fr; }
 }
 
 /* Resource & Budget Prototype */
@@ -1263,11 +1379,20 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .exec-projects { display:grid !important; gap:4mm !important; }
   .exec-project-card { border-radius:10px !important; overflow:visible !important; cursor:default !important; }
   .exec-project-card:hover { transform:none !important; box-shadow:none !important; }
-  .exec-project-top { grid-template-columns:minmax(170px,.9fr) minmax(120px,.55fr) minmax(360px,2fr) !important; gap:10px !important; padding:11px 13px 10px 18px !important; }
+  .exec-project-top { grid-template-columns:minmax(150px,.72fr) minmax(85px,.35fr) minmax(155px,.7fr) minmax(0,2.25fr) !important; gap:9px !important; padding:11px 13px 10px 18px !important; }
   .exec-project-name { font-size:11.5px !important; }
   .exec-project-meta { gap:4px !important; margin-top:5px !important; }
   .exec-status-chip, .exec-owner-chip, .exec-code-chip { font-size:7.5px !important; padding:2px 5px !important; }
   .exec-progress-number { font-size:15px !important; }
+  .exec-resource-snapshot { margin:0 !important; padding:6px 7px !important; }
+  .exec-resource-summary { gap:5px !important; font-size:8.4px !important; }
+  .exec-resource-summary span:first-child { font-size:7px !important; }
+  .exec-resource-chips { gap:3px !important; margin-top:4px !important; }
+  .exec-resource-chip { max-width:none !important; padding:3px 5px !important; font-size:7.3px !important; }
+  .exec-budget-snapshot { margin:0 !important; padding:6px 7px !important; }
+  .exec-budget-summary { gap:5px !important; font-size:8.4px !important; }
+  .exec-budget-summary span:first-child { font-size:7px !important; }
+  .exec-budget-detail { margin-top:4px !important; font-size:7.3px !important; }
   .exec-project-signals { gap:7px !important; }
   .exec-signal { min-height:58px !important; padding:7px 8px !important; }
   .exec-signal .stext { font-size:8.8px !important; line-height:1.35 !important; -webkit-line-clamp:4 !important; }
@@ -1292,7 +1417,11 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     page-break-inside: avoid !important;
   }
   .project-portfolio-grid .exec-project-top {
-    grid-template-columns: minmax(150px, .75fr) minmax(100px, .45fr) minmax(420px, 2.4fr) !important;
+    grid-template-columns: minmax(135px, .68fr) minmax(75px, .32fr) minmax(145px, .72fr) minmax(0, 2.45fr) !important;
+  }
+  .project-portfolio-grid .exec-project-signals {
+    grid-column: 1 / -1 !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
   .project-portfolio-grid .exec-signal { min-height: 48px !important; }
   .project-portfolio-grid .exec-signal .stext {
@@ -1467,7 +1596,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     display: table-row-group !important;
   }
 
-  /* Final PDF pagination contract: each report section owns its page. */
+  /* PDF pagination contract: report containers may flow; reading units stay intact. */
   .exec-overview,
   .weekly-trend-panel,
   .exec-summary-grid,
@@ -1475,15 +1604,15 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   .risk-action-panel,
   .quarterly-roadmap-panel,
   .project-portfolio-panel {
-    break-inside: avoid-page !important;
-    page-break-inside: avoid !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
   }
   .attention-map-panel,
   .risk-action-panel,
   .quarterly-roadmap-panel,
   .project-portfolio-panel {
-    break-before: page !important;
-    page-break-before: always !important;
+    break-before: auto !important;
+    page-break-before: auto !important;
   }
   .exec-decision-head,
   .exec-board-head,
@@ -1520,6 +1649,200 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     break-inside: auto !important;
     page-break-inside: auto !important;
   }
+
+  /* Large Overview sections must flow; keep their meaningful reading units intact. */
+  .exec-summary-grid {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  .exec-summary-card {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  .executive-milestone-block {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  .dcdc-grid {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  .dcdc-print-lead {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+  .dcdc-cell {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+  .dcdc-phase-row {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+  .exec-summary-section {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+  .exec-summary-project-item {
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+  }
+  .portfolio-roadmap-head {
+    break-after: avoid-page !important;
+    page-break-after: avoid !important;
+  }
+  .portfolio-roadmap-head ~ .executive-milestone-block {
+    break-before: avoid-page !important;
+    page-break-before: avoid !important;
+  }
+  .dcdc-title {
+    break-after: avoid-page !important;
+    page-break-after: avoid !important;
+  }
+
+  body.print-presentation-report { width:auto !important; min-height:0 !important; background:#fff !important; }
+  body.print-presentation-report > *:not(#printReportRoot) { display:none !important; }
+  body.print-presentation-report #printReportRoot { display:block !important; width:100% !important; color:var(--text) !important; }
+  body.print-presentation-report .print-report-page { min-height:184mm; display:flex; flex-direction:column; gap:5mm; padding:0; break-after:page; page-break-after:always; }
+  body.print-presentation-report .print-report-page:last-child { break-after:auto; page-break-after:auto; }
+  body.print-presentation-report .print-report-page-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10mm; padding-bottom:3mm; border-bottom:1px solid var(--border2); }
+  body.print-presentation-report .print-report-kicker { color:var(--accent-hov); font-size:8.5pt; font-weight:850; letter-spacing:.1em; text-transform:uppercase; }
+  body.print-presentation-report .print-report-title { margin-top:1.5mm; color:var(--text); font-size:20pt; font-weight:850; line-height:1.15; }
+  body.print-presentation-report .print-report-meta { color:var(--muted); font:8.5pt 'IBM Plex Mono', monospace; text-align:right; white-space:nowrap; }
+  body.print-presentation-report .print-report-body { flex:1; min-height:0; }
+  body.print-presentation-report .print-report-unit { break-inside:avoid-page; page-break-inside:avoid; }
+  body.print-presentation-report .print-report-footer { margin-top:auto; padding-top:2.5mm; border-top:1px solid var(--border); color:var(--muted); font:8pt 'IBM Plex Mono', monospace; display:flex; justify-content:space-between; }
+  body.print-presentation-report .exec-overview,
+  body.print-presentation-report .exec-decision-panel,
+  body.print-presentation-report .project-portfolio-panel,
+  body.print-presentation-report .portfolio-roadmap,
+  body.print-presentation-report .exec-table-wrap { width:100% !important; min-height:0 !important; height:auto !important; overflow:visible !important; }
+  body.print-presentation-report .exec-decision-panel,
+  body.print-presentation-report .project-portfolio-panel { margin:0 !important; padding:0 !important; border:0 !important; box-shadow:none !important; background:transparent !important; }
+  body.print-presentation-report .project-portfolio-grid { display:block !important; }
+  body.print-presentation-report .project-print-brief { display:grid; grid-template-columns:1.3fr .9fr 1.1fr; gap:5mm; align-items:stretch; }
+  body.print-presentation-report .project-print-identity,
+  body.print-presentation-report .project-print-metric,
+  body.print-presentation-report .project-print-context,
+  body.print-presentation-report .project-print-update-card { border:1px solid var(--border); border-radius:4mm; background:#fff; padding:4.5mm; }
+  body.print-presentation-report .project-print-project-name { color:var(--text); font-size:19pt; font-weight:850; line-height:1.12; }
+  body.print-presentation-report .project-print-project-code { margin-top:2mm; color:var(--muted); font:8.5pt 'IBM Plex Mono', monospace; }
+  body.print-presentation-report .project-print-rag { display:inline-flex; margin-top:3mm; padding:1.3mm 2.6mm; border-radius:999px; font-size:8.5pt; font-weight:850; color:#fff; }
+  body.print-presentation-report .project-print-rag.green { background:var(--green); }
+  body.print-presentation-report .project-print-rag.yellow { background:var(--yellow); }
+  body.print-presentation-report .project-print-rag.red { background:var(--red); }
+  body.print-presentation-report .project-print-metric-label,
+  body.print-presentation-report .project-report-section-label { color:var(--muted); font-size:8pt; font-weight:850; letter-spacing:.09em; text-transform:uppercase; }
+  body.print-presentation-report .project-print-metric-value { margin-top:3mm; color:var(--text); font-size:27pt; font-weight:850; line-height:1; }
+  body.print-presentation-report .project-print-progress-track { height:3mm; margin-top:3.5mm; overflow:hidden; border-radius:999px; background:#edf1f5; }
+  body.print-presentation-report .project-print-progress-track span { display:block; height:100%; background:var(--accent); border-radius:inherit; }
+  body.print-presentation-report .project-print-context { display:grid; grid-template-columns:1fr 1fr; gap:3mm 5mm; }
+  body.print-presentation-report .project-print-context dt { color:var(--muted); font-size:7.5pt; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
+  body.print-presentation-report .project-print-context dd { margin:1mm 0 0; color:var(--text); font-size:10pt; font-weight:750; }
+  body.print-presentation-report .project-print-update-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4mm; }
+  body.print-presentation-report .project-print-update-card h2 { margin:0 0 2.5mm; color:var(--text); font-size:11.5pt; }
+  body.print-presentation-report .project-print-update-card ul { margin:0; padding-left:4.3mm; color:var(--text); font-size:9pt; line-height:1.38; }
+  body.print-presentation-report .project-print-update-card li + li { margin-top:1.2mm; }
+  body.print-presentation-report .project-print-update-card.risk { background:#fffcf3; }
+  body.print-presentation-report .project-report-empty { color:var(--muted); font-size:9pt; font-style:italic; }
+  body.print-presentation-report .project-milestone-timeline { position:relative; display:grid; grid-template-columns:repeat(var(--milestone-count), minmax(0, 1fr)); gap:3mm; padding:10mm 0 4mm; }
+  body.print-presentation-report .project-milestone-timeline::before { content:''; position:absolute; top:16mm; left:2%; right:2%; height:1px; background:#cbd6e1; }
+  body.print-presentation-report .project-milestone-step { position:relative; min-width:0; padding-top:9mm; }
+  body.print-presentation-report .project-milestone-dot { position:absolute; top:3.8mm; left:0; width:5mm; height:5mm; border:1.5mm solid #fff; border-radius:50%; background:#cbd6e1; box-shadow:0 0 0 1px #cbd6e1; }
+  body.print-presentation-report .project-milestone-step.done .project-milestone-dot { background:var(--green); box-shadow:0 0 0 1px var(--green); }
+  body.print-presentation-report .project-milestone-step.progress .project-milestone-dot { background:var(--blue); box-shadow:0 0 0 1px var(--blue); }
+  body.print-presentation-report .project-milestone-step.risk .project-milestone-dot { background:var(--yellow); box-shadow:0 0 0 1px var(--yellow); }
+  body.print-presentation-report .project-milestone-name { color:var(--text); font-size:9.5pt; font-weight:800; line-height:1.22; }
+  body.print-presentation-report .project-milestone-date { display:block; margin-top:1mm; color:var(--muted); font:8pt 'IBM Plex Mono', monospace; }
+  body.print-presentation-report .project-milestone-state { display:inline-block; margin-top:2mm; padding:1mm 1.8mm; border:1px solid var(--border); border-radius:999px; color:var(--muted); font-size:7.5pt; font-weight:800; }
+  body.print-presentation-report .project-report-table { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border:1px solid var(--border); border-radius:4mm; font-size:9pt; }
+  body.print-presentation-report .project-report-table th { padding:2.5mm 3mm; background:#f5f8fb; color:var(--muted); font-size:7.5pt; letter-spacing:.08em; text-align:left; text-transform:uppercase; }
+  body.print-presentation-report .project-report-table td { padding:2.6mm 3mm; border-top:1px solid var(--border); color:var(--text); }
+  body.print-presentation-report .project-report-table tr { break-inside:avoid-page; page-break-inside:avoid; }
+  body.print-presentation-report .project-report-gantt .gantt-toolbar { margin-bottom:3mm; }
+  body.print-presentation-report .project-report-gantt .gantt-scale-control { display:none !important; }
+  body.print-presentation-report .project-report-gantt .gantt-chart { overflow:visible !important; }
+  body.print-presentation-report .project-report-gantt .gantt-grid { width:100% !important; min-width:0 !important; }
+  body.print-presentation-report .project-report-gantt .gantt-name { width:46mm; min-width:46mm; }
+}
+
+@media print {
+  body.print-project-one-page { width:auto !important; min-height:0 !important; }
+  body.print-project-one-page .hdr,
+  body.print-project-one-page .main,
+  body.print-project-one-page #projDetailOverlay,
+  body.print-project-one-page #execView { display:none !important; }
+  body.print-project-one-page #onePageStatusModal {
+    display:block !important; position:static !important; inset:auto !important;
+    background:#fff !important; padding:0 !important; overflow:visible !important;
+  }
+  body.print-project-one-page #onePageStatusModal .modal {
+    display:block !important; position:static !important; width:100% !important;
+    max-width:none !important; max-height:none !important; padding:0 !important;
+    margin:0 !important; overflow:visible !important; box-shadow:none !important;
+  }
+  body.print-project-one-page #onePageStatusModal .one-page-status {
+    display:grid !important;
+    grid-template-columns:minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap:4mm !important;
+  }
+  body.print-project-one-page #onePageStatusModal .one-page-status-section,
+  body.print-project-one-page #onePageStatusModal .one-page-status-header,
+  body.print-project-one-page #onePageStatusModal .one-page-status-footer {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  body.print-project-one-page #onePageStatusModal .one-page-status-header,
+  body.print-project-one-page #onePageStatusModal .one-page-project-update,
+  body.print-project-one-page #onePageStatusModal .one-page-status-section[data-print-section="milestone"],
+  body.print-project-one-page #onePageStatusModal .one-page-status-gantt,
+  body.print-project-one-page #onePageStatusModal .one-page-status-footer {
+    grid-column:1 / -1 !important;
+  }
+  body.print-project-one-page #onePageStatusModal .one-page-status-section {
+    break-before: auto !important;
+    page-break-before: auto !important;
+    margin:0 !important;
+    padding:4mm !important;
+  }
+  body.print-project-one-page #onePageStatusModal .one-page-status-gantt {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+  body.print-project-one-page #onePageStatusModal .one-page-status-section.print-excluded { display:none !important; }
+  body.print-project-one-page #onePageStatusModal .one-page-status-section[data-print-section="budget"],
+  body.print-project-one-page #onePageStatusModal .one-page-status-section[data-print-section="resources"] {
+    break-before:auto !important;
+    page-break-before:auto !important;
+  }
+  body.print-project-one-page #onePageStatusModal .one-page-status-section[data-print-section="budget"] { grid-column:1 !important; }
+  body.print-project-one-page #onePageStatusModal .one-page-status-section[data-print-section="resources"] { grid-column:2 !important; }
+  body.print-project-one-page #onePageStatusModal .one-page-project-update { grid-column:1 / -1 !important; }
+  body.print-project-one-page #onePageStatusModal .one-page-update-grid { gap:3mm !important; }
+  body.print-project-one-page #onePageStatusModal .one-page-update-card { padding:3mm !important; }
+  body.print-project-one-page #onePageStatusModal .one-page-update-card ul { font-size:8.5pt !important; line-height:1.32 !important; }
+  body.print-project-one-page #onePageStatusModal .one-page-status-gantt #onePageGantt { overflow:hidden !important; }
+  body.print-project-one-page #onePageGantt .gantt-toolbar { margin-bottom:5px !important; }
+  body.print-project-one-page #onePageGantt .gantt-summary { gap:1px !important; }
+  body.print-project-one-page #onePageGantt .gantt-count { font-size:10px !important; }
+  body.print-project-one-page #onePageGantt .gantt-range,
+  body.print-project-one-page #onePageGantt .gantt-scale-help { font-size:7.5px !important; }
+  body.print-project-one-page #onePageGantt .gantt-chart { overflow:hidden !important; }
+  body.print-project-one-page #onePageGantt .gantt-grid { min-width:0 !important; }
+  body.print-project-one-page #onePageGantt .gantt-axis,
+  body.print-project-one-page #onePageGantt .gantt-row { grid-template-columns:110px minmax(0,1fr) !important; }
+  body.print-project-one-page #onePageGantt .gantt-axis-label,
+  body.print-project-one-page #onePageGantt .gantt-name { padding:5px 6px !important; font-size:8px !important; }
+  body.print-project-one-page #onePageGantt .gantt-calendar-axis { min-height:38px !important; }
+  body.print-project-one-page #onePageGantt .gantt-calendar-groups { inset:0 0 19px !important; }
+  body.print-project-one-page #onePageGantt .gantt-calendar-ticks { inset:19px 0 0 !important; }
+  body.print-project-one-page #onePageGantt .gantt-calendar-group,
+  body.print-project-one-page #onePageGantt .gantt-calendar-tick { font-size:7px !important; }
+  body.print-project-one-page #onePageGantt .gantt-track { min-height:32px !important; }
+  body.print-project-one-page #onePageGantt .gantt-bar { top:6px !important; height:19px !important; font-size:7px !important; }
+  body.print-project-one-page #onePageGantt .gantt-bar-label { padding:0 4px !important; }
+  body.print-project-one-page #onePageGantt .gantt-milestone { top:10px !important; width:9px !important; height:9px !important; }
+  body.print-project-one-page #onePageStatusModal button { display:none !important; }
 }
 </style>
 </head>
@@ -1534,6 +1857,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div class="toast-check">✓</div>
   <span id="saveToastMsg">Saved successfully</span>
 </div>
+
+<main id="printReportRoot" aria-hidden="true"></main>
 
 <div class="overlay" id="overviewPrintOverlay" role="dialog" aria-modal="true" aria-labelledby="overviewPrintTitle">
   <div class="modal" style="width:min(620px,92vw);">
@@ -1716,7 +2041,19 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <div class="modal">
   <div class="modal-hdr">
     <h3 id="pd_title" style="font-size:22px; color:var(--text);">Project Name</h3>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <button class="btn-icon no-print" id="pd_one_page_pdf" type="button"
+        onclick="exportProjectOnePagePdf()" title="Export project PDF"
+        aria-label="Export project PDF">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </button>
     <button class="modal-x" aria-label="Close project detail" onclick="closeModal('projDetailOverlay')">×</button>
+    </div>
   </div>
   <div class="detail-grid">
     <div class="detail-left">
@@ -1783,16 +2120,31 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <div><h2 id="onePageTitle"></h2><div id="onePagePm"></div></div>
         <button type="button" class="modal-x" aria-label="Close one-page status" onclick="closeModal('onePageStatusModal')">×</button>
       </header>
-      <section class="one-page-status-section"><h3>Accomplishments</h3><div class="one-page-status-content" id="onePageAccomplishments"></div></section>
-      <section class="one-page-status-section"><h3>Future Activities</h3><div class="one-page-status-content" id="onePageFutureActivities"></div></section>
-      <section class="one-page-status-section one-page-status-gantt"><h3>Workstream Schedule</h3><div id="onePageGantt"></div></section>
-      <section class="one-page-status-section one-page-risk-section">
-        <h3>Risks and Mitigations / Actions</h3>
-        <div class="one-page-risk-head"><span>Risk</span><span>Mitigation / Action</span></div>
-        <div id="onePageRiskRows"></div>
-      </section>
+      <section class="one-page-status-section one-page-project-update" data-print-section="project-update"><h3>Project update</h3><div id="onePageProjectUpdate"></div></section>
+      <section class="one-page-status-section" data-print-section="milestone"><h3>Milestone Roadmap</h3><div class="one-page-status-content" id="onePageMilestones"></div><div class="sr-only" aria-hidden="true"><div id="onePageAccomplishments"></div><div id="onePageFutureActivities"></div><div id="onePageRiskRows"></div></div></section>
+      <section class="one-page-status-section one-page-status-gantt" data-print-section="gantt"><h3>Gantt Chart</h3><div id="onePageGantt"></div></section>
+      <section class="one-page-status-section" data-print-section="budget"><h3>Budget</h3><div class="one-page-status-content" id="onePageBudget"></div></section>
+      <section class="one-page-status-section" data-print-section="resources"><h3>Resources</h3><div class="one-page-status-content" id="onePageResources"></div></section>
       <footer class="one-page-status-footer" id="onePageStatusDate"></footer>
     </article>
+  </div>
+</div>
+
+<div class="overlay no-print" id="projectPdfSectionPicker" role="dialog" aria-modal="true" aria-labelledby="projectPdfSectionPickerTitle">
+  <div class="modal project-pdf-picker-modal">
+    <div class="modal-hdr"><h3 id="projectPdfSectionPickerTitle">Export project PDF</h3><button class="modal-x" type="button" aria-label="Close PDF section picker" onclick="closeModal('projectPdfSectionPicker')">×</button></div>
+    <p class="project-pdf-picker-note">Choose the report sections to include. Each selected section is placed on a clean A4 landscape page; long tables continue only between complete rows.</p>
+    <div class="project-pdf-picker-list">
+      <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="project-brief" checked><span>Project brief</span></label>
+      <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="project-update" checked><span>Project update</span></label>
+      <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="milestone" checked><span>Milestone timeline</span></label>
+      <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="gantt" checked><span>Gantt Chart</span></label>
+      <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="team-allocation" checked><span>Team allocation</span></label>
+      <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="resources" checked><span>Discipline hours</span></label>
+      <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="budget" checked><span>Budget</span></label>
+    </div>
+    <div class="project-pdf-picker-error" id="projectPdfSectionPickerError" role="alert"></div>
+    <div class="project-pdf-picker-actions"><button class="btn" type="button" onclick="closeModal('projectPdfSectionPicker')">Cancel</button><button class="btn btn-primary" type="button" onclick="confirmProjectPdfExport()">Preview PDF</button></div>
   </div>
 </div>
 
@@ -2164,6 +2516,7 @@ import { copyPreviousWeekCarryover } from "../week-carryover.mjs";
 const app = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(app);
 const auth = getAuth(app);
+window.__dashboardBootStarted = true;
 
 // ── STATE ──
 let allWeeks = [];
@@ -2185,6 +2538,7 @@ let portfolioScope = (() => {
 let overviewScope = 'system';
 let activeStrategicTrack = 'all';
 let activeRoadmapYear = null;
+let activePortfolioRoadmapView = 'executive';
 let isOverview = false;
 const isVipPerspective = () => currentRole === 'vip' || (currentRole === 'admin' && isAdminVipPreview);
 const canManageStrategy = () => currentRole === 'admin' && !isAdminVipPreview;
@@ -2694,7 +3048,7 @@ function getEmailKey(userOrEmail) {
 
 function normalizeRole(role) {
   const normalized = (role || 'pm').toString().trim().toLowerCase();
-  return ['admin', 'pm', 'vip'].includes(normalized) ? normalized : 'pm';
+  return ['admin', 'pm', 'vip', 'engineering', 'business', 'product'].includes(normalized) ? normalized : 'pm';
 }
 
 function getDashboardRole(userDoc) {
@@ -2717,6 +3071,12 @@ function sortWeeksByLabel(weeks) {
 
 function isWeekReleased(week) {
   return week?.isReleased === true;
+}
+
+function assertCurrentWeekEditable(week = allWeeks[currentIdx]) {
+  if (isWeekReleased(week)) {
+    throw new Error('This week has been released to VIP and is locked. Create a new week to make updates.');
+  }
 }
 
 function showDataLoadError(error) {
@@ -3603,6 +3963,7 @@ window.handleLogout = async () => {
 };
 
 onAuthStateChanged(auth, async user => {
+  window.__dashboardAuthObserved = true;
   const authGeneration = ++authSessionGeneration;
   const authUid = user?.uid || '';
   const authEmail = getEmailKey(user);
@@ -3867,6 +4228,8 @@ function canEditProject(proj) {
     email: userEmail,
   });
 }
+
+const RELEASED_WEEK_PROJECT_EDIT_MESSAGE = 'This week has been released to VIP and project content can no longer be changed. Please contact the system administrator if further changes are required.';
 
 function formatBullets(text) {
   if (!text || !text.trim()) return '-';
@@ -4543,11 +4906,35 @@ const HEALTH_OPTIONS = [
   ['red', 'Blocked']
 ];
 
+const EXECUTIVE_SECTION_DEFINITIONS = [
+  { sectionId: 'solution-ecosystem', label: 'Solution & ecosystem', audience: 'all-working-team' },
+  { sectionId: 'customers-gtm', label: 'Customers & GTM', audience: 'business-product' },
+  { sectionId: 'investors-others', label: 'Investors & Others', audience: 'leadership-only' },
+];
+
+const EXECUTIVE_AUDIENCE_OPTIONS = [
+  ['all-working-team', 'All working teams'],
+  ['pm-engineering', 'PM / Engineering only'],
+  ['business-product', 'Business / Product only'],
+  ['leadership-only', 'Leadership only'],
+  ['everyone', 'Everyone'],
+];
+
+const EXECUTIVE_AUDIENCE_ROLES = {
+  'all-working-team': new Set(['admin', 'vip', 'pm', 'engineering', 'business', 'product']),
+  'pm-engineering': new Set(['admin', 'vip', 'pm', 'engineering']),
+  'business-product': new Set(['admin', 'vip', 'business', 'product']),
+  'leadership-only': new Set(['admin', 'vip']),
+  everyone: new Set(['admin', 'vip', 'pm', 'engineering', 'business', 'product']),
+};
+
 const DCDC_EXECUTIVE_MILESTONE_TIMELINE = {
   title: 'Selected 2026 DCDC Milestone Timeline',
   quarters: ['Q1', 'Q2', 'Q3', 'Q4'],
   rows: [
     {
+      sectionId: 'solution-ecosystem',
+      audience: 'all-working-team',
       label: 'Solution & ecosystem',
       cells: [
         ['33 kW container shipped to Plano'],
@@ -4557,6 +4944,8 @@ const DCDC_EXECUTIVE_MILESTONE_TIMELINE = {
       ]
     },
     {
+      sectionId: 'customers-gtm',
+      audience: 'business-product',
       label: 'Customers & GTM',
       cells: [
         ['Joint announcement with STT GDC on DCDC infra'],
@@ -4566,6 +4955,8 @@ const DCDC_EXECUTIVE_MILESTONE_TIMELINE = {
       ]
     },
     {
+      sectionId: 'investors-others',
+      audience: 'leadership-only',
       label: 'Investors & Others',
       cells: [
         ['EDB program secured'],
@@ -4593,17 +4984,40 @@ function executiveCategoryKey(label = '') {
   return String(label).trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
+function defaultExecutiveSectionFor(row = {}, index = 0) {
+  const byId = EXECUTIVE_SECTION_DEFINITIONS.find(item => item.sectionId === row.sectionId);
+  if (byId) return byId;
+  const key = executiveCategoryKey(row.label);
+  return EXECUTIVE_SECTION_DEFINITIONS.find(item => executiveCategoryKey(item.label) === key)
+    || EXECUTIVE_SECTION_DEFINITIONS[index]
+    || { sectionId: `custom-section-${index + 1}`, label: row.label || `Section ${index + 1}`, audience: 'leadership-only' };
+}
+
+function normalizeExecutiveAudience(value, fallback = 'leadership-only') {
+  return EXECUTIVE_AUDIENCE_ROLES[value] ? value : fallback;
+}
+
+function canViewExecutiveSection(row = {}, role = currentRole) {
+  const audience = normalizeExecutiveAudience(row.audience, 'leadership-only');
+  return EXECUTIVE_AUDIENCE_ROLES[audience]?.has(normalizeRole(role)) === true;
+}
+
 function normalizeExecutiveMilestoneTimeline(raw = {}) {
   const source = raw && raw.rows ? raw : DCDC_EXECUTIVE_MILESTONE_TIMELINE;
   const quarters = (source.quarters || ['Q1', 'Q2', 'Q3', 'Q4']).slice(0, 4);
-  const rows = (source.rows || []).map(row => ({
-    label: String(row.label || ''),
+  const rows = (source.rows || []).map((row, rowIndex) => {
+    const section = defaultExecutiveSectionFor(row, rowIndex);
+    return {
+    sectionId: String(row.sectionId || section.sectionId),
+    audience: normalizeExecutiveAudience(row.audience, section.audience),
+    label: String(row.label || section.label || ''),
     cells: Array.from({ length: 4 }, (_, index) => {
       const cell = getExecutiveTimelineCell(row.cells, index);
       const items = Array.isArray(cell) ? cell : textLines(cell);
       return items.map(normalizeExecutiveOutcome).filter(item => item.text.trim());
     })
-  })).filter(row => row.label || row.cells.some(cell => cell.length));
+  };
+  }).filter(row => row.label || row.cells.some(cell => cell.length));
   const phases = Array.from({ length: 4 }, (_, index) => String(source.phases?.[index] || ''));
   const categoryOverrides = {};
   rows.forEach(row => {
@@ -5283,14 +5697,14 @@ function formatDetailQuarterlyMilestones(project) {
 function renderExecutiveOutcomeDisplay(source, catalog, reportingLabel) {
   const outcome = normalizeExecutiveOutcome(source);
   const result = calculateExecutiveOutcome(outcome, catalog.lookup);
-  const progressLabel = result.progress === null ? 'N/A' : `${result.progress}%`;
-  const statusLabel = executiveOutcomeStatusLabel(result.progress, result.health);
+  const statusLabel = executiveRagLabel(result.health);
   const evidence = result.validSources.map(item => item.label).filter(Boolean);
   const tooltip = [
     ...evidence.map(label => `Evidence: ${label}`),
     ...result.missingSources.map(reference => `Needs relink: ${reference.projectCode} / ${reference.milestoneId}`),
+    outcome.statusReason ? `Reason: ${outcome.statusReason}` : '',
     `Last reporting week: ${reportingLabel || 'Not available'}`,
-  ].join(' | ');
+  ].filter(Boolean).join(' | ');
   return `<li title="${escHtml(tooltip)}">
     <div class="exec-outcome-head">
       <span>${escHtml(outcome.text)}</span>
@@ -5298,72 +5712,70 @@ function renderExecutiveOutcomeDisplay(source, catalog, reportingLabel) {
         <span class="exec-outcome-badge ${result.health}">${escHtml(statusLabel)}</span>
       </span>
     </div>
-    <div class="exec-outcome-progress">
-      <span class="exec-outcome-progress-track"><span class="exec-outcome-progress-fill" style="--pct:${result.progress ?? 0}%"></span></span>
-      <span class="exec-outcome-progress-label">${progressLabel}</span>
-    </div>
+    <div class="exec-outcome-rag ${result.health}">${escHtml(statusLabel)}</div>
+    ${outcome.statusReason ? `<div class="exec-outcome-reason">${escHtml(outcome.statusReason)}</div>` : ''}
     ${result.missingSources.length ? '<div class="exec-outcome-relink">Needs relink</div>' : ''}
   </li>`;
 }
 
-function calculateExecutiveQuarterSummary(timeline, catalog, quarterIndex) {
+function calculateExecutiveQuarterSummary(timeline, catalog, quarterIndex, rows = timeline.rows || []) {
   const results = (timeline.rows || [])
+    .filter(row => rows.includes(row))
     .flatMap(row => row.cells?.[quarterIndex] || [])
     .map(item => calculateExecutiveOutcome(normalizeExecutiveOutcome(item), catalog.lookup));
   return calculateExecutiveCategory(results, {});
 }
 
-function renderExecutiveCategorySummaries(timeline, catalog) {
-  return `<div class="exec-category-summary-grid">${(timeline.rows || []).map(row => {
+function executiveRagLabel(health) {
+  if (health === 'red') return 'Red';
+  if (health === 'yellow') return 'Yellow';
+  return 'Green';
+}
+
+function calculateExecutiveQuarterRag(timeline, catalog, quarterIndex, rows = timeline.rows || []) {
+  return calculateExecutiveQuarterSummary(timeline, catalog, quarterIndex, rows).health;
+}
+
+function renderExecutiveCategorySummaries(timeline, catalog, rows = timeline.rows || []) {
+  return `<div class="exec-category-summary-grid">${rows.map(row => {
     const results = (row.cells || []).flat().map(item => calculateExecutiveOutcome(normalizeExecutiveOutcome(item), catalog.lookup));
     const summary = calculateExecutiveCategory(results, timeline.categoryOverrides?.[executiveCategoryKey(row.label)]);
-    const progress = summary.progress ?? 0;
-    const label = summary.progress === null ? 'N/A' : `${summary.progress}%`;
     const status = summary.progress === 100 ? 'Done' : summary.health === 'red' ? 'Delayed' : summary.health === 'yellow' ? 'At Risk' : 'On Track';
     return `<article class="exec-category-summary ${summary.health}">
       <div class="exec-category-summary-head">
         <div class="exec-category-summary-title">${escHtml(row.label)}</div>
         <span class="exec-outcome-badge ${summary.health}">${escHtml(status)}</span>
       </div>
-      <div class="exec-category-summary-value">${label}</div>
-      <div class="exec-category-summary-track"><div class="exec-category-summary-fill" style="width:${progress}%"></div></div>
-      <div class="exec-category-summary-note">${summary.overridden ? `Override · ${escHtml(summary.reason)}` : 'Equal-weight average of recorded outcomes'}</div>
+      <div class="exec-category-summary-value">${escHtml(executiveRagLabel(summary.health))}</div>
+      <div class="exec-category-summary-note">${summary.health === 'green' ? 'All visible outcomes are green' : 'Shows the most serious visible outcome status'}</div>
     </article>`;
   }).join('')}</div>`;
 }
 
 function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
   const timeline = normalizeExecutiveMilestoneTimeline(layer.executiveMilestoneTimeline);
+  const visibleRows = (timeline.rows || []).filter(row => canViewExecutiveSection(row));
   const quarters = timeline.quarters || ['Q1', 'Q2', 'Q3', 'Q4'];
   const catalog = buildExecutiveEvidenceCatalog(projs);
   const reportingLabel = allWeeks[currentIdx]?.weekLabel || getSelectedReportingDate();
+  if (!visibleRows.length) return '';
   return `<section class="roadmap-block executive-milestone-block">
-    <div class="roadmap-block-head">
-      <div>
-        <div class="roadmap-block-title">Portfolio-wide executive timeline</div>
-      </div>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span class="reason-pill">${year}</span>
-        ${canManageStrategy() ? `<button class="btn btn-ghost no-print" onclick="openExecutiveTimelineEditor()">Edit Timeline</button>` : ''}
-      </div>
-    </div>
     <div class="dcdc-timeline">
-      <div class="dcdc-title">${escHtml(timeline.title || 'Selected 2026 DCDC Milestone Timeline')}</div>
-      ${renderExecutiveCategorySummaries(timeline, catalog)}
+      <div class="dcdc-print-lead">
+        <div class="dcdc-title">${escHtml(timeline.title || 'Selected 2026 DCDC Milestone Timeline')}</div>
+        ${renderExecutiveCategorySummaries(timeline, catalog, visibleRows)}
+      </div>
       <div class="dcdc-grid">
         <div class="dcdc-cell dcdc-corner"></div>
         ${quarters.map((q, index) => {
-          const summary = calculateExecutiveQuarterSummary(timeline, catalog, index);
-          const progress = summary.progress ?? 0;
-          const label = summary.progress === null ? 'N/A' : `${summary.progress}%`;
+          const health = calculateExecutiveQuarterRag(timeline, catalog, index, visibleRows);
           return `<div class="dcdc-cell dcdc-quarter">
             <div class="dcdc-quarter-content">
-              <div class="dcdc-quarter-main"><span>${escHtml(q)}</span><span class="dcdc-quarter-percent">${label}</span></div>
-              <div class="dcdc-quarter-progress"><span class="dcdc-quarter-progress-fill" style="--pct:${progress}%"></span></div>
+              <span>${escHtml(q)}</span><span class="dcdc-quarter-rag ${health}">${escHtml(executiveRagLabel(health))}</span>
             </div>
           </div>`;
         }).join('')}
-        ${(timeline.rows || []).map(row => `
+        ${visibleRows.map(row => `
           <div class="dcdc-cell dcdc-row-label">${escHtml(row.label)}</div>
           ${(row.cells || []).map(items => `<div class="dcdc-cell"><ul class="dcdc-list">${(items || []).map(item => renderExecutiveOutcomeDisplay(item, catalog, reportingLabel)).join('')}</ul></div>`).join('')}
         `).join('')}
@@ -5478,7 +5890,7 @@ function renderProjectQuarterMatrix(projs, layer = getStrategyLayer(), activeTra
   return `<section class="roadmap-block project-milestone-block">
     <div class="roadmap-block-head">
       <div>
-        <div class="roadmap-block-title">PM project milestones</div>
+        <div class="roadmap-block-title">Project Milestone Roadmap</div>
         <div class="roadmap-block-note">Project names are the vertical axis; quarterly PM milestone input is placed in the matching Q1-Q4 cell.</div>
       </div>
       <div class="pqm-head-tools">
@@ -5512,9 +5924,25 @@ function renderProjectQuarterMatrix(projs, layer = getStrategyLayer(), activeTra
 }
 
 function renderQuarterlyBoard(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
-  return `<div class="roadmap-layout">
-    ${renderExecutiveQuarterMilestones(projs, layer, activeTrack, year)}
-    ${renderProjectQuarterMatrix(projs, layer, activeTrack, year)}
+  const executive = activePortfolioRoadmapView === 'executive';
+  return `<div class="portfolio-roadmap">
+    <div class="portfolio-roadmap-head">
+      <div>
+        <div class="exec-eyebrow">Portfolio Roadmap</div>
+        <div class="exec-decision-title">${executive ? `${year} IoE Executive Roadmap` : `${year} Project Milestone Roadmap`}</div>
+      </div>
+      <div class="portfolio-roadmap-actions">
+        ${renderRoadmapYearSelector(projs, layer)}
+        ${executive && canManageStrategy() ? `<button class="btn btn-primary no-print" onclick="openExecutiveTimelineEditor()">Edit Quarterly Milestones</button>` : ''}
+      </div>
+    </div>
+    <div class="portfolio-roadmap-tabs no-print" role="tablist" aria-label="Roadmap view">
+      <button type="button" role="tab" aria-selected="${executive}" class="${executive ? 'active' : ''}" onclick="setPortfolioRoadmapView('executive')">Executive Outcomes</button>
+      <button type="button" role="tab" aria-selected="${!executive}" class="${executive ? '' : 'active'}" onclick="setPortfolioRoadmapView('projects')">Project Milestones</button>
+    </div>
+    ${executive
+      ? renderExecutiveQuarterMilestones(projs, layer, activeTrack, year)
+      : `<div class="project-roadmap-guidance">Edit milestones from the project card.</div>${renderProjectQuarterMatrix(projs, layer, activeTrack, year)}`}
   </div>`;
 }
 
@@ -5895,38 +6323,249 @@ function renderOnePageList(targetId, value, emptyMessage) {
   target.append(list);
 }
 
-function renderOnePageStatus(project, reportingPeriod = {}) {
-  const normalized = normalizeProject(project);
-  document.getElementById('onePageTitle').textContent = normalized.name || normalized.code || 'Untitled project';
-  document.getElementById('onePagePm').textContent = `Project Manager: ${normalized.pm || normalized.owner || 'Unassigned'}`;
+function renderOnePageMilestones(project) {
+  const target = document.getElementById('onePageMilestones');
+  target.replaceChildren();
+  const milestones = (project?.milestones || []).map(item => ({
+    ...item,
+    status: normalizeOverviewMilestoneStatus(item.status)
+  }));
+  if (!milestones.length) {
+    const empty = document.createElement('div');
+    empty.className = 'one-page-status-empty';
+    empty.textContent = 'No milestones available.';
+    target.append(empty);
+    return;
+  }
+  const list = document.createElement('div');
+  list.className = 'one-page-milestones';
+  milestones.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'one-page-milestone';
+    const detail = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'one-page-milestone-name';
+    name.textContent = item.name || 'Unnamed milestone';
+    const meta = document.createElement('div');
+    meta.className = 'one-page-milestone-meta';
+    meta.textContent = item.date || 'No target date';
+    detail.append(name, meta);
+    const status = document.createElement('div');
+    status.className = `one-page-milestone-status ${item.status}`;
+    status.textContent = getStatusLabel(item.status);
+    row.append(detail, status);
+    list.append(row);
+  });
+  target.append(list);
+}
+
+function renderLegacyOnePageNotes(normalized) {
   renderOnePageList('onePageAccomplishments', normalized.accomplishments || normalized.highlight, 'No accomplishments available.');
   renderOnePageList('onePageFutureActivities', normalized.futureActivities || normalized.weeklyActions || normalized.weeklyAction, 'No future activities available.');
-  renderProjectGantt(normalized, 'onePageGantt');
-
   const rows = normalizeRiskActionRows(normalized);
   const riskRows = document.getElementById('onePageRiskRows');
   riskRows.replaceChildren();
+  rows.forEach(row => {
+    const rowElement = document.createElement('div');
+    rowElement.className = 'one-page-risk-row';
+    const risk = document.createElement('div');
+    risk.className = `one-page-risk-cell${row.risk ? '' : ' one-page-risk-placeholder'}`;
+    risk.textContent = row.risk || 'No risk provided.';
+    const action = document.createElement('div');
+    action.className = `one-page-risk-cell${row.action ? '' : ' one-page-risk-placeholder'}`;
+    action.textContent = row.action || 'No action provided.';
+    rowElement.append(risk, action);
+    riskRows.append(rowElement);
+  });
+}
+
+function renderOnePageProjectUpdate(project) {
+  const target = document.getElementById('onePageProjectUpdate');
+  target.replaceChildren();
+  const grid = document.createElement('div');
+  grid.className = 'one-page-update-grid';
+  [
+    ['Highlight', project.highlight || project.accomplishments, ''],
+    ['Risk / Blocker', project.risk, 'risk'],
+    ['Weekly actions', project.weeklyActions || project.weeklyAction || project.futureActivities, 'next']
+  ].forEach(([label, value, tone]) => {
+    const card = document.createElement('section');
+    card.className = 'one-page-update-card';
+    if (tone) card.classList.add(tone);
+    const heading = document.createElement('div');
+    heading.className = 'one-page-update-label';
+    heading.textContent = label;
+    const items = textLines(value);
+    card.append(heading);
+    if (items.length) {
+      const list = document.createElement('ul');
+      items.slice(0, 4).forEach(item => {
+        const row = document.createElement('li');
+        row.textContent = item;
+        list.append(row);
+      });
+      card.append(list);
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'one-page-update-empty';
+      empty.textContent = 'No update reported.';
+      card.append(empty);
+    }
+    grid.append(card);
+  });
+  target.append(grid);
+}
+
+function renderOnePageResources(project) {
+  const target = document.getElementById('onePageResources');
+  const rows = deriveRoleResourceRows(
+    project?.teamMembers || [],
+    project?.resources || {},
+    project?.dataStatus?.team?.noAllocationRequired === true,
+  );
   if (!rows.length) {
-    const empty = document.createElement('div');
-    empty.className = 'one-page-status-empty';
-    empty.textContent = 'No risks or mitigations available.';
-    riskRows.append(empty);
-  } else {
-    rows.forEach(row => {
-      const rowElement = document.createElement('div');
-      rowElement.className = 'one-page-risk-row';
-      const risk = document.createElement('div');
-      risk.className = `one-page-risk-cell${row.risk ? '' : ' one-page-risk-placeholder'}`;
-      risk.dataset.label = 'Risk';
-      risk.textContent = row.risk || 'No risk provided.';
-      const action = document.createElement('div');
-      action.className = `one-page-risk-cell${row.action ? '' : ' one-page-risk-placeholder'}`;
-      action.dataset.label = 'Mitigation / Action';
-      action.textContent = row.action || 'No action provided.';
-      rowElement.append(risk, action);
-      riskRows.append(rowElement);
-    });
+    target.innerHTML = '<div class="one-page-status-empty">No resource allocation recorded.</div>';
+    return;
   }
+  target.innerHTML = `<table class="one-page-print-table"><thead><tr><th>Discipline</th><th>Estimated</th><th>Actual</th><th>Remaining</th></tr></thead><tbody>${rows.map(({ label, entry }) => `<tr><td>${escHtml(label)}</td><td>${formatResourceValue(entry.estimated)}</td><td>${formatResourceValue(entry.actual)}</td><td>${formatResourceValue(entry.remaining)}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function renderOnePageBudget(project) {
+  const target = document.getElementById('onePageBudget');
+  const totals = projectBudgetTotals(project, overviewCurrency);
+  target.innerHTML = `<table class="one-page-print-table"><tbody>
+    <tr><th>Total budget</th><td>${escHtml(fmtMoney(totals.total, overviewCurrency, false))}</td></tr>
+    <tr><th>Actual</th><td>${escHtml(fmtMoney(totals.actual, overviewCurrency, false))} (${totals.usedPct}% used)</td></tr>
+    <tr><th>Planned</th><td>${escHtml(fmtMoney(totals.planned, overviewCurrency, false))}</td></tr>
+    <tr><th>Variance</th><td>${escHtml(fmtMoney(totals.variance, overviewCurrency, false))}</td></tr>
+  </tbody></table>`;
+}
+
+function projectReportList(value, emptyMessage = 'No update reported.') {
+  const items = textLines(value);
+  if (!items.length) return `<div class="project-report-empty">${escHtml(emptyMessage)}</div>`;
+  return `<ul>${items.slice(0, 6).map(item => `<li>${escHtml(item)}</li>`).join('')}</ul>`;
+}
+
+function renderProjectPrintBrief(project) {
+  const status = normalizeOverviewRagStatus(project.status);
+  const progress = normalizeOverviewPercent(project.progress);
+  const statusLabel = getStatusLabel(status);
+  return `<section class="print-report-unit project-print-brief">
+    <div class="project-print-identity">
+      <div class="project-report-section-label">Project brief</div>
+      <div class="project-print-project-name">${escHtml(project.name || project.code || 'Untitled project')}</div>
+      <div class="project-print-project-code">${escHtml(project.projectLevel || 'Project')} · ${escHtml(project.code || 'No project code')}</div>
+      <span class="project-print-rag ${escHtml(status)}">${escHtml(statusLabel)}</span>
+    </div>
+    <div class="project-print-metric">
+      <div class="project-print-metric-label">Delivery progress</div>
+      <div class="project-print-metric-value">${progress}%</div>
+      <div class="project-print-progress-track" aria-label="Delivery progress ${progress}%"><span style="width:${progress}%"></span></div>
+    </div>
+    <dl class="project-print-context">
+      <div><dt>Owner</dt><dd>${escHtml(project.owner || 'Unassigned')}</dd></div>
+      <div><dt>Deputy</dt><dd>${escHtml(project.deputy || 'Unassigned')}</dd></div>
+      <div><dt>Customer</dt><dd>${escHtml(project.customer || 'Not specified')}</dd></div>
+      <div><dt>Location</dt><dd>${escHtml(project.location || 'Not specified')}</dd></div>
+    </dl>
+  </section>`;
+}
+
+function renderProjectUpdateReport(project) {
+  const cards = [
+    ['Highlight', project.highlight || project.accomplishments, ''],
+    ['Risk / Blocker', project.risk, 'risk'],
+    ['Weekly actions', project.weeklyActions || project.weeklyAction || project.futureActivities || project.next, '']
+  ];
+  return `<section class="print-report-unit project-print-update-grid">${cards.map(([title, value, tone]) => `<article class="project-print-update-card ${tone}">
+    <div class="project-report-section-label">Project update</div><h2>${escHtml(title)}</h2>${projectReportList(value)}
+  </article>`).join('')}</section>`;
+}
+
+function renderProjectMilestoneTimeline(project) {
+  const milestones = [...(project.milestones || [])]
+    .map(item => ({ ...item, status: normalizeOverviewMilestoneStatus(item.status) }))
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  if (!milestones.length) return '<div class="project-report-empty">No milestones available for this report.</div>';
+  return `<section class="print-report-unit project-milestone-timeline" style="--milestone-count:${Math.max(1, milestones.length)}">${milestones.map(item => {
+    const rawStatus = item.status || 'to-do';
+    const tone = rawStatus === 'done' ? 'done' : rawStatus === 'in-progress' ? 'progress' : rawStatus === 'at-risk' ? 'risk' : '';
+    return `<article class="project-milestone-step ${tone}">
+      <span class="project-milestone-dot"></span>
+      <div class="project-milestone-name">${escHtml(item.name || 'Unnamed milestone')}</div>
+      <time class="project-milestone-date">${escHtml(item.date || 'No target date')}</time>
+      <span class="project-milestone-state">${escHtml(getStatusLabel(rawStatus))}</span>
+    </article>`;
+  }).join('')}</section>`;
+}
+
+function renderProjectTeamAllocationReport(project) {
+  const members = (project.teamMembers || []).filter(member => String(member.name || '').trim());
+  const rows = members.length ? members.map(member => `<tr>
+    <td>${escHtml(member.name || '-')}</td><td>${escHtml(member.roleName || member.role || '-')}</td><td>${Number(member.effortPct || member.effort || 0)}%</td>
+  </tr>`).join('') : '<tr><td colspan="3">No team allocation recorded.</td></tr>';
+  return `<section class="print-report-unit"><table class="project-report-table"><thead><tr><th>Name</th><th>Role</th><th>Allocation</th></tr></thead><tbody>${rows}</tbody></table></section>`;
+}
+
+function renderProjectResourcesReport(project) {
+  const rows = deriveRoleResourceRows(project?.teamMembers || [], project?.resources || {}, project?.dataStatus?.team?.noAllocationRequired === true);
+  const content = rows.length ? rows.map(({ label, entry }) => `<tr><td>${escHtml(label)}</td><td>${formatResourceValue(entry.estimated)}</td><td>${formatResourceValue(entry.actual)}</td><td>${formatResourceValue(entry.remaining)}</td></tr>`).join('') : '<tr><td colspan="4">No discipline hours recorded.</td></tr>';
+  return `<section class="print-report-unit"><table class="project-report-table"><thead><tr><th>Discipline</th><th>Estimated</th><th>Actual</th><th>Remaining</th></tr></thead><tbody>${content}</tbody></table></section>`;
+}
+
+function renderProjectBudgetReport(project) {
+  const totals = projectBudgetTotals(project, overviewCurrency);
+  return `<section class="print-report-unit"><table class="project-report-table"><thead><tr><th>Budget metric</th><th>Amount</th></tr></thead><tbody>
+    <tr><td>Total budget</td><td>${escHtml(fmtMoney(totals.total, overviewCurrency, false))}</td></tr>
+    <tr><td>Actual</td><td>${escHtml(fmtMoney(totals.actual, overviewCurrency, false))} (${totals.usedPct}% used)</td></tr>
+    <tr><td>Planned</td><td>${escHtml(fmtMoney(totals.planned, overviewCurrency, false))}</td></tr>
+    <tr><td>Variance</td><td>${escHtml(fmtMoney(totals.variance, overviewCurrency, false))}</td></tr>
+  </tbody></table></section>`;
+}
+
+function renderProjectPrintReport(rawProject, selectedSections = PROJECT_PDF_SECTIONS) {
+  const project = normalizeProject(rawProject);
+  const selected = new Set(selectedSections);
+  const pages = [];
+  const title = project.name || project.code || 'Project report';
+  const page = (section, label, content) => pages.push(renderPresentationReportPage(title, content, {
+    section,
+    kicker: `Project report · ${label}`,
+  }));
+  const overview = [];
+  if (selected.has('project-brief')) overview.push(renderProjectPrintBrief(project));
+  if (selected.has('project-update')) overview.push(renderProjectUpdateReport(project));
+  if (overview.length) page('project-summary', 'Executive summary', overview.join(''));
+  if (selected.has('milestone')) page('milestone', 'Milestone timeline', renderProjectMilestoneTimeline(project));
+  if (selected.has('gantt')) page('gantt', 'Workstream schedule', '<section class="print-report-unit project-report-gantt"><div id="printReportGantt"></div></section>');
+  if (selected.has('team-allocation')) page('team-allocation', 'Team allocation', renderProjectTeamAllocationReport(project));
+  if (selected.has('resources')) page('resources', 'Discipline hours', renderProjectResourcesReport(project));
+  if (selected.has('budget')) page('budget', 'Budget snapshot', renderProjectBudgetReport(project));
+  finalizePresentationReport(pages, 'project');
+  if (selected.has('gantt')) renderProjectGantt(project, 'printReportGantt');
+}
+
+const PROJECT_PDF_SECTIONS = ['project-brief', 'project-update', 'milestone', 'gantt', 'team-allocation', 'resources', 'budget'];
+
+function applyOnePagePrintSections(selectedSections = PROJECT_PDF_SECTIONS) {
+  const selected = new Set(selectedSections);
+  document.querySelectorAll('#onePageStatusModal [data-print-section]').forEach(section => {
+    section.classList.toggle('print-excluded', !selected.has(section.dataset.printSection));
+  });
+}
+
+function renderOnePageStatus(project, reportingPeriod = {}, selectedSections = PROJECT_PDF_SECTIONS) {
+  const normalized = normalizeProject(project);
+  document.getElementById('onePageTitle').textContent = normalized.name || normalized.code || 'Untitled project';
+  document.getElementById('onePagePm').textContent = `Project Manager: ${normalized.pm || normalized.owner || 'Unassigned'}`;
+  renderLegacyOnePageNotes(normalized);
+  renderOnePageProjectUpdate(normalized);
+  renderOnePageMilestones(normalized);
+  renderProjectGantt(normalized, 'onePageGantt');
+  renderOnePageBudget(normalized);
+  renderOnePageResources(normalized);
+  applyOnePagePrintSections(selectedSections);
   document.getElementById('onePageStatusDate').textContent =
     `Status date: ${resolveProjectStatusDate(normalized, reportingPeriod)}`;
 }
@@ -5939,6 +6578,48 @@ window.openOnePageStatus = code => {
   const reportingPeriod = allWeeks[currentIdx] || {};
   renderOnePageStatus(rawProject, reportingPeriod);
   openAccessibleModal(modal);
+};
+
+function clearProjectOnePagePrintMode() {
+  document.body.classList.remove('print-project-one-page');
+  applyOnePagePrintSections(PROJECT_PDF_SECTIONS);
+  closeModal('onePageStatusModal');
+}
+
+function openProjectPdfSectionPicker(code) {
+  const picker = document.getElementById('projectPdfSectionPicker');
+  picker.dataset.projectCode = code;
+  picker.querySelectorAll('input[data-pdf-section]').forEach(input => { input.checked = true; });
+  document.getElementById('projectPdfSectionPickerError').textContent = '';
+  openAccessibleModal(picker);
+}
+
+function confirmProjectPdfExport() {
+  const picker = document.getElementById('projectPdfSectionPicker');
+  const selectedSections = [...picker.querySelectorAll('input[data-pdf-section]:checked')].map(input => input.dataset.pdfSection);
+  const error = document.getElementById('projectPdfSectionPickerError');
+  if (!selectedSections.length) {
+    error.textContent = 'Select at least one section to export.';
+    return;
+  }
+  const code = picker.dataset.projectCode;
+  const rawProject = allWeeks[currentIdx]?.projects?.find(project => project.code === code);
+  if (!rawProject) return;
+  closeModal('projectPdfSectionPicker');
+  renderProjectPrintReport(rawProject, selectedSections);
+  window.addEventListener('afterprint', clearPresentationPrintReport, { once: true });
+  requestAnimationFrame(() => window.print());
+}
+
+// These handlers are called from the picker markup, so expose them across the module boundary.
+window.openProjectPdfSectionPicker = openProjectPdfSectionPicker;
+window.confirmProjectPdfExport = confirmProjectPdfExport;
+
+window.exportProjectOnePagePdf = () => {
+  const code = document.getElementById('projDetailOverlay')?.dataset.projectCode;
+  const rawProject = allWeeks[currentIdx]?.projects?.find(project => project.code === code);
+  if (!rawProject) return;
+  openProjectPdfSectionPicker(code);
 };
 
 // ── RENDER ──
@@ -6034,6 +6715,7 @@ window.render = () => {
 
 function renderNormal(projs) {
   const grid = document.getElementById('projGrid');
+  const isReleased = isWeekReleased(allWeeks[currentIdx]);
   
   if (projs.length === 0) {
     grid.innerHTML = `
@@ -6053,16 +6735,21 @@ function renderNormal(projs) {
     const highlightText = p.highlight || 'No updates.';
     const teamEffort = summarizeTeamEffort(p.teamMembers);
     const budgetTotals = projectBudgetTotals(p, overviewCurrency);
+    const canEdit = canEditProject(p);
+    const editIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
 
     return `
     <div class="proj-card" data-project-code="${escHtml(p.code)}" title="Double click for details">
       <div class="card-stripe ${status}"></div>
-      ${canEditProject(p) ? `
+      ${canEdit ? (isReleased ? `
         <div class="card-actions">
-          <button class="action-icon" data-project-action="edit" data-project-code="${escHtml(p.code)}" title="Project edit">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-        </div>` : ''}
+          <span class="locked-project-edit" tabindex="0" role="note" title="${RELEASED_WEEK_PROJECT_EDIT_MESSAGE}" aria-label="${RELEASED_WEEK_PROJECT_EDIT_MESSAGE}" data-tooltip="${RELEASED_WEEK_PROJECT_EDIT_MESSAGE}">
+            <button class="action-icon" data-project-action="edit-locked" disabled aria-disabled="true" title="Project edit unavailable">${editIcon}</button>
+          </span>
+        </div>` : `
+        <div class="card-actions">
+          <button class="action-icon" data-project-action="edit" data-project-code="${escHtml(p.code)}" title="Project edit">${editIcon}</button>
+        </div>`) : ''}
       <div class="card-body">
         <div class="card-summary">
           <div class="card-summary-left">
@@ -6275,15 +6962,6 @@ function renderExec(projs, summary, allProjects = projs) {
     </div>
 
     <div class="exec-decision-panel quarterly-roadmap-panel" data-print-section="quarterly-roadmap">
-      <div class="exec-decision-head">
-        <div>
-          <div class="exec-eyebrow">Quarterly Target Roadmap</div>
-          <div class="exec-decision-title">Quarterly milestones across projects</div>
-        </div>
-        <div class="exec-panel-note">Executive view of what each project is targeting by quarter</div>
-        ${renderRoadmapYearSelector(projs, strategyLayer)}
-        ${canManageStrategy() && editableDecisionView ? `<button class="btn btn-primary no-print" onclick="openStrategyLayerModal()">Manage Strategy</button>` : ''}
-      </div>
       ${renderQuarterlyBoard(projs, strategyLayer, activeTrack, roadmapYear)}
     </div>
 
@@ -6306,6 +6984,8 @@ function renderExec(projs, summary, allProjects = projs) {
           const progress = normalizeOverviewPercent(p.progress);
           const visibility = ['hidden', 'archived'].includes(p.visibility) ? p.visibility : '';
           const snapshot = summarizeProjectResourceSnapshot(p);
+          const budget = projectBudgetTotals(p, overviewCurrency);
+          const hasBudget = budget.total > 0 || budget.planned > 0 || budget.actual > 0;
           return `
           <article class="exec-project-card ${status}" data-project-code="${escHtml(p.code)}" title="Double click for details">
             <div class="exec-project-top">
@@ -6326,15 +7006,24 @@ function renderExec(projs, summary, allProjects = projs) {
                 <div class="exec-progress-track">
                   <div class="exec-progress-fill ${status}" style="width:${progress}%"></div>
                 </div>
-                <div class="exec-resource-snapshot">
-                  <div class="exec-resource-summary">
-                    <span>Resource load</span>
-                    <strong>${snapshot.memberCount} people · ${snapshot.fte} FTE</strong>
-                  </div>
-                  <div class="exec-resource-chips">
-                    ${snapshot.topRoles.length ? snapshot.topRoles.map(row => `<span class="exec-resource-chip" title="${escHtml(row.role)}">${escHtml(row.role)} <b>${row.fte} FTE</b></span>`).join('') : '<span class="exec-resource-chip">No allocation</span>'}
-                  </div>
+              </div>
+
+              <div class="exec-resource-snapshot">
+                <div class="exec-resource-summary">
+                  <span>Resource load</span>
+                  <strong>${snapshot.memberCount} people · ${snapshot.fte} FTE</strong>
                 </div>
+                <div class="exec-resource-chips">
+                  ${snapshot.topRoles.length ? snapshot.topRoles.map(row => `<span class="exec-resource-chip" title="${escHtml(row.role)}">${escHtml(row.role)} <b>${row.fte} FTE</b></span>`).join('') : '<span class="exec-resource-chip">No allocation</span>'}
+                </div>
+              </div>
+
+              <div class="exec-budget-snapshot">
+                <div class="exec-budget-summary">
+                  <span>Budget</span>
+                  <strong>${hasBudget ? `${budget.usedPct}% used` : 'Not set'}</strong>
+                </div>
+                <div class="exec-budget-detail">${hasBudget ? `${fmtMoney(budget.actual, overviewCurrency, true)} / ${fmtMoney(budget.total, overviewCurrency, true)}` : 'Optional project budget'}</div>
               </div>
 
               <div class="exec-project-signals">
@@ -6374,6 +7063,7 @@ function renderExec(projs, summary, allProjects = projs) {
 async function saveCurrentWeekQuietly() {
   const week = allWeeks[currentIdx];
   if (!week || !currentUser) return;
+  assertCurrentWeekEditable(week);
   week.lastModifiedBy = currentUser.email;
   await setDoc(doc(db, "weeks", week.weekLabel.replace(/\s+/g, '-')), week);
 }
@@ -6386,6 +7076,11 @@ window.setStrategicTrack = (trackId) => {
 window.setRoadmapYear = (year) => {
   const parsed = parseInt(year, 10);
   if (Number.isFinite(parsed)) activeRoadmapYear = parsed;
+  render();
+};
+
+window.setPortfolioRoadmapView = view => {
+  activePortfolioRoadmapView = view === 'projects' ? 'projects' : 'executive';
   render();
 };
 
@@ -6410,29 +7105,41 @@ function renderExecutiveSourceSelect(reference = {}) {
 function renderExecutiveOutcomeEditor(source = {}) {
   const outcome = normalizeExecutiveOutcome(source);
   const references = outcome.sources.length ? outcome.sources : [{}];
-  return `<div class="exec-outcome-row" data-outcome-id="${escHtml(outcome.id || newExecutiveOutcomeId())}">
-    <input class="fi etm-outcome-text" value="${escHtml(outcome.text)}" placeholder="Management-facing outcome" aria-label="Executive outcome">
-    <div class="exec-outcome-controls">
-      <select class="fs etm-outcome-mode" onchange="syncExecutiveOutcomeMode(this)" aria-label="Progress mode">
-        <option value="manual" ${outcome.progressMode === 'manual' ? 'selected' : ''}>Manual</option>
-        <option value="auto" ${outcome.progressMode === 'auto' ? 'selected' : ''}>Auto</option>
-      </select>
-      <div class="exec-progress-segments" aria-label="Manual progress">
-        ${[0,25,50,75,100].map(value => `<button type="button" class="${outcome.manualProgress === value ? 'active' : ''}" onclick="setExecutiveOutcomeProgress(this, ${value})">${value}%</button>`).join('')}
-        <input class="fs etm-manual-progress" type="hidden" value="${outcome.manualProgress}">
+  const healthClass = outcome.manualHealth === 'delayed'
+    ? 'red'
+    : outcome.manualHealth === 'at-risk' ? 'yellow' : 'green';
+  const healthLabel = `● ${executiveRagLabel(healthClass)}`;
+  const healthOptions = [
+    ['on-track', 'Green'],
+    ['at-risk', 'Yellow'],
+    ['delayed', 'Red'],
+  ];
+  return `<div class="exec-outcome-row" data-outcome-id="${escHtml(outcome.id || newExecutiveOutcomeId())}" data-original-health="${escHtml(outcome.manualHealth)}">
+    <button type="button" class="exec-outcome-summary" aria-expanded="false" onclick="toggleExecutiveOutcomeEditor(this)">
+      <span class="exec-outcome-summary-text">${escHtml(outcome.text || 'New outcome')}</span>
+      <span class="exec-outcome-badge ${healthClass}">${escHtml(healthLabel)}</span>
+      <span class="exec-outcome-summary-meta">${outcome.sources.length ? `Evidence ${outcome.sources.length}` : 'No evidence'}</span>
+      <span class="exec-outcome-chevron" aria-hidden="true">›</span>
+    </button>
+    <div class="exec-outcome-detail" hidden>
+      <div class="exec-outcome-detail-head"><b>Outcome details</b><span>Saved with roadmap</span></div>
+      <label class="exec-outcome-field"><span>Outcome title</span><input class="fi etm-outcome-text" value="${escHtml(outcome.text)}" placeholder="Management-facing outcome" aria-label="Executive outcome" oninput="syncExecutiveOutcomeSummary(this)"></label>
+      <input class="etm-manual-health" type="hidden" value="${escHtml(outcome.manualHealth)}">
+      <span class="exec-outcome-rag-label">RAG status</span>
+      <div class="exec-outcome-rag-controls" role="group" aria-label="Executive outcome RAG status">
+        ${healthOptions.map(([value, label]) => `<button type="button" data-health="${value}" class="exec-rag-button ${outcome.manualHealth === value ? 'active' : ''}" onclick="setExecutiveOutcomeHealth(this, '${value}')">● ${label}</button>`).join('')}
       </div>
-      <select class="fs etm-manual-health" aria-label="Manual health">
-        <option value="on-track" ${outcome.manualHealth === 'on-track' ? 'selected' : ''}>On Track</option>
-        <option value="at-risk" ${outcome.manualHealth === 'at-risk' ? 'selected' : ''}>At Risk</option>
-        <option value="delayed" ${outcome.manualHealth === 'delayed' ? 'selected' : ''}>Delayed</option>
-      </select>
-      <button type="button" onclick="this.closest('.exec-outcome-row').remove()" aria-label="Delete executive outcome">×</button>
+      <label class="exec-outcome-reason-wrap" hidden>
+        <span class="fl">Reason for status change</span>
+        <textarea class="ft etm-status-reason" aria-label="Executive milestone status change reason">${escHtml(outcome.statusReason || '')}</textarea>
+      </label>
+      <details class="exec-evidence-details">
+        <summary>Evidence (${outcome.sources.length})</summary>
+        <div class="exec-outcome-sources">${references.map(renderExecutiveSourceSelect).join('')}</div>
+        <button type="button" class="exec-source-add" onclick="addExecutiveOutcomeSource(this)">+ Evidence</button>
+      </details>
+      <button type="button" class="btn btn-ghost" onclick="deleteExecutiveOutcome(this)">Delete outcome</button>
     </div>
-    <details class="exec-evidence-details">
-      <summary>Evidence (${outcome.sources.length})</summary>
-      <div class="exec-outcome-sources">${references.map(renderExecutiveSourceSelect).join('')}</div>
-      <button type="button" class="exec-source-add" onclick="addExecutiveOutcomeSource(this)">+ Evidence</button>
-    </details>
   </div>`;
 }
 
@@ -6450,54 +7157,148 @@ function renderExecutiveMilestoneEditor(timeline) {
       <label class="fl">Timeline Title</label>
       <input class="fi etm-title" value="${escHtml(data.title)}">
     </div>
+    <div class="exec-editor-summary">${renderExecutiveCategorySummaries(data, currentExecutiveEvidenceCatalog, data.rows)}</div>
     <div id="execTimelineRows">
-      ${data.rows.map((row, rowIndex) => {
+      ${data.rows.map(row => {
         const key = executiveCategoryKey(row.label);
         const override = data.categoryOverrides?.[key] || {};
-        return `<details class="exec-category-editor" data-category-key="${escHtml(key)}" ${rowIndex === 0 ? 'open' : ''}>
-          <summary>
-            <span>${escHtml(row.label)}</span>
+        const audience = normalizeExecutiveAudience(row.audience);
+        return `<section class="exec-category-editor" data-category-key="${escHtml(key)}" data-section-id="${escHtml(row.sectionId)}" data-editor-context="Edit · ${escHtml(row.label)}">
+          <header class="exec-category-editor-head">
+            <div>
+              <div class="exec-category-editor-kicker">Executive section</div>
+              <h4 class="exec-category-editor-title">${escHtml(row.label)}</h4>
+            </div>
             <span class="exec-outcome-badge">${(row.cells || []).flat().length} outcomes</span>
-          </summary>
+          </header>
           <div class="exec-category-editor-body">
             <input class="etm-row-label" type="hidden" value="${escHtml(row.label)}">
-            <div class="exec-category-override">
-              <label class="exec-category-override-toggle">
-                <input class="etm-override-enabled" type="checkbox" ${override.enabled ? 'checked' : ''} onchange="syncExecutiveCategoryOverride(this)">
-                Manual category override
-              </label>
-              <select class="fs etm-override-progress" ${override.enabled ? '' : 'disabled'} aria-label="Category progress override">
-                ${[0,25,50,75,100].map(value => `<option value="${value}" ${override.progress === value ? 'selected' : ''}>${value}%</option>`).join('')}
-              </select>
-              <select class="fs etm-override-health" ${override.enabled ? '' : 'disabled'} aria-label="Category health override">
-                <option value="on-track" ${override.health === 'on-track' ? 'selected' : ''}>On Track</option>
-                <option value="at-risk" ${override.health === 'at-risk' ? 'selected' : ''}>At Risk</option>
-                <option value="delayed" ${override.health === 'delayed' ? 'selected' : ''}>Delayed</option>
-              </select>
-              <input class="fi etm-override-reason" value="${escHtml(override.reason || '')}" placeholder="Required reason for manual override" ${override.enabled ? '' : 'disabled'}>
+            <details class="exec-category-settings">
+              <summary>Section settings</summary>
+              <div class="exec-category-settings-body">
+                <label class="fl">Section visibility</label>
+                <select class="fs etm-row-audience" aria-label="Executive section visibility">
+                  ${EXECUTIVE_AUDIENCE_OPTIONS.map(([value, label]) => `<option value="${escHtml(value)}" ${value === audience ? 'selected' : ''}>${escHtml(label)}</option>`).join('')}
+                </select>
+                <div class="exec-category-override">
+                  <label class="exec-category-override-toggle">
+                    <input class="etm-override-enabled" type="checkbox" ${override.enabled ? 'checked' : ''} onchange="syncExecutiveCategoryOverride(this)">
+                    Manual category override
+                  </label>
+                  <select class="fs etm-override-progress" ${override.enabled ? '' : 'disabled'} aria-label="Category progress override">
+                    ${[0,25,50,75,100].map(value => `<option value="${value}" ${override.progress === value ? 'selected' : ''}>${value}%</option>`).join('')}
+                  </select>
+                  <select class="fs etm-override-health" ${override.enabled ? '' : 'disabled'} aria-label="Category health override">
+                    <option value="on-track" ${override.health === 'on-track' ? 'selected' : ''}>On Track</option>
+                    <option value="at-risk" ${override.health === 'at-risk' ? 'selected' : ''}>At Risk</option>
+                    <option value="delayed" ${override.health === 'delayed' ? 'selected' : ''}>Delayed</option>
+                  </select>
+                  <input class="fi etm-override-reason" value="${escHtml(override.reason || '')}" placeholder="Required reason for manual override" ${override.enabled ? '' : 'disabled'}>
+                </div>
+              </div>
+            </details>
+            <div class="exec-quarter-lane-grid">
+              ${Array.from({ length: 4 }, (_, index) => {
+                const outcomes = row.cells[index] || [];
+                return `<section class="exec-quarter-lane" data-quarter-index="${index}">
+                  <div class="exec-quarter-lane-head">
+                    <span class="exec-quarter-lane-title">${escHtml(data.quarters[index] || `Q${index + 1}`)}</span>
+                    <span class="exec-quarter-lane-count">${outcomes.length} outcome${outcomes.length === 1 ? '' : 's'}</span>
+                  </div>
+                  ${renderExecutiveTimelineCell(row.cells[index] || [])}
+                </section>`;
+              }).join('')}
             </div>
-            <div class="exec-quarter-tabs">
-              ${data.quarters.map((q, index) => `<button type="button" class="exec-quarter-tab ${index === 0 ? 'active' : ''}" onclick="setExecutiveEditorQuarter(this, ${index})">${escHtml(q)}</button>`).join('')}
-            </div>
-            ${Array.from({ length: 4 }, (_, index) => `<div class="exec-quarter-panel ${index === 0 ? 'active' : ''}" data-quarter-index="${index}">${renderExecutiveTimelineCell(row.cells[index] || [])}</div>`).join('')}
           </div>
-        </details>`;
+        </section>`;
       }).join('')}
     </div>
-    <div class="exec-timeline-head"><span>Phase</span>${data.quarters.map(q => `<span>${escHtml(q)}</span>`).join('')}</div>
-    <div class="exec-timeline-phase-row">
-      <span class="fl" style="padding-top:9px;">Bottom phase labels</span>
-      ${Array.from({ length: 4 }, (_, index) => `<input class="fi etm-phase" value="${escHtml(data.phases[index] || '')}" placeholder="${escHtml(data.quarters[index] || `Q${index + 1}`)} phase">`).join('')}
-    </div>
+    <details class="exec-timeline-settings">
+      <summary>Advanced timeline settings</summary>
+      <div class="exec-timeline-settings-body">
+        <div class="exec-timeline-head"><span>Phase</span>${data.quarters.map(q => `<span>${escHtml(q)}</span>`).join('')}</div>
+        <div class="exec-timeline-phase-row">
+          <span class="fl" style="padding-top:9px;">Bottom phase labels</span>
+          ${Array.from({ length: 4 }, (_, index) => `<input class="fi etm-phase" value="${escHtml(data.phases[index] || '')}" placeholder="${escHtml(data.quarters[index] || `Q${index + 1}`)} phase">`).join('')}
+        </div>
+      </div>
+    </details>
   </div>`;
 }
 
-function setExecutiveEditorQuarter(button, index) {
-  const editor = button.closest('.exec-category-editor');
-  editor?.querySelectorAll('.exec-quarter-tab').forEach((tab, tabIndex) => tab.classList.toggle('active', tabIndex === index));
-  editor?.querySelectorAll('.exec-quarter-panel').forEach(panel => panel.classList.toggle('active', Number(panel.dataset.quarterIndex) === index));
+function toggleExecutiveOutcomeEditor(button) {
+  const row = button.closest('.exec-outcome-row');
+  const category = button.closest('.exec-category-editor');
+  if (!row) return;
+  const open = !row.classList.contains('open');
+  category?.querySelectorAll('.exec-outcome-row.open').forEach(item => {
+    item.classList.remove('open');
+    item.querySelector('.exec-outcome-summary')?.setAttribute('aria-expanded', 'false');
+    const detail = item.querySelector('.exec-outcome-detail');
+    if (detail) detail.hidden = true;
+  });
+  row.classList.toggle('open', open);
+  button.setAttribute('aria-expanded', String(open));
+  const detail = row.querySelector('.exec-outcome-detail');
+  if (detail) detail.hidden = !open;
 }
-window.setExecutiveEditorQuarter = setExecutiveEditorQuarter;
+window.toggleExecutiveOutcomeEditor = toggleExecutiveOutcomeEditor;
+
+function syncExecutiveOutcomeSummary(input) {
+  const row = input.closest('.exec-outcome-row');
+  const summary = row?.querySelector('.exec-outcome-summary-text');
+  if (summary) summary.textContent = input.value.trim() || 'New outcome';
+}
+window.syncExecutiveOutcomeSummary = syncExecutiveOutcomeSummary;
+
+function syncExecutiveOutcomeSummaryMeta(row) {
+  const meta = row?.querySelector('.exec-outcome-summary-meta');
+  const health = row?.querySelector('.etm-manual-health')?.value || 'on-track';
+  if (!meta) return;
+  if (health !== row.dataset.originalHealth) {
+    meta.textContent = 'Reason required';
+    return;
+  }
+  const evidenceCount = row.querySelectorAll('.exec-outcome-source').length;
+  meta.textContent = evidenceCount ? `Evidence ${evidenceCount}` : 'No evidence';
+}
+
+function syncExecutiveOutcomeReason(select) {
+  const row = select.closest('.exec-outcome-row');
+  if (!row) return;
+  const changed = select.value !== row.dataset.originalHealth;
+  const reasonWrap = row.querySelector('.exec-outcome-reason-wrap');
+  const reason = row.querySelector('.etm-status-reason');
+  if (reasonWrap) reasonWrap.hidden = !changed;
+  if (reason) reason.required = changed;
+}
+window.syncExecutiveOutcomeReason = syncExecutiveOutcomeReason;
+
+function setExecutiveOutcomeHealth(button, health) {
+  const row = button.closest('.exec-outcome-row');
+  const input = row?.querySelector('.etm-manual-health');
+  if (!row || !input) return;
+  input.value = health;
+  row.querySelectorAll('.exec-rag-button').forEach(control => {
+    control.classList.toggle('active', control === button);
+  });
+  const badge = row.querySelector('.exec-outcome-badge');
+  if (badge) {
+    badge.classList.remove('green', 'yellow', 'red');
+    badge.classList.add(health === 'delayed' ? 'red' : health === 'at-risk' ? 'yellow' : 'green');
+    badge.textContent = `● ${executiveRagLabel(health === 'delayed' ? 'red' : health === 'at-risk' ? 'yellow' : 'green')}`;
+  }
+  syncExecutiveOutcomeSummaryMeta(row);
+  syncExecutiveOutcomeReason(input);
+}
+window.setExecutiveOutcomeHealth = setExecutiveOutcomeHealth;
+
+function deleteExecutiveOutcome(button) {
+  if (!canManageStrategy()) return;
+  if (!confirm('Delete this executive outcome?')) return;
+  button.closest('.exec-outcome-row')?.remove();
+}
+window.deleteExecutiveOutcome = deleteExecutiveOutcome;
 
 window.setExecutiveOutcomeProgress = (button, value) => {
   const segments = button.closest('.exec-progress-segments');
@@ -6527,6 +7328,7 @@ window.addExecutiveOutcome = button => {
   const list = button.closest('.etm-cell')?.querySelector('.etm-outcome-list');
   if (!list) return;
   list.insertAdjacentHTML('beforeend', renderExecutiveOutcomeEditor());
+  list.lastElementChild?.querySelector('.exec-outcome-summary')?.click();
 };
 
 window.addExecutiveOutcomeSource = button => {
@@ -6550,17 +7352,37 @@ window.addExecutiveTimelineRow = () => {
 };
 
 function collectExecutiveOutcomeRows(cell) {
-  return Array.from(cell.querySelectorAll('.exec-outcome-row')).map(row => normalizeExecutiveOutcome({
-    id: row.dataset.outcomeId || newExecutiveOutcomeId(),
-    text: row.querySelector('.etm-outcome-text')?.value.trim() || '',
-    progressMode: row.querySelector('.etm-outcome-mode')?.value || 'manual',
-    manualProgress: Number(row.querySelector('.etm-manual-progress')?.value || 0),
-    manualHealth: row.querySelector('.etm-manual-health')?.value || 'on-track',
-    sources: Array.from(row.querySelectorAll('.etm-source-select'))
-      .map(select => currentExecutiveEvidenceCatalog.byKey[select.value])
-      .filter(Boolean)
-      .slice(0, 3),
-  })).filter(outcome => outcome.text);
+  return Array.from(cell.querySelectorAll('.exec-outcome-row')).map(row => {
+    const manualHealth = row.querySelector('.etm-manual-health')?.value || 'on-track';
+    const originalHealth = row.dataset.originalHealth || manualHealth;
+    const statusReason = row.querySelector('.etm-status-reason')?.value.trim() || '';
+    if (manualHealth !== originalHealth && !statusReason) {
+      row.classList.add('open');
+      row.querySelector('.exec-outcome-summary')?.setAttribute('aria-expanded', 'true');
+      const detail = row.querySelector('.exec-outcome-detail');
+      if (detail) detail.hidden = false;
+      const reason = row.querySelector('.etm-status-reason');
+      if (reason) {
+        reason.required = true;
+        reason.focus();
+      }
+      throw new Error('Executive milestone status changes require a reason.');
+    }
+    return normalizeExecutiveOutcome({
+      id: row.dataset.outcomeId || newExecutiveOutcomeId(),
+      text: row.querySelector('.etm-outcome-text')?.value.trim() || '',
+      progressMode: 'manual',
+      manualProgress: manualHealth === 'on-track' ? 100 : 0,
+      manualHealth: manualHealth,
+      statusReason: statusReason,
+      statusUpdatedAt: manualHealth !== originalHealth ? new Date().toISOString() : '',
+      statusUpdatedBy: manualHealth !== originalHealth ? getEmailKey(currentUser) : '',
+      sources: Array.from(row.querySelectorAll('.etm-source-select'))
+        .map(select => currentExecutiveEvidenceCatalog.byKey[select.value])
+        .filter(Boolean)
+        .slice(0, 3),
+    });
+  }).filter(outcome => outcome.text);
 }
 
 function collectExecutiveCategoryOverrides() {
@@ -6580,8 +7402,10 @@ function collectExecutiveCategoryOverrides() {
 function collectExecutiveMilestoneTimeline() {
   const title = document.querySelector('.etm-title')?.value.trim() || 'Selected 2026 DCDC Milestone Timeline';
   const rows = Array.from(document.querySelectorAll('#execTimelineRows .exec-category-editor')).map(row => ({
+    sectionId: row.dataset.sectionId || defaultExecutiveSectionFor({}, 0).sectionId,
+    audience: normalizeExecutiveAudience(row.querySelector('.etm-row-audience')?.value, 'leadership-only'),
     label: row.querySelector('.etm-row-label')?.value.trim() || '',
-    cells: Array.from(row.querySelectorAll('.exec-quarter-panel .etm-cell')).map(collectExecutiveOutcomeRows)
+    cells: Array.from(row.querySelectorAll('.exec-quarter-lane .etm-cell')).map(collectExecutiveOutcomeRows)
   })).filter(row => row.label || row.cells.some(cell => cell.length));
   const phases = Array.from(document.querySelectorAll('.etm-phase')).map(input => input.value.trim());
   return normalizeExecutiveMilestoneTimeline({
@@ -6597,6 +7421,7 @@ window.openStrategyLayerModal = () => {
   if (!canManageStrategy()) return;
   const week = allWeeks[currentIdx];
   if (!week) return;
+  if (isWeekReleased(week)) return;
   const layer = getStrategyLayer(week);
   const projs = (week.projects || []).filter(p => !p.visibility || p.visibility === 'active');
   const quarters = getStrategyYears(projs, layer, { includeNextYear: true }).flatMap(getQuarterLabelsForYear);
@@ -6655,6 +7480,12 @@ window.saveStrategyLayer = async () => {
   if (!canManageStrategy()) return;
   const week = allWeeks[currentIdx];
   if (!week || !currentUser) return;
+  try {
+    assertCurrentWeekEditable(week);
+  } catch (error) {
+    showSaveToast(getWriteErrorMessage(error));
+    return;
+  }
   showLoader("Saving Strategy Layer...");
   try {
     const base = getStrategyLayer(week);
@@ -6821,6 +7652,103 @@ const OVERVIEW_PRINT_PRESETS = {
   budget: ['budget-overview'],
 };
 
+const OVERVIEW_REPORT_TITLES = {
+  'health-focus': 'Portfolio Health & Focus',
+  'weekly-trend': 'Weekly Trends',
+  'executive-summary': 'Executive Summary',
+  'attention-matrix': 'Attention Matrix',
+  'risk-actions': 'Risk Actions',
+  'quarterly-roadmap': 'Portfolio Roadmap',
+  'resource-analytics': 'Resource Analytics',
+  'budget-overview': 'Budget Overview',
+};
+
+function presentationReportMeta() {
+  const week = allWeeks[currentIdx] || {};
+  return week.weekLabel || week.weekDate || 'Current reporting period';
+}
+
+function renderPresentationReportPage(title, content, options = {}) {
+  const kicker = options.kicker || 'Project Dashboard';
+  const continuation = options.continuation ? ' · Continued' : '';
+  return `<section class="print-report-page" data-report-section="${escHtml(options.section || '')}">
+    <header class="print-report-page-head print-report-unit">
+      <div><div class="print-report-kicker">${escHtml(kicker)}</div><h1 class="print-report-title">${escHtml(title)}${continuation}</h1></div>
+      <div class="print-report-meta">${escHtml(presentationReportMeta())}</div>
+    </header>
+    <div class="print-report-body">${content}</div>
+    <footer class="print-report-footer"><span>LITEON Project Dashboard</span><span class="print-report-page-number"></span></footer>
+  </section>`;
+}
+
+function finalizePresentationReport(pages, mode) {
+  const root = document.getElementById('printReportRoot');
+  root.innerHTML = pages.join('');
+  root.dataset.reportMode = mode;
+  root.setAttribute('aria-hidden', 'false');
+  root.querySelectorAll('.print-report-page-number').forEach((node, index) => {
+    node.textContent = `${index + 1} / ${pages.length}`;
+  });
+  document.body.classList.add('print-presentation-report');
+}
+
+function clearPresentationPrintReport() {
+  const root = document.getElementById('printReportRoot');
+  document.body.classList.remove('print-presentation-report');
+  root.replaceChildren();
+  root.removeAttribute('data-report-mode');
+  root.setAttribute('aria-hidden', 'true');
+}
+
+function cloneOverviewSectionForPrint(sectionId) {
+  const source = document.querySelector(`#execView [data-print-section="${sectionId}"]`);
+  if (!source) return '<div class="print-report-unit one-page-status-empty">No current data is available for this report section.</div>';
+  const clone = source.cloneNode(true);
+  clone.querySelectorAll('button, select, input, .no-print, .risk-controls, .attention-select-row, .card-actions').forEach(node => node.remove());
+  clone.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
+  clone.classList.add('print-report-unit');
+  return clone.outerHTML;
+}
+
+function renderOverviewPortfolioReportPages() {
+  const source = document.querySelector('#execView [data-print-section="project-portfolio"]');
+  if (!source) return [renderPresentationReportPage('Project Portfolio', cloneOverviewSectionForPrint('project-portfolio'), { section:'project-portfolio', kicker:'Overview report' })];
+  const portfolioCards = [...source.querySelectorAll('.exec-project-card')];
+  if (!portfolioCards.length) return [renderPresentationReportPage('Project Portfolio', cloneOverviewSectionForPrint('project-portfolio'), { section:'project-portfolio', kicker:'Overview report' })];
+  const pages = [];
+  for (let index = 0; index < portfolioCards.length; index += 1) {
+    const cards = portfolioCards.slice(index, index + 1).map(card => {
+      const clone = card.cloneNode(true);
+      clone.querySelectorAll('button, select, input, .no-print, .card-actions').forEach(node => node.remove());
+      clone.classList.add('print-report-unit');
+      return clone.outerHTML;
+    }).join('');
+    pages.push(renderPresentationReportPage('Project Portfolio', `<div class="exec-projects project-portfolio-grid">${cards}</div>`, {
+      section:'project-portfolio',
+      kicker:'Overview report',
+      continuation:index > 0,
+    }));
+  }
+  return pages;
+}
+
+function renderOverviewPrintReport(selectedSections) {
+  const selected = new Set(selectedSections);
+  const pages = [];
+  OVERVIEW_PRINT_PRESETS.all.forEach(sectionId => {
+    if (!selected.has(sectionId)) return;
+    if (sectionId === 'project-portfolio') {
+      pages.push(...renderOverviewPortfolioReportPages());
+      return;
+    }
+    pages.push(renderPresentationReportPage(OVERVIEW_REPORT_TITLES[sectionId] || sectionId, cloneOverviewSectionForPrint(sectionId), {
+      section:sectionId,
+      kicker:'Overview report',
+    }));
+  });
+  finalizePresentationReport(pages, 'overview');
+}
+
 window.applyOverviewPrintPreset = preset => {
   if (preset === 'custom') return;
   const selected = new Set(OVERVIEW_PRINT_PRESETS[preset] || OVERVIEW_PRINT_PRESETS.all);
@@ -6839,10 +7767,6 @@ window.openOverviewPrintDialog = () => {
   openAccessibleModal(document.getElementById('overviewPrintOverlay'));
 };
 
-function clearOverviewPrintSelection() {
-  document.querySelectorAll('[data-print-section].print-excluded').forEach(section => section.classList.remove('print-excluded'));
-}
-
 window.confirmOverviewPrint = () => {
   const checked = [...document.querySelectorAll('#overviewPrintSections input[type="checkbox"]:checked')];
   const validation = document.getElementById('overviewPrintValidation');
@@ -6851,14 +7775,11 @@ window.confirmOverviewPrint = () => {
     validation.textContent = 'Select at least one section to export.';
     return;
   }
-  const selected = new Set(checked.map(input => input.value));
-  clearOverviewPrintSelection();
-  document.querySelectorAll('[data-print-section]').forEach(section => {
-    section.classList.toggle('print-excluded', !selected.has(section.dataset.printSection));
-  });
+  const selected = checked.map(input => input.value);
+  renderOverviewPrintReport(selected);
   closeModal('overviewPrintOverlay');
-  window.addEventListener('afterprint', clearOverviewPrintSelection, { once: true });
-  window.print();
+  window.addEventListener('afterprint', clearPresentationPrintReport, { once: true });
+  requestAnimationFrame(() => window.print());
 };
 
 window.setOverviewScope = scope => {
@@ -7627,12 +8548,13 @@ window.openProjEdit = (code, isNew = false) => {
   const existingProject = allWeeks[currentIdx]?.projects.find(project => project.code === code);
   if (!isNew && !existingProject) return;
   if (isNew && !ganttTemplateSubscriptionReady) return;
+  const week = allWeeks[currentIdx];
+  if (isWeekReleased(week)) return;
   if (isNew ? currentRole !== 'admin' : !canEditProject(existingProject)) return;
   isCreatingNew = isNew;
   editingProjCode = code;
   clearProjectMutationError();
   setProjectMutationControlsDisabled(false);
-  const week = allWeeks[currentIdx];
   let p = isNew ? {name:'', code:'', owner:'', deputy:'', customer:'', location:'', visibility:'active', milestones:[], quarterlyMilestones:[], status:'green', progress:0, attention:'watch', highlight:'', weeklyActions:'', risk:'', next:'', riskActions:[], teamMembers:[], budget:{ mode:'manual', currency:'USD', totalEstimated:0, monthlyPlans:[], actuals:[] }, dataStatus: normalizeResourceBudgetStatus({})} : enrichProjectPrototype(week.projects.find(x => x.code === code), week.projects.findIndex(x => x.code === code));
   p = normalizeProject(p);
   p = withProjectEditorRowIds(p);
@@ -7874,6 +8796,8 @@ window.saveProjEdit = async () => {
       if (!liveSnapshot.exists()) {
         throw new Error('The selected week no longer exists. Refresh the dashboard and try again.');
       }
+      const liveWeek = liveSnapshot.data();
+      assertCurrentWeekEditable(liveWeek);
       const result = applyProjectSave(liveSnapshot.data(), {
         draft: pData,
         originalCode: session.code,
@@ -7950,6 +8874,8 @@ window.deleteProject = async () => {
       if (!liveSnapshot.exists()) {
         throw new Error('The selected week no longer exists. Refresh the dashboard and try again.');
       }
+      const liveWeek = liveSnapshot.data();
+      assertCurrentWeekEditable(liveWeek);
       const result = applyProjectDelete(liveSnapshot.data(), {
         originalCode: session.code,
         role: session.role,
@@ -7991,18 +8917,11 @@ window.addMilestoneRow = (name='', status='to-do', dateStr='', planData = null) 
   const div = document.createElement('div');
   div.className = "ms-row";
   div.dataset.planId = normalized.planId;
-  div.draggable = true;
   div.style = "display:flex; flex-wrap:wrap; gap:10px; margin-bottom:8px; align-items:center;";
-  
-  div.ondragstart = (e) => { e.dataTransfer.setData('text/plain', ''); e.target.classList.add('dragging'); };
-  div.ondragend = (e) => {
-    e.target.classList.remove('dragging');
-    checkMsDates();
-    scheduleWorkstreamPreview();
-  };
-  
+
   div.innerHTML = `
-    <span style="cursor:grab; color:var(--muted)">☰</span>
+    <button type="button" class="drag-handle milestone-drag-handle" draggable="true"
+      title="Drag to reorder milestone" aria-label="Drag milestone to reorder">☰</button>
     <input class="fi ms-name" style="flex:2" value="${escHtml(name)}" placeholder="Milestone name" aria-label="Milestone name">
     <input type="date" class="fi ms-date" value="${escHtml(dateStr)}" onchange="checkMsDates()" aria-label="Milestone date">
     <select class="fs ms-status" aria-label="Milestone status">
@@ -8013,6 +8932,16 @@ window.addMilestoneRow = (name='', status='to-do', dateStr='', planData = null) 
     </select>
     <button type="button" onclick="removeMilestoneRow(this)" style="border:none; background:none; cursor:pointer;" title="Delete milestone" aria-label="Delete milestone">🗑️</button>
   `;
+  const handle = div.querySelector('.milestone-drag-handle');
+  handle.ondragstart = event => {
+    event.dataTransfer.setData('text/plain', '');
+    div.classList.add('dragging');
+  };
+  handle.ondragend = () => {
+    div.classList.remove('dragging');
+    checkMsDates();
+    scheduleWorkstreamPreview();
+  };
   div.insertAdjacentHTML('beforeend', milestoneHistoryHtml(normalized));
   div.addEventListener('input', () => {
     refreshWorkstreamMilestoneOptions();
