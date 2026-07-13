@@ -7504,7 +7504,10 @@ window.saveStrategyLayer = async () => {
   showLoader("Saving Strategy Layer...");
   try {
     const base = getStrategyLayer(week);
-    const executiveMilestoneTimeline = serializeExecutiveMilestoneTimeline(collectExecutiveMilestoneTimeline());
+    const executiveMilestoneTimeline = serializeExecutiveMilestoneTimeline(
+      collectExecutiveMilestoneTimeline(),
+      base.executiveMilestoneTimeline
+    );
     const projectMap = {};
     document.querySelectorAll('.project-map-row').forEach(row => {
       const code = row.dataset.code || '';

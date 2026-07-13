@@ -98,8 +98,13 @@ test('production text edits preserve structured UAT outcome metadata', () => {
   assert.deepEqual(stored.rows[0].cells.q1[0], {
     id: 'outcome-1',
     text: 'Container integration complete',
+    progressMode: 'manual',
     manualProgress: 100,
     manualHealth: 'on-track',
-    sources: { source1: { projectCode: 'SYS-1', milestoneId: 'ms-1' } }
+    status: 'on-track',
+    statusReason: '',
+    statusUpdatedAt: '',
+    statusUpdatedBy: '',
+    sources: { source1: { type: 'milestone', projectCode: 'SYS-1', milestoneId: 'ms-1' } }
   });
 });

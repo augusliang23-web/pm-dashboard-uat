@@ -76,7 +76,7 @@ test('v2.0T wires guarded release and Firestore-safe timeline saves', () => {
   assert.match(source, /await updateDoc\(doc\(db, "weeks", id\), \{/);
   assert.match(
     source,
-    /serializeExecutiveMilestoneTimeline\(collectExecutiveMilestoneTimeline\(\)\)/
+    /serializeExecutiveMilestoneTimeline\(\s*collectExecutiveMilestoneTimeline\(\),\s*base\.executiveMilestoneTimeline\s*\)/
   );
   assert.match(
     source,
