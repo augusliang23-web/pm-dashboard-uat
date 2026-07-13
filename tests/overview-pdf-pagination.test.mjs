@@ -49,3 +49,12 @@ test('PDF reports render from dedicated presentation pages instead of the live d
   assert.match(printCss, /\.print-report-page\s*\{[^}]*break-after:\s*page/);
   assert.match(printCss, /\.print-report-unit\s*\{[^}]*break-inside:\s*avoid-page[^}]*page-break-inside:\s*avoid/);
 });
+
+test('Overview report never marks an entire cloned section as an unbreakable print unit', () => {
+  const start = dashboard.indexOf('function cloneOverviewSectionForPrint(');
+  const end = dashboard.indexOf('function renderOverviewPortfolioReportPages(', start);
+  const source = dashboard.slice(start, end);
+  assert.match(source, /clone\.classList\.add\('print-report-flow'\)/);
+  assert.doesNotMatch(source, /clone\.classList\.add\('print-report-unit'\)/);
+  assert.match(printCss, /\.print-report-flow\s*\{[^}]*break-inside:\s*auto[^}]*page-break-inside:\s*auto/);
+});
