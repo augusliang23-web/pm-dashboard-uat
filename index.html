@@ -1703,8 +1703,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   body.print-presentation-report { width:auto !important; min-height:0 !important; background:#fff !important; }
   body.print-presentation-report > *:not(#printReportRoot) { display:none !important; }
   body.print-presentation-report #printReportRoot { display:block !important; width:100% !important; color:var(--text) !important; }
-  body.print-presentation-report .print-report-page { display:block; min-height:0; padding:0; break-after:page; page-break-after:always; }
-  body.print-presentation-report .print-report-page:last-child { break-after:auto; page-break-after:auto; }
+  body.print-presentation-report .print-report-page { display:block; min-height:0; padding:0; break-after:auto; page-break-after:auto; }
+  body.print-presentation-report .print-report-page + .print-report-page { break-before:page; page-break-before:always; }
   body.print-presentation-report .print-report-page-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10mm; margin-bottom:5mm; padding-bottom:3mm; border-bottom:1px solid var(--border2); }
   body.print-presentation-report .print-report-kicker { color:var(--accent-hov); font-size:8.5pt; font-weight:850; letter-spacing:.1em; text-transform:uppercase; }
   body.print-presentation-report .print-report-title { margin-top:1.5mm; color:var(--text); font-size:20pt; font-weight:850; line-height:1.15; }
@@ -1712,7 +1712,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   body.print-presentation-report .print-report-body { min-height:0; }
   body.print-presentation-report .print-report-unit { break-inside:avoid-page; page-break-inside:avoid; }
   body.print-presentation-report .print-report-flow { break-inside:auto; page-break-inside:auto; }
-  body.print-presentation-report .print-report-footer { margin-top:5mm; padding-top:2.5mm; border-top:1px solid var(--border); color:var(--muted); font:8pt 'IBM Plex Mono', monospace; display:flex; justify-content:space-between; }
+  body.print-presentation-report .print-report-footer { margin-top:5mm; padding-top:2.5mm; border-top:1px solid var(--border); color:var(--muted); font:8pt 'IBM Plex Mono', monospace; display:flex; justify-content:space-between; break-before:avoid-page; page-break-before:avoid; }
   body.print-presentation-report .exec-overview,
   body.print-presentation-report .exec-decision-panel,
   body.print-presentation-report .project-portfolio-panel,
