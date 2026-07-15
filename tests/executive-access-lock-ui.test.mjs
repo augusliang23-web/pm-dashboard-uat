@@ -38,5 +38,5 @@ test('released weeks block content mutations at every write entry point', () => 
 test('single project detail exposes one-page PDF export from the card header', () => {
   assert.match(dashboard, /id="pd_one_page_pdf"/);
   assert.match(dashboard, /exportProjectOnePagePdf/);
-  assert.match(dashboard, /window\.print\(\)/);
+  assert.match(dashboard, /downloadProfessionalPdf/);
 });
