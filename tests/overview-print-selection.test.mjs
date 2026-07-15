@@ -28,13 +28,14 @@ test('every Overview report section has a selectable print identity', () => {
   }
 });
 
-test('print selection renders a dedicated presentation report and does not persist to storage or Firebase', () => {
+test('Overview selection sends a direct professional download request and does not persist data', () => {
   const start = dashboard.indexOf('window.confirmOverviewPrint =');
   const end = dashboard.indexOf('window.setOverviewScope', start);
   const source = dashboard.slice(start, end);
   assert.ok(source.includes('Select at least one section to export.'));
-  assert.ok(source.includes('renderOverviewPrintReport'));
-  assert.ok(source.includes('window.print()'));
+  assert.ok(source.includes('downloadProfessionalReport'));
+  assert.ok(source.includes("mode: 'overview'"));
+  assert.ok(source.includes('overviewScope'));
   assert.doesNotMatch(source, /localStorage|setDoc|updateDoc|runTransaction/);
   assert.match(dashboard, /function renderOverviewPrintReport\(/);
   assert.match(dashboard, /function renderPresentationReportPage\(/);

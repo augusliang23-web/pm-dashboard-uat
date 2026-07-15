@@ -2513,8 +2513,10 @@ import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePass
 import { confirmWeekMutation, getWriteErrorMessage } from "../sync-core.js";
 import { getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline } from "../executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "../week-carryover.mjs";
+import { downloadProfessionalPdf } from "../professional-pdf-client.mjs";
 
 const app = initializeApp(FIREBASE_CONFIG);
+const PROFESSIONAL_PDF_SERVICE_URL = window.PM_DASHBOARD_PDF_SERVICE_URL || '';
 const db = getFirestore(app);
 const auth = getAuth(app);
 window.__dashboardBootStarted = true;
@@ -6621,9 +6623,7 @@ function confirmProjectPdfExport() {
   const rawProject = allWeeks[currentIdx]?.projects?.find(project => project.code === code);
   if (!rawProject) return;
   closeModal('projectPdfSectionPicker');
-  renderProjectPrintReport(rawProject, selectedSections);
-  window.addEventListener('afterprint', clearPresentationPrintReport, { once: true });
-  requestAnimationFrame(() => window.print());
+  downloadProfessionalReport({ mode: 'project', projectCode: code, sections: selectedSections }, `${rawProject.code || 'project'}-${allWeeks[currentIdx]?.weekLabel || 'report'}.pdf`, error);
 }
 
 // These handlers are called from the picker markup, so expose them across the module boundary.
@@ -7767,6 +7767,21 @@ function renderOverviewPrintReport(selectedSections) {
   finalizePresentationReport(pages, 'overview');
 }
 
+async function downloadProfessionalReport(request, filename, validation) {
+  const weekId = allWeeks[currentIdx]?.__documentId;
+  if (!weekId) {
+    validation.className = 'resource-validation show error';
+    validation.textContent = 'The selected reporting week is unavailable.';
+    return;
+  }
+  try {
+    await downloadProfessionalPdf({ endpoint: PROFESSIONAL_PDF_SERVICE_URL, user: currentUser, request: { ...request, weekId }, filename });
+  } catch (error) {
+    validation.className = 'resource-validation show error';
+    validation.textContent = error.message;
+  }
+}
+
 window.applyOverviewPrintPreset = preset => {
   if (preset === 'custom') return;
   const selected = new Set(OVERVIEW_PRINT_PRESETS[preset] || OVERVIEW_PRINT_PRESETS.all);
@@ -7794,10 +7809,8 @@ window.confirmOverviewPrint = () => {
     return;
   }
   const selected = checked.map(input => input.value);
-  renderOverviewPrintReport(selected);
+  downloadProfessionalReport({ mode: 'overview', sections: selected, overviewScope }, `overview-${allWeeks[currentIdx]?.weekLabel || 'report'}.pdf`, validation);
   closeModal('overviewPrintOverlay');
-  window.addEventListener('afterprint', clearPresentationPrintReport, { once: true });
-  requestAnimationFrame(() => window.print());
 };
 
 window.setOverviewScope = scope => {

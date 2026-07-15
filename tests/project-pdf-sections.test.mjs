@@ -30,7 +30,7 @@ test('project PDF includes a selectable executive project update section', () =>
   assert.match(dashboard, /Weekly actions/);
 });
 
-test('project export opens section picker before printing', () => {
+test('project export opens a section picker before direct professional download', () => {
   const start = dashboard.indexOf('window.exportProjectOnePagePdf =');
   const end = dashboard.indexOf('// ── RENDER ──', start);
   const source = dashboard.slice(start, end);
@@ -38,7 +38,7 @@ test('project export opens section picker before printing', () => {
   assert.doesNotMatch(source, /window\.print\(\)/);
   assert.match(dashboard, /function confirmProjectPdfExport\(/);
   assert.match(dashboard, /window\.confirmProjectPdfExport\s*=\s*confirmProjectPdfExport/);
-  assert.match(dashboard, /requestAnimationFrame\(\(\) => window\.print\(\)\)/);
+  assert.match(dashboard, /function confirmProjectPdfExport\(\)[\s\S]*downloadProfessionalReport/);
 });
 
 test('project presentation report keeps complete sections and table rows together', () => {
