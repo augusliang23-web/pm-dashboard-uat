@@ -1892,7 +1892,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     </div>
     <div class="modal-ftr">
       <button class="btn btn-ghost" type="button" onclick="closeModal('overviewPrintOverlay')">Cancel</button>
-      <button class="btn btn-primary" type="button" onclick="confirmOverviewPrint()">Export PDF</button>
+      <button class="btn btn-primary" id="overviewPdfExportButton" type="button" onclick="confirmOverviewPrint()">Export PDF</button>
     </div>
   </div>
 </div>
@@ -2145,7 +2145,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <label class="project-pdf-picker-option"><input type="checkbox" data-pdf-section="budget" checked><span>Budget</span></label>
     </div>
     <div class="project-pdf-picker-error" id="projectPdfSectionPickerError" role="alert"></div>
-    <div class="project-pdf-picker-actions"><button class="btn" type="button" onclick="closeModal('projectPdfSectionPicker')">Cancel</button><button class="btn btn-primary" type="button" onclick="confirmProjectPdfExport()">Preview PDF</button></div>
+    <div class="project-pdf-picker-actions"><button class="btn" type="button" onclick="closeModal('projectPdfSectionPicker')">Cancel</button><button class="btn btn-primary" id="projectPdfExportButton" type="button" onclick="confirmProjectPdfExport()">Preview PDF</button></div>
   </div>
 </div>
 
@@ -6612,7 +6612,7 @@ function openProjectPdfSectionPicker(code) {
   openAccessibleModal(picker);
 }
 
-function confirmProjectPdfExport() {
+async function confirmProjectPdfExport() {
   const picker = document.getElementById('projectPdfSectionPicker');
   const selectedSections = [...picker.querySelectorAll('input[data-pdf-section]:checked')].map(input => input.dataset.pdfSection);
   const error = document.getElementById('projectPdfSectionPickerError');
@@ -6623,8 +6623,13 @@ function confirmProjectPdfExport() {
   const code = picker.dataset.projectCode;
   const rawProject = allWeeks[currentIdx]?.projects?.find(project => project.code === code);
   if (!rawProject) return;
-  closeModal('projectPdfSectionPicker');
-  downloadProfessionalReport({ mode: 'project', projectCode: code, sections: selectedSections }, `${rawProject.code || 'project'}-${allWeeks[currentIdx]?.weekLabel || 'report'}.pdf`, error);
+  const button = document.getElementById('projectPdfExportButton');
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  const downloaded = await downloadProfessionalReport({ mode: 'project', projectCode: code, sections: selectedSections }, `${rawProject.code || 'project'}-${allWeeks[currentIdx]?.weekLabel || 'report'}.pdf`, error);
+  button.disabled = false;
+  button.removeAttribute('aria-busy');
+  if (downloaded) closeModal('projectPdfSectionPicker');
 }
 
 // These handlers are called from the picker markup, so expose them across the module boundary.
@@ -7771,15 +7776,19 @@ function renderOverviewPrintReport(selectedSections) {
 async function downloadProfessionalReport(request, filename, validation) {
   const weekId = allWeeks[currentIdx]?.__documentId;
   if (!weekId) {
-    validation.className = 'resource-validation show error';
+    if (validation.id === 'overviewPrintValidation') validation.className = 'resource-validation show error';
     validation.textContent = 'The selected reporting week is unavailable.';
-    return;
+    return false;
   }
+  if (validation.id === 'overviewPrintValidation') validation.className = 'resource-validation show';
+  validation.textContent = 'Generating PDF…';
   try {
     await downloadProfessionalPdf({ endpoint: PROFESSIONAL_PDF_SERVICE_URL, user: currentUser, request: { ...request, weekId }, filename });
+    return true;
   } catch (error) {
-    validation.className = 'resource-validation show error';
+    if (validation.id === 'overviewPrintValidation') validation.className = 'resource-validation show error';
     validation.textContent = error.message;
+    return false;
   }
 }
 
@@ -7801,7 +7810,7 @@ window.openOverviewPrintDialog = () => {
   openAccessibleModal(document.getElementById('overviewPrintOverlay'));
 };
 
-window.confirmOverviewPrint = () => {
+window.confirmOverviewPrint = async () => {
   const checked = [...document.querySelectorAll('#overviewPrintSections input[type="checkbox"]:checked')];
   const validation = document.getElementById('overviewPrintValidation');
   if (!checked.length) {
@@ -7810,8 +7819,13 @@ window.confirmOverviewPrint = () => {
     return;
   }
   const selected = checked.map(input => input.value);
-  downloadProfessionalReport({ mode: 'overview', sections: selected, overviewScope }, `overview-${allWeeks[currentIdx]?.weekLabel || 'report'}.pdf`, validation);
-  closeModal('overviewPrintOverlay');
+  const button = document.getElementById('overviewPdfExportButton');
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  const downloaded = await downloadProfessionalReport({ mode: 'overview', sections: selected, overviewScope }, `overview-${allWeeks[currentIdx]?.weekLabel || 'report'}.pdf`, validation);
+  button.disabled = false;
+  button.removeAttribute('aria-busy');
+  if (downloaded) closeModal('overviewPrintOverlay');
 };
 
 window.setOverviewScope = scope => {

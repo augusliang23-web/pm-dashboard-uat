@@ -5,14 +5,15 @@ function assertSafeFilename(filename) {
 }
 
 export function sendPdfDownload(response, pdfBuffer, filename) {
-  if (!Buffer.isBuffer(pdfBuffer)) {
-    throw new TypeError('PDF output must be a Buffer.');
+  if (!(pdfBuffer instanceof Uint8Array)) {
+    throw new TypeError('PDF output must be a Buffer or Uint8Array.');
   }
+  const output = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
   assertSafeFilename(filename);
   response.statusCode = 200;
   response.setHeader('Content-Type', 'application/pdf');
   response.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   response.setHeader('Cache-Control', 'no-store, private');
-  response.setHeader('Content-Length', String(pdfBuffer.length));
-  response.end(pdfBuffer);
+  response.setHeader('Content-Length', String(output.length));
+  response.end(output);
 }

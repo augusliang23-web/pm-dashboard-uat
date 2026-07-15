@@ -20,3 +20,16 @@ test('professional PDF client sends only selection data and downloads a nonpersi
   assert.match(client, /URL\.revokeObjectURL/);
   assert.doesNotMatch(client, /localStorage|sessionStorage|setDoc|Cloud Storage/);
 });
+
+test('both PDF dialogs stay visible with progress feedback until the download finishes', () => {
+  for (const dashboard of [root, team]) {
+    assert.match(dashboard, /async function confirmProjectPdfExport\(\)/);
+    assert.match(dashboard, /const downloaded = await downloadProfessionalReport\(\{ mode: 'project'/);
+    assert.match(dashboard, /if \(downloaded\) closeModal\('projectPdfSectionPicker'\)/);
+    assert.match(dashboard, /window\.confirmOverviewPrint = async \(\) =>/);
+    assert.match(dashboard, /const downloaded = await downloadProfessionalReport\(\{ mode: 'overview'/);
+    assert.match(dashboard, /if \(downloaded\) closeModal\('overviewPrintOverlay'\)/);
+    assert.match(dashboard, /Generating PDF/);
+    assert.match(dashboard, /aria-busy/);
+  }
+});

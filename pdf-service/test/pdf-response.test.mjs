@@ -26,6 +26,18 @@ test('sends an in-memory PDF as an attachment download', () => {
   assert.equal(response.body, pdf);
 });
 
+test('sends Puppeteer Uint8Array PDF output as an attachment download', () => {
+  const response = createResponse();
+  const pdf = new Uint8Array(Buffer.from('%PDF-puppeteer'));
+
+  sendPdfDownload(response, pdf, 'overview-W28.pdf');
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers.get('Content-Length'), String(pdf.byteLength));
+  assert.ok(Buffer.isBuffer(response.body));
+  assert.deepEqual(response.body, Buffer.from(pdf));
+});
+
 test('rejects non-buffer output and unsafe filenames', () => {
   const response = createResponse();
   assert.throws(() => sendPdfDownload(response, 'pdf', 'report.pdf'), /Buffer/);
