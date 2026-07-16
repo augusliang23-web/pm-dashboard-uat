@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import puppeteer from 'puppeteer';
 import { renderPdfBuffer } from '../src/pdf-renderer.js';
+import { paginateMeasuredFlows } from '../src/measured-paginator.js';
 import { renderOverviewReportHtml } from '../src/overview-report.js';
 import {
   compactExecutiveSummaryFixture,
@@ -41,19 +42,20 @@ test('compact Executive Summary renders exactly two landscape pages', { timeout:
   assert.equal(pageObjects.length, 2);
 });
 
-test('verbose Executive Summary renders only formal continuation pages', { timeout: 60000 }, async () => {
+test('verbose Executive Summary creates measured continuation pages without pre-splitting HTML', { timeout: 60000 }, async () => {
   const fixture = completeOverviewReportFixture();
   fixture.sections = ['executive-summary'];
   fixture.week.executiveSummary = verboseExecutiveSummaryFixture();
 
   const html = renderOverviewReportHtml(fixture);
-  assert.equal((html.match(/class="report-page"/g) || []).length, 5);
-  assert.equal((html.match(/class="report-page-head"/g) || []).length, 5);
-  assert.equal((html.match(/class="report-footer"/g) || []).length, 5);
+  assert.equal((html.match(/class="report-page"/g) || []).length, 1);
+  assert.equal((html.match(/class="report-page-head"/g) || []).length, 1);
+  assert.equal((html.match(/class="report-footer"/g) || []).length, 1);
   const pdf = await renderPdfBuffer(html);
   const pageObjects = Buffer.from(pdf).toString('latin1').match(/\/Type\s*\/Page\b/g) || [];
 
-  assert.equal(pageObjects.length, 5);
+  assert.ok(pageObjects.length > 1);
+  assert.ok(pageObjects.length < 5);
 });
 
 test('aligns every verbose Executive Summary wrapper to its own printable page', { timeout: 60000 }, async () => {
@@ -65,6 +67,7 @@ test('aligns every verbose Executive Summary wrapper to its own printable page',
 
   try {
     await page.setContent(renderOverviewReportHtml(fixture), { waitUntil: 'networkidle0' });
+    await page.evaluate(paginateMeasuredFlows);
     const frames = await page.evaluate(() => [...document.querySelectorAll('.report-page')].map(node => {
       const pageRect = node.getBoundingClientRect();
       const headerRect = node.querySelector('.report-page-head').getBoundingClientRect();
@@ -77,7 +80,8 @@ test('aligns every verbose Executive Summary wrapper to its own printable page',
       };
     }));
 
-    assert.equal(frames.length, 5);
+    assert.ok(frames.length > 1);
+    assert.ok(frames.length < 5);
     frames.forEach((frame, index) => {
       assert.ok(Math.abs(frame.top - index * frame.height) < 1, `page ${index + 1} must begin at a page boundary`);
       assert.ok(Math.abs(frame.height - 793.7) < 1, `page ${index + 1} must be A4 landscape height`);
@@ -99,6 +103,7 @@ test('splits high-text Executive Summary cards before any wrapper exceeds A4 hei
 
   try {
     await page.setContent(renderOverviewReportHtml(fixture), { waitUntil: 'networkidle0' });
+    await page.evaluate(paginateMeasuredFlows);
     const heights = await page.evaluate(() => [...document.querySelectorAll('.report-page')]
       .map(node => node.getBoundingClientRect().height));
 

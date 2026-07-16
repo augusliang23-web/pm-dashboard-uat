@@ -1,4 +1,5 @@
 import puppeteer from 'puppeteer';
+import { paginateMeasuredFlows } from './measured-paginator.js';
 
 const LAUNCH_OPTIONS = {
   headless: true,
@@ -31,6 +32,7 @@ export function createPdfRenderer({ launch = options => puppeteer.launch(options
     const page = await openPage();
     try {
       await page.setContent(html, { waitUntil: 'networkidle0' });
+      await page.evaluate(paginateMeasuredFlows);
       return await page.pdf({
         format: 'A4',
         landscape: true,
