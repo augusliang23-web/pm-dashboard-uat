@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sendPdfDownload } from '../src/pdf-response.js';
+import {
+  MAX_PDF_BYTES,
+  PdfOutputError,
+  sendPdfDownload
+} from '../src/pdf-response.js';
 
 function createResponse() {
   return {
@@ -42,4 +46,16 @@ test('rejects non-buffer output and unsafe filenames', () => {
   const response = createResponse();
   assert.throws(() => sendPdfDownload(response, 'pdf', 'report.pdf'), /Buffer/);
   assert.throws(() => sendPdfDownload(response, Buffer.from('pdf'), '../report.pdf'), /safe PDF filename/);
+});
+
+test('rejects PDF output above 8 MiB before setting download headers', () => {
+  const response = createResponse();
+
+  assert.throws(
+    () => sendPdfDownload(response, new Uint8Array(MAX_PDF_BYTES + 1), 'large.pdf'),
+    PdfOutputError
+  );
+  assert.equal(response.statusCode, 0);
+  assert.equal(response.headers.size, 0);
+  assert.equal(response.body, undefined);
 });
