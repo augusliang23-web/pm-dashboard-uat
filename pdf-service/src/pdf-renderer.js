@@ -27,7 +27,7 @@ export function createPdfRenderer({ launch = options => puppeteer.launch(options
     }
   }
 
-  return async function renderPdf(html) {
+  const renderPdf = async function renderPdf(html) {
     const page = await openPage();
     try {
       await page.setContent(html, { waitUntil: 'networkidle0' });
@@ -41,6 +41,15 @@ export function createPdfRenderer({ launch = options => puppeteer.launch(options
       await page.close().catch(() => {});
     }
   };
+
+  renderPdf.close = async () => {
+    const pendingBrowser = browserPromise;
+    browserPromise = undefined;
+    const browser = pendingBrowser ? await pendingBrowser.catch(() => null) : null;
+    if (browser?.close) await browser.close();
+  };
+
+  return renderPdf;
 }
 
 export const renderPdfBuffer = createPdfRenderer();

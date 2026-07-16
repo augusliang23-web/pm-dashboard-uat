@@ -6,7 +6,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "render:samples": "node scripts/render-samples.mjs"
   },
   "dependencies": {
     "firebase-admin": "^13.4.0",

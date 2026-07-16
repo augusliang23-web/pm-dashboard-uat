@@ -62,3 +62,23 @@ test('relaunches once when a cached browser disconnects before page creation', a
   assert.equal(launches, 2);
   assert.deepEqual(output, new Uint8Array([4]));
 });
+
+test('exposes explicit browser cleanup for local rendering tools', async () => {
+  let browserCloses = 0;
+  const render = createPdfRenderer({
+    launch: async () => ({
+      isConnected: () => true,
+      newPage: async () => ({
+        setContent: async () => {},
+        pdf: async () => new Uint8Array([1]),
+        close: async () => {}
+      }),
+      close: async () => { browserCloses += 1; }
+    })
+  });
+
+  await render('<html>sample</html>');
+  await render.close();
+
+  assert.equal(browserCloses, 1);
+});
