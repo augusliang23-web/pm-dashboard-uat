@@ -1,13 +1,202 @@
 import { escapeHtml, reportDocument } from './report-html.js';
+import {
+  dataTable,
+  emptyState,
+  metricCard,
+  progressBar,
+  reportPage,
+  statusBadge
+} from './report-components.js';
+import { budgetTotals, buildOverviewReportModel } from './report-model.js';
 
-const TITLES = { 'health-focus': 'Portfolio Health & Focus', 'project-portfolio': 'Project Portfolio', 'risk-actions': 'Risk Actions' };
+function statusPresentation(status) {
+  const values = {
+    green: ['green', 'On Track'], yellow: ['yellow', 'At Risk'], red: ['red', 'Critical']
+  };
+  return values[status] || ['neutral', 'Not set'];
+}
 
-export function renderOverviewReportHtml({ week, sections }) {
-  const projects = Array.isArray(week.projects) ? week.projects : [];
-  const parts = [];
-  if (sections.includes('health-focus')) parts.push(`<section class="section"><div class="kicker">Overview report</div><h2>${TITLES['health-focus']}</h2><div class="cards"><article class="card"><b>${projects.length}</b><div>Active projects</div></article></div></section>`);
-  if (sections.includes('project-portfolio') && projects.length) parts.push(`<section class="section"><h2>${TITLES['project-portfolio']}</h2><table><thead><tr><th>Project</th><th>Owner</th><th>Progress</th></tr></thead><tbody>${projects.map(project => `<tr><td>${escapeHtml(project.name || project.code)}</td><td>${escapeHtml(project.owner || 'Unassigned')}</td><td>${escapeHtml(project.progress ?? 0)}%</td></tr>`).join('')}</tbody></table></section>`);
-  const riskProjects = projects.filter(project => String(project.risk || '').trim());
-  if (sections.includes('risk-actions') && riskProjects.length) parts.push(`<section class="section"><h2>${TITLES['risk-actions']}</h2><table><thead><tr><th>Project</th><th>Risk</th></tr></thead><tbody>${riskProjects.map(project => `<tr><td>${escapeHtml(project.name || project.code)}</td><td>${escapeHtml(project.risk)}</td></tr>`).join('')}</tbody></table></section>`);
-  return reportDocument({ title: 'Overview report', period: week.weekLabel || week.weekDate, body: parts.join('') });
+function renderHealthFocus(model) {
+  const health = model.health;
+  return `<section class="overview-unit health-focus" data-section-unit="health-focus"><div class="overview-unit-head"><div><div class="report-kicker">Portfolio Health &amp; Focus</div><h2>Management focus</h2></div>${statusBadge(health.red ? 'red' : health.yellow ? 'yellow' : 'green', health.red ? 'Escalation required' : health.yellow ? 'Monitor closely' : 'Portfolio stable')}</div><div class="metric-grid health-metrics">${metricCard('Active projects', health.total, 'Selected Overview scope')}${metricCard('On Track', health.green, 'Green status', 'green')}${metricCard('At Risk', health.yellow, 'Yellow status', 'yellow')}${metricCard('Critical', health.red, 'Red status', health.red ? 'red' : 'neutral')}</div><article class="card portfolio-progress-card"><div><div class="metric-card-label">Average delivery progress</div><strong>${escapeHtml(health.averageProgress)}%</strong></div>${progressBar(health.averageProgress, health.red ? 'red' : health.yellow ? 'yellow' : 'green')}</article></section>`;
+}
+
+function trendSvg(points, key, tone = 'green') {
+  const width = 320;
+  const height = 140;
+  const left = 28;
+  const right = 12;
+  const top = 16;
+  const bottom = 28;
+  const values = points.map(point => Number(point[key]) || 0);
+  const minValue = Math.min(...values, 0);
+  const maxValue = Math.max(...values, 1);
+  const span = Math.max(1, maxValue - minValue);
+  const coords = points.map((point, index) => {
+    const x = left + (points.length === 1 ? 0 : index / (points.length - 1)) * (width - left - right);
+    const y = height - bottom - ((Number(point[key]) - minValue) / span) * (height - top - bottom);
+    return { x, y, label: point.label, value: point[key] };
+  });
+  const path = coords.map((point, index) => `${index ? 'L' : 'M'}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+  return `<svg class="weekly-trend-svg ${tone}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(key)} trend"><line class="trend-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}"></line><line class="trend-axis" x1="${left}" y1="${top}" x2="${left}" y2="${height - bottom}"></line><path class="trend-line" d="${path}"></path>${coords.map(point => `<circle class="trend-dot" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3.6"></circle><text class="trend-value" x="${point.x.toFixed(1)}" y="${Math.max(10, point.y - 7).toFixed(1)}">${escapeHtml(point.value)}</text><text class="trend-label" x="${point.x.toFixed(1)}" y="130">${escapeHtml(point.label)}</text>`).join('')}</svg>`;
+}
+
+function renderWeeklyTrend(model) {
+  if (model.trend.length < 2) return '';
+  const latest = model.trend.at(-1);
+  const previous = model.trend.at(-2);
+  const riskDelta = latest.riskPressure - previous.riskPressure;
+  const progressDelta = latest.avgProgress - previous.avgProgress;
+  return `<section class="overview-unit weekly-trend" data-section-unit="weekly-trend"><div class="overview-unit-head"><div><div class="report-kicker">Weekly portfolio trend</div><h2>Trend signals</h2></div><span class="overview-note">Last ${model.trend.length} reporting periods</span></div><div class="weekly-trend-grid"><article class="card trend-card risk"><div class="trend-card-head"><div><h3>Risk pressure</h3><span>Total risk entries; critical entries weighted 1.5×</span></div><strong>${escapeHtml(latest.riskPressure)} <small>${riskDelta >= 0 ? '+' : ''}${escapeHtml(riskDelta)}</small></strong></div>${trendSvg(model.trend, 'riskPressure', 'red')}</article><article class="card trend-card"><div class="trend-card-head"><div><h3>Average progress</h3><span>Portfolio delivery progress</span></div><strong>${escapeHtml(latest.avgProgress)}% <small>${progressDelta >= 0 ? '+' : ''}${escapeHtml(progressDelta)}%</small></strong></div>${trendSvg(model.trend, 'avgProgress', 'green')}</article></div></section>`;
+}
+
+function renderExecutiveSummary(model) {
+  const summary = model.executiveSummary.trim();
+  const content = summary
+    ? `<div class="executive-summary-copy">${summary.split('\n').filter(Boolean).map(line => `<p>${escapeHtml(line)}</p>`).join('')}</div>`
+    : emptyState('No executive summary is available for this reporting period.');
+  return `<section class="overview-unit executive-summary card" data-section-unit="executive-summary"><div class="overview-unit-head"><div><div class="report-kicker">Executive summary</div><h2>Management-ready update</h2></div><span class="overview-note">Current reporting period</span></div>${content}</section>`;
+}
+
+function renderAttentionMatrix(model) {
+  const quadrants = [
+    ['monitor', 'Monitor Closely', 'High urgency / lower impact'],
+    ['action', 'Executive Action', 'High urgency / higher impact'],
+    ['watch', 'Keep Watching', 'Lower urgency / lower impact'],
+    ['strategy', 'Strategic Watch', 'Lower urgency / higher impact']
+  ];
+  return `<section class="overview-unit" data-section-unit="attention-matrix"><div class="overview-unit-head"><div><div class="report-kicker">Management attention map</div><h2>Attention Matrix</h2></div><span class="overview-note">Static executive view</span></div><div class="attention-matrix">${quadrants.map(([key, title, detail]) => `<article class="attention-quadrant ${key}"><div class="attention-quadrant-head"><div><h3>${escapeHtml(title)}</h3><span>${escapeHtml(detail)}</span></div><b>${model.attention[key].length}</b></div>${model.attention[key].length ? model.attention[key].map(project => {
+    const [tone, label] = statusPresentation(project.status);
+    return `<div class="attention-project keep-together"><div><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.code)} · ${escapeHtml(project.owner || 'Unassigned')}</small></div>${statusBadge(tone, label)}<p>${escapeHtml(project.risks[0] || 'No active risk recorded.')}</p></div>`;
+  }).join('') : '<div class="attention-empty">No projects</div>'}</article>`).join('')}</div></section>`;
+}
+
+function renderRiskActions(model) {
+  if (!model.riskRows.length) return '';
+  const rows = model.riskRows.map(row => [
+    `<strong>${escapeHtml(row.projectName)}</strong><br><small>${escapeHtml(row.projectCode)}</small>`,
+    escapeHtml(row.risk || '-'),
+    statusBadge(row.status, row.attention.replace(/\b\w/g, character => character.toUpperCase())),
+    escapeHtml(row.owner),
+    escapeHtml(row.action || '-'),
+    escapeHtml(row.checkpoint || '-')
+  ]);
+  return `<section class="overview-unit risk-actions" data-section-unit="risk-actions"><div class="overview-unit-head"><div><div class="report-kicker">Risk action table</div><h2>Risk Actions</h2></div><span class="overview-note">Primary risk and action pair</span></div>${dataTable({ headings: ['Project', 'Risk / Blocker', 'Escalation', 'Owner', 'Required action', 'Checkpoint'], rows, className: 'risk-action-table' })}</section>`;
+}
+
+function renderQuarterlyRoadmap(model) {
+  if (!model.quarterlyItems.length) return '';
+  const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
+  return `<section class="overview-unit" data-section-unit="quarterly-roadmap"><div class="overview-unit-head"><div><div class="report-kicker">Portfolio roadmap</div><h2>Quarterly Roadmap</h2></div><span class="overview-note">Project milestone view</span></div><div class="quarter-grid">${quarters.map(quarter => {
+    const items = model.quarterlyItems.filter(item => item.quarter === quarter);
+    return `<article class="quarter-column"><header><strong>${quarter}</strong><span>${items.length} items</span></header><div class="quarter-items">${items.length ? items.map(item => {
+      const progress = Math.min(100, Math.max(0, Number(item.progress) || 0));
+      return `<div class="quarter-item keep-together"><strong>${escapeHtml(item.name || 'Quarterly milestone')}</strong><small>${escapeHtml(item.projectName)} · ${escapeHtml(item.projectCode)}</small>${progressBar(progress, item.status === 'at-risk' ? 'red' : 'green')}<span>${progress}% complete</span></div>`;
+    }).join('') : '<div class="attention-empty">No milestones</div>'}</div></article>`;
+  }).join('')}</div></section>`;
+}
+
+function resourceSnapshot(project) {
+  const members = project.teamMembers.filter(member => String(member?.name || '').trim());
+  const effort = members.reduce((sum, member) => sum + (Number(member.effortPct ?? member.effort) || 0), 0);
+  return { members: members.length, fte: Math.round(effort / 10) / 10 };
+}
+
+function renderProjectPortfolioCard(project) {
+  const [tone, label] = statusPresentation(project.status);
+  const resource = resourceSnapshot(project);
+  const budget = budgetTotals(project);
+  const milestone = [...project.milestones].sort((a, b) => String(a?.date || '').localeCompare(String(b?.date || '')))[0];
+  return `<article class="portfolio-project-card keep-together" data-section-unit="project-portfolio"><div class="portfolio-project-head"><div><div class="report-kicker">${escapeHtml(project.projectLevel)} · ${escapeHtml(project.code)}</div><h2>${escapeHtml(project.name)}</h2><div class="portfolio-owner">Owner: ${escapeHtml(project.owner || 'Unassigned')}</div></div><div class="portfolio-project-status">${statusBadge(tone, label)}<strong>${escapeHtml(project.progress)}%</strong></div></div><div class="portfolio-progress">${progressBar(project.progress, tone)}</div><div class="portfolio-signal-grid"><section class="card"><div class="metric-card-label">Highlight</div><p>${escapeHtml(project.highlights[0] || 'No highlight reported.')}</p></section><section class="card risk"><div class="metric-card-label">Risk / Blocker</div><p>${escapeHtml(project.risks[0] || 'No active blocker reported.')}</p></section><section class="card"><div class="metric-card-label">Next action</div><p>${escapeHtml(project.actions[0] || 'No next action reported.')}</p></section></div><div class="portfolio-snapshot-grid"><article class="card"><span>Next milestone</span><strong>${escapeHtml(milestone?.name || 'No milestone')}</strong><small>${escapeHtml(milestone?.date || 'No target date')}</small></article><article class="card"><span>Resource load</span><strong>${resource.members} people · ${resource.fte} FTE</strong><small>Current team allocation</small></article><article class="card"><span>Budget snapshot</span><strong>${escapeHtml(formatMoney(budget.actual, budget.currency))} / ${escapeHtml(formatMoney(budget.total, budget.currency))}</strong><small>${escapeHtml(budget.usedPct)}% used</small></article></div></article>`;
+}
+
+function renderResourceAnalytics(model) {
+  if (!model.projects.length) return '';
+  const resource = model.resource;
+  const levelTotal = Object.values(resource.byLevel).reduce((sum, value) => sum + value, 0) || 1;
+  return `<section class="overview-unit resource-analytics" data-section-unit="resource-analytics"><div class="overview-unit-head"><div><div class="report-kicker">Resource overview</div><h2>Resource Analytics</h2></div><span class="overview-note">Allocation by project level and function</span></div><div class="metric-grid">${metricCard('Total allocated FTE', resource.totalAllocatedFte, 'Across selected projects')}${metricCard('Allocation coverage', `${resource.allocationCoverage}%`, 'Projects with named allocation')}${metricCard('Overallocated people', resource.overallocatedPeople, 'Above 100% combined effort', resource.overallocatedPeople ? 'red' : 'green')}${metricCard('Available capacity', `${resource.availableCapacityFte} FTE`, 'Known capacity less allocation')}</div><div class="resource-analytics-layout"><article class="card resource-level-card"><h3>FTE by project level</h3><div class="resource-level-donut" style="--system:${resource.byLevel.system / levelTotal * 100}%;--module:${(resource.byLevel.system + resource.byLevel['hardware-module']) / levelTotal * 100}%"></div>${[['System', resource.byLevel.system], ['Hardware Module', resource.byLevel['hardware-module']], ['Software', resource.byLevel.software]].map(([label, value], index) => `<div class="resource-level-row"><i class="level-${index}"></i><span>${label}</span><strong>${value} FTE</strong></div>`).join('')}</article><article class="card resource-function-card"><h3>Function allocation by known capacity</h3><div class="resource-function-list">${resource.byFunction.length ? resource.byFunction.map(item => `<div class="resource-function-row keep-together"><div class="resource-function-name">${escapeHtml(item.role)}</div><div class="resource-function-bar"><i style="width:${Math.min(100, item.utilizationPct)}%"></i></div><strong>${escapeHtml(item.totalFte)} / ${escapeHtml(item.capacityFte)} FTE<small>${escapeHtml(item.utilizationPct)}%</small></strong></div>`).join('') : emptyState('No team allocation is available.')}</div></article></div></section>`;
+}
+
+function formatMoney(value, currency) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency', currency: currency || 'USD', maximumFractionDigits: 0
+  }).format(Number(value) || 0);
+}
+
+function renderBudgetOverview(model) {
+  if (!model.projects.some(project => Object.keys(project.budgetSource || {}).length)) return '';
+  const budget = model.budget;
+  const projectRows = budget.projectRows.map(row => [
+    `<strong>${escapeHtml(row.project.name)}</strong><br><small>${escapeHtml(row.project.code)}</small>`,
+    escapeHtml(formatMoney(row.total, row.currency)),
+    escapeHtml(formatMoney(row.planned, row.currency)),
+    escapeHtml(formatMoney(row.actual, row.currency)),
+    `<span class="${row.variance > 0 ? 'negative-value' : 'positive-value'}">${escapeHtml(formatMoney(row.variance, row.currency))}</span>`
+  ]);
+  return `<section class="overview-unit budget-overview" data-section-unit="budget-overview"><div class="overview-unit-head"><div><div class="report-kicker">Financial overview</div><h2>Budget Overview</h2></div><span class="overview-note">${budget.mixedCurrencies ? 'Project rows retain their stored currencies' : escapeHtml(budget.currency)}</span></div><div class="metric-grid">${metricCard('Total budget', formatMoney(budget.total, budget.currency), budget.currency)}${metricCard('Planned', formatMoney(budget.planned, budget.currency), 'Approved plan')}${metricCard('Actual', formatMoney(budget.actual, budget.currency), `${budget.usedPct}% used`, budget.usedPct > 100 ? 'red' : 'neutral')}${metricCard('Variance', formatMoney(budget.variance, budget.currency), 'Actual minus planned', budget.variance > 0 ? 'red' : 'green')}</div><div class="budget-overview-layout"><article class="card budget-variance"><h3>Project budget position</h3>${dataTable({ headings: ['Project', 'Total', 'Planned', 'Actual', 'Variance'], rows: projectRows, className: 'budget-project-table' })}</article><article class="card budget-category-card"><h3>Actual spend by category</h3>${budget.categories.length ? budget.categories.map(item => {
+    const max = Math.max(...budget.categories.map(category => category.amount), 1);
+    return `<div class="budget-category-row"><span>${escapeHtml(item.name)}</span><div class="budget-track"><i style="width:${item.amount / max * 100}%"></i></div><strong>${escapeHtml(formatMoney(item.amount, budget.currency))}</strong></div>`;
+  }).join('') : emptyState('No actual spend categories are available.')}</article></div></section>`;
+}
+
+export function renderOverviewReportHtml({ week, trendWeeks = [], sections, overviewScope = 'system' }) {
+  const model = buildOverviewReportModel({ week, trendWeeks, sections, overviewScope });
+  const selected = new Set(model.sections);
+  const pages = [];
+
+  const opening = [];
+  if (selected.has('health-focus')) opening.push(renderHealthFocus(model));
+  if (selected.has('weekly-trend')) {
+    const trend = renderWeeklyTrend(model);
+    if (trend) opening.push(trend);
+  }
+  if (selected.has('executive-summary')) opening.push(renderExecutiveSummary(model));
+  if (opening.length) pages.push(reportPage({
+    section: 'overview-opening', title: 'Portfolio Overview', kicker: 'Overview report · Executive view',
+    period: model.period, body: opening.join('')
+  }));
+
+  const management = [];
+  if (selected.has('attention-matrix')) management.push(renderAttentionMatrix(model));
+  if (selected.has('risk-actions')) {
+    const risks = renderRiskActions(model);
+    if (risks) management.push(risks);
+  }
+  if (management.length) pages.push(reportPage({
+    section: 'overview-management', title: 'Management Attention', kicker: 'Overview report · Decision view',
+    period: model.period, body: management.join('')
+  }));
+
+  if (selected.has('quarterly-roadmap')) {
+    const roadmap = renderQuarterlyRoadmap(model);
+    if (roadmap) pages.push(reportPage({
+      section: 'quarterly-roadmap', title: 'Quarterly Roadmap', kicker: 'Overview report · Portfolio roadmap',
+      period: model.period, body: roadmap
+    }));
+  }
+
+  if (selected.has('project-portfolio')) {
+    model.projects.forEach((project, index) => pages.push(reportPage({
+      section: 'project-portfolio', title: 'Project Portfolio', kicker: 'Overview report · Project portfolio',
+      period: model.period, continuation: index > 0, body: renderProjectPortfolioCard(project)
+    })));
+  }
+
+  if (selected.has('resource-analytics')) {
+    const resource = renderResourceAnalytics(model);
+    if (resource) pages.push(reportPage({
+      section: 'resource-analytics', title: 'Resource Analytics', kicker: 'Overview report · Resource view',
+      period: model.period, body: resource
+    }));
+  }
+
+  if (selected.has('budget-overview')) {
+    const budget = renderBudgetOverview(model);
+    if (budget) pages.push(reportPage({
+      section: 'budget-overview', title: 'Budget Overview', kicker: 'Overview report · Financial view',
+      period: model.period, body: budget
+    }));
+  }
+
+  return reportDocument({ title: 'Overview report', period: model.period, reportKind: 'overview', body: pages.join('') });
 }
