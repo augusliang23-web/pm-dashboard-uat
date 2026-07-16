@@ -185,9 +185,38 @@ export const REPORT_CSS = `
   .weekly-trend-svg.red .trend-dot { fill:var(--red); }
   .trend-label,.trend-value { fill:var(--muted); font:8px Arial,sans-serif; text-anchor:middle; }
   .trend-value { fill:var(--ink); font-weight:700; }
-  .executive-summary { padding:3mm 4mm; background:linear-gradient(90deg,var(--green-soft),var(--white) 42%); }
-  .executive-summary-copy { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:2mm 6mm; }
-  .executive-summary-copy p { margin:0; line-height:1.4; }
+  .report-page[data-report-section="executive-summary-brief"] .report-title,
+  .report-page[data-report-section="executive-summary-context"] .report-title { font-size:25pt; }
+  .report-page[data-report-section="executive-summary-brief"],
+  .report-page[data-report-section="executive-summary-context"] { padding:8mm 10mm 7mm; }
+  .report-page[data-report-section="executive-summary-brief"] .report-page-head,
+  .report-page[data-report-section="executive-summary-context"] .report-page-head { padding-bottom:2.5mm; }
+  .report-page[data-report-section="executive-summary-brief"] .report-body,
+  .report-page[data-report-section="executive-summary-context"] .report-body { padding-top:3mm; }
+  .report-page[data-report-section="executive-summary-brief"] .report-footer,
+  .report-page[data-report-section="executive-summary-context"] .report-footer { left:10mm; right:10mm; bottom:7mm; }
+  .executive-brief-copy { font-size:10.5pt; line-height:1.45; }
+  .executive-brief-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:2.5mm; margin-bottom:2mm; }
+  .executive-brief-metrics .metric-card { padding:2mm 3mm; }
+  .executive-brief-metrics .metric-card-value { margin-top:.7mm; font-size:15pt; }
+  .executive-brief-metrics .metric-card-detail { display:none; }
+  .executive-portfolio-lead { margin-bottom:2mm; padding:2mm 3mm; border-left:1.5mm solid var(--green); border-radius:0 3mm 3mm 0; background:linear-gradient(90deg,var(--green-soft),var(--white) 72%); }
+  .executive-portfolio-lead p,.executive-brief-field p { margin:0; }
+  .executive-brief-section-title { margin:0 0 1.5mm; font-size:14.5pt; }
+  .executive-brief-columns { display:grid; grid-template-columns:1.08fr .92fr; gap:4mm; align-items:start; }
+  .executive-priority-grid { display:grid; grid-template-columns:1fr; gap:2mm; }
+  .executive-priority-card { padding:2mm 3mm; border-top:1.2mm solid var(--green); }
+  .executive-project-title { margin-bottom:1.5mm; font-size:13pt; }
+  .executive-brief-field { display:grid; grid-template-columns:28mm minmax(0,1fr); gap:2mm; margin-top:.8mm; }
+  .executive-brief-field strong { color:var(--muted); font-size:8.5pt; letter-spacing:.02em; text-transform:uppercase; }
+  .executive-ask-grid { display:grid; grid-template-columns:1fr; gap:1.5mm; }
+  .executive-ask-card { min-width:0; padding:1.6mm 2.5mm; border:1px solid #ead29d; border-radius:3mm; background:var(--yellow-soft); break-inside:avoid; }
+  .executive-ask-card .executive-project-title { margin-bottom:.6mm; font-size:12pt; }
+  .executive-ask-card .executive-brief-field { grid-template-columns:38mm minmax(0,1fr); margin-top:.4mm; }
+  .executive-context-intro { margin:0 0 3mm; color:var(--muted); }
+  .executive-context-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:3mm; }
+  .executive-context-card { min-height:39mm; padding:3mm 4mm; border-top:1.2mm solid var(--green); }
+  .executive-additional-note { margin:3mm 0 0; padding:2mm 3mm; border-radius:2mm; color:var(--muted); background:var(--surface); }
   .attention-matrix { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:3mm; }
   .attention-quadrant { border:1px solid var(--line); border-radius:3mm; background:var(--surface); padding:3mm; }
   .attention-quadrant.action { border-color:#e5b5b5; background:var(--red-soft); }

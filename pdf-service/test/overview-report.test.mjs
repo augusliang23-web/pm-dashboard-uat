@@ -1,7 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderOverviewReportHtml } from '../src/overview-report.js';
-import { completeOverviewReportFixture } from './report-fixtures.mjs';
+import {
+  completeOverviewReportFixture,
+  structuredExecutiveSummaryFixture
+} from './report-fixtures.mjs';
+
+test('renders Executive Summary as a fixed two-page Decision Brief', () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['executive-summary'];
+  fixture.week.executiveSummary = structuredExecutiveSummaryFixture();
+
+  const html = renderOverviewReportHtml(fixture);
+
+  assert.equal((html.match(/<section class="report-page" data-report-section="executive-summary-/g) || []).length, 2);
+  assert.match(html, /data-report-section="executive-summary-brief"/);
+  assert.match(html, /data-report-section="executive-summary-context"/);
+  assert.match(html, /Decision Brief/);
+  assert.match(html, /Project Context/);
+  assert.match(html, /Management decisions/);
+  assert.match(html, /Priority projects/);
+});
 
 test('renders all nine selected Overview sections in dashboard reading order', () => {
   const html = renderOverviewReportHtml(completeOverviewReportFixture());
@@ -21,12 +40,17 @@ test('renders all nine selected Overview sections in dashboard reading order', (
   assert.match(html, /budget-variance/);
 });
 
-test('combines opening and management units into one page each', () => {
+test('keeps overview signals together while giving Executive Summary dedicated pages', () => {
   const html = renderOverviewReportHtml(completeOverviewReportFixture());
 
   assert.equal((html.match(/data-report-section="overview-opening"/g) || []).length, 1);
   assert.equal((html.match(/data-report-section="overview-management"/g) || []).length, 1);
-  assert.match(html, /data-report-section="overview-opening"[\s\S]*data-section-unit="health-focus"[\s\S]*data-section-unit="weekly-trend"[\s\S]*data-section-unit="executive-summary"/);
+  assert.match(html, /data-report-section="overview-opening"[\s\S]*data-section-unit="health-focus"[\s\S]*data-section-unit="weekly-trend"/);
+  assert.doesNotMatch(
+    html.match(/data-report-section="overview-opening"[\s\S]*?<\/section>/)?.[0] || '',
+    /data-section-unit="executive-summary"/
+  );
+  assert.equal((html.match(/<section class="report-page" data-report-section="executive-summary-/g) || []).length, 2);
   assert.match(html, /data-report-section="overview-management"[\s\S]*data-section-unit="attention-matrix"[\s\S]*data-section-unit="risk-actions"/);
 });
 

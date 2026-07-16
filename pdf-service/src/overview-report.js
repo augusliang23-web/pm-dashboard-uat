@@ -7,6 +7,7 @@ import {
   reportPage,
   statusBadge
 } from './report-components.js';
+import { parseExecutiveSummaryBrief } from './executive-summary-brief.js';
 import { budgetTotals, buildOverviewReportModel } from './report-model.js';
 
 function statusPresentation(status) {
@@ -50,12 +51,46 @@ function renderWeeklyTrend(model) {
   return `<section class="overview-unit weekly-trend" data-section-unit="weekly-trend"><div class="overview-unit-head"><div><div class="report-kicker">Weekly portfolio trend</div><h2>Trend signals</h2></div><span class="overview-note">Last ${model.trend.length} reporting periods</span></div><div class="weekly-trend-grid"><article class="card trend-card risk"><div class="trend-card-head"><div><h3>Risk pressure</h3><span>Total risk entries; critical entries weighted 1.5×</span></div><strong>${escapeHtml(latest.riskPressure)} <small>${riskDelta >= 0 ? '+' : ''}${escapeHtml(riskDelta)}</small></strong></div>${trendSvg(model.trend, 'riskPressure', 'red')}</article><article class="card trend-card"><div class="trend-card-head"><div><h3>Average progress</h3><span>Portfolio delivery progress</span></div><strong>${escapeHtml(latest.avgProgress)}% <small>${progressDelta >= 0 ? '+' : ''}${escapeHtml(progressDelta)}%</small></strong></div>${trendSvg(model.trend, 'avgProgress', 'green')}</article></div></section>`;
 }
 
-function renderExecutiveSummary(model) {
-  const summary = model.executiveSummary.trim();
-  const content = summary
-    ? `<div class="executive-summary-copy">${summary.split('\n').filter(Boolean).map(line => `<p>${escapeHtml(line)}</p>`).join('')}</div>`
-    : emptyState('No executive summary is available for this reporting period.');
-  return `<section class="overview-unit executive-summary card" data-section-unit="executive-summary"><div class="overview-unit-head"><div><div class="report-kicker">Executive summary</div><h2>Management-ready update</h2></div><span class="overview-note">Current reporting period</span></div>${content}</section>`;
+function renderBriefField(label, value) {
+  return value
+    ? `<div class="executive-brief-field"><strong>${escapeHtml(label)}</strong><p>${escapeHtml(value)}</p></div>`
+    : '';
+}
+
+function renderDecisionBrief(model, brief) {
+  const projects = brief.priorityProjects.map(project => `<article class="executive-priority-card card">
+    <h3 class="executive-project-title">${escapeHtml(project.projectName)}</h3>
+    ${renderBriefField('Movement', project.movement)}
+    ${renderBriefField('Blocker', project.blocker)}
+    ${renderBriefField('Next step', project.nextStep)}
+  </article>`).join('');
+  const asks = brief.managementAsks.map(ask => `<article class="executive-ask-card">
+    <h3 class="executive-project-title">${escapeHtml(ask.projectName)}</h3>
+    ${renderBriefField('Decision / Support needed', ask.supportNeeded)}
+    ${renderBriefField('Business impact', ask.businessImpact)}
+  </article>`).join('');
+  return `<section class="executive-brief-copy" data-section-unit="executive-summary">
+    <div class="executive-brief-metrics">${metricCard('Active projects', model.health.total, 'Selected Overview scope')}${metricCard('On Track', model.health.green, 'Green status', 'green')}${metricCard('At Risk', model.health.yellow, 'Yellow status', 'yellow')}${metricCard('Critical', model.health.red, 'Red status', model.health.red ? 'red' : 'neutral')}</div>
+    <div class="executive-portfolio-lead"><h2 class="executive-brief-section-title">Portfolio summary</h2><p>${escapeHtml(brief.portfolioSummary || 'No executive summary is available for this reporting period.')}</p></div>
+    <div class="executive-brief-columns">
+      <section><h2 class="executive-brief-section-title">Priority projects</h2><div class="executive-priority-grid">${projects || emptyState('No project movement is available.')}</div></section>
+      <section><h2 class="executive-brief-section-title">Management decisions</h2><div class="executive-ask-grid">${asks || emptyState('No immediate management decision is required this week.')}</div></section>
+    </div>
+  </section>`;
+}
+
+function renderProjectContext(brief) {
+  const projects = brief.projects.map(project => `<article class="executive-context-card card">
+    <h2 class="executive-project-title">${escapeHtml(project.projectName)}</h2>
+    ${renderBriefField('Movement', project.movement)}
+    ${renderBriefField('Blocker', project.blocker)}
+    ${renderBriefField('Next step', project.nextStep)}
+  </article>`).join('');
+  const note = brief.hasAdditionalContent
+    ? '<p class="executive-additional-note">Additional project details are available in the dashboard.</p>'
+    : '';
+  const emptyMessage = brief.fallbackText || 'No project context is available.';
+  return `<section class="executive-brief-copy"><p class="executive-context-intro">Supporting movement, blocker, and next-step detail for the current reporting period.</p><div class="executive-context-grid">${projects || emptyState(emptyMessage)}</div>${note}</section>`;
 }
 
 function renderAttentionMatrix(model) {
@@ -150,11 +185,24 @@ export function renderOverviewReportHtml({ week, trendWeeks = [], sections, over
     const trend = renderWeeklyTrend(model);
     if (trend) opening.push(trend);
   }
-  if (selected.has('executive-summary')) opening.push(renderExecutiveSummary(model));
   if (opening.length) pages.push(reportPage({
     section: 'overview-opening', title: 'Portfolio Overview', kicker: 'Overview report · Executive view',
     period: model.period, body: opening.join('')
   }));
+
+  if (selected.has('executive-summary')) {
+    const brief = parseExecutiveSummaryBrief(model.executiveSummary);
+    pages.push(reportPage({
+      section: 'executive-summary-brief', title: 'Decision Brief',
+      kicker: 'Executive Summary - Management-ready update', period: model.period,
+      body: renderDecisionBrief(model, brief)
+    }));
+    pages.push(reportPage({
+      section: 'executive-summary-context', title: 'Project Context',
+      kicker: 'Executive Summary - Supporting detail', period: model.period,
+      body: renderProjectContext(brief)
+    }));
+  }
 
   const management = [];
   if (selected.has('attention-matrix')) management.push(renderAttentionMatrix(model));

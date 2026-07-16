@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderPdfBuffer } from '../src/pdf-renderer.js';
 import { renderOverviewReportHtml } from '../src/overview-report.js';
-import { completeOverviewReportFixture } from './report-fixtures.mjs';
+import {
+  completeOverviewReportFixture,
+  structuredExecutiveSummaryFixture
+} from './report-fixtures.mjs';
 
 test.after(async () => {
   await renderPdfBuffer.close();
@@ -22,4 +25,15 @@ test('a nine-project budget overview fits one landscape page without a trailing 
   const pageObjects = Buffer.from(pdf).toString('latin1').match(/\/Type\s*\/Page\b/g) || [];
 
   assert.equal(pageObjects.length, 1);
+});
+
+test('Executive Summary renders exactly two landscape pages', { timeout: 60000 }, async () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['executive-summary'];
+  fixture.week.executiveSummary = structuredExecutiveSummaryFixture();
+
+  const pdf = await renderPdfBuffer(renderOverviewReportHtml(fixture));
+  const pageObjects = Buffer.from(pdf).toString('latin1').match(/\/Type\s*\/Page\b/g) || [];
+
+  assert.equal(pageObjects.length, 2);
 });
