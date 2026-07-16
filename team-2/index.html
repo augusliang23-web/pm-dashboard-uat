@@ -6067,16 +6067,31 @@ function projectMovement(prev, curr) {
 }
 
 function addPortfolioSummaryInstruction(prompt) {
-  const instruction = '- Immediately below WEEKLY MOVEMENT, write one cross-project overview sentence beginning exactly with "Portfolio Summary:". Keep it on its own line, without a bullet, before any project updates.\n- The Portfolio Summary must describe overall movement across projects and must not be repeated inside a project bullet.';
-  return String(prompt || '')
-    .replace(
-      '- Return exactly these two section headings, each on its own line: WEEKLY MOVEMENT and MANAGEMENT ASK.',
-      `- Return exactly these two section headings, each on its own line: WEEKLY MOVEMENT and MANAGEMENT ASK.\n${instruction}`
-    )
-    .replace(
-      '- Never combine multiple projects into one bullet. Use a separate Portfolio: bullet only for a genuinely portfolio-wide point.',
-      '- Never combine multiple projects into one bullet. Do not create a Portfolio project bullet because the portfolio-wide point belongs only in Portfolio Summary.'
-    );
+  const legacyFormat = [
+    '- Under each section, use one bullet per project in this exact pattern: - Exact Project Name: concise update.',
+    '- Use the exact official project name from the supplied data before the colon. Do not add labels such as Delays, Recovery, Escalation, or Kickoff to the project name.',
+    '- Keep every project in a separate bullet and insert one blank line between project bullets so the text remains readable when pasted into email.',
+    '- Each project bullet may contain 1 to 3 concise sentences covering the meaningful movement, business impact, and next step when relevant.',
+    '- Never combine multiple projects into one bullet. Use a separate Portfolio: bullet only for a genuinely portfolio-wide point.',
+    '- WEEKLY MOVEMENT should normally contain 4 to 6 project bullets focused on progress changes, newly completed milestones, delayed milestones, new/continued/resolved risks, and attention changes.',
+    '- MANAGEMENT ASK should contain 2 to 4 project bullets and only decisions, escalations, or unblock actions needed from management.',
+    '- If no management action is needed, write exactly: - No immediate management decision required this week.'
+  ].join('\n');
+  const structuredFormat = [
+    '- Immediately below WEEKLY MOVEMENT write: Portfolio Summary: <one concise portfolio-level summary>',
+    '- Four to six project movement entries. Use this exact labelled format for every entry:',
+    '  - Project: <exact project name>',
+    '    Movement: <one or two concise sentences>',
+    '    Blocker: <one concise sentence, or None>',
+    '    Next step: <one concise sentence>',
+    '- Up to four management asks. Under MANAGEMENT ASK use this exact labelled format for every entry:',
+    '  - Project: <exact project name>',
+    '    Decision / Support needed: <one concise sentence>',
+    '    Business impact: <one concise sentence>',
+    '- Use exact official project names, keep each project separate, and insert one blank line between entries.',
+    '- If no management action is needed, write exactly: No immediate management decision required this week.'
+  ].join('\n');
+  return String(prompt || '').replace(legacyFormat, structuredFormat);
 }
 
 function buildCopilotPrompt() {
