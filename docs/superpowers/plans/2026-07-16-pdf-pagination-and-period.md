@@ -14,7 +14,7 @@
 - Use `W28 2026 · Jul 6–Jul 12, 2026` when both source fields are present.
 - Do not truncate or rewrite stored weekly-summary content.
 - Keep every summary card intact with `break-inside: avoid`.
-- Short structured summaries must remain two landscape pages; verbose summaries may create labelled continuation pages.
+- Summaries with at most two project-context cards and two management decisions remain two landscape pages; summaries beyond either limit create labelled continuation pages.
 
 ---
 
@@ -181,7 +181,7 @@ Keep `.executive-ask-card` and `.executive-context-card` as `break-inside: avoid
 
 Run: `node --test test/overview-report.test.mjs`
 
-Expected: PASS, including the concise two-page structure and verbose explicit continuation-page structure.
+Expected: PASS, including a two-card/two-decision two-page fixture and the verbose explicit continuation-page structure.
 
 ```bash
 git add pdf-service/src/overview-report.js pdf-service/src/report-theme.js pdf-service/test/overview-report.test.mjs pdf-service/test/report-fixtures.mjs
@@ -225,7 +225,9 @@ Run: `node --test test/pdf-layout.test.mjs test/project-report.test.mjs`
 
 Expected: FAIL because the old renderer has two Executive Summary wrappers and period output lacks `weekDate`.
 
-- [ ] **Step 3: Run all PDF tests after Tasks 1 and 2**
+- [ ] **Step 3: Keep a two-page fixture for the compact case and run all PDF tests after Tasks 1 and 2**
+
+Replace the current `structuredExecutiveSummaryFixture()` use in the exact-two-page layout test with a fixture containing two project-context cards and two management decisions. The six-project/four-decision fixture is covered by the continuation-page test.
 
 Run: `npm.cmd test`
 
