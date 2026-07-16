@@ -15,6 +15,7 @@ test('renders every selected project section with dashboard visual structures', 
   assert.match(html, /team-allocation-table/);
   assert.match(html, /discipline-hours-table/);
   assert.match(html, /budget-comparison/);
+  assert.match(html, /W28 2026 · Jul 6–Jul 12, 2026/);
   assert.match(html, /\.gantt-grid/);
   assert.doesNotMatch(html, /\.report-page\s*\{[^}]*overflow:hidden/);
   assert.doesNotMatch(html, /<script|onclick=|<button|<select|<input/);

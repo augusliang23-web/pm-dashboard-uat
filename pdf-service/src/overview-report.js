@@ -57,24 +57,36 @@ function renderBriefField(label, value) {
     : '';
 }
 
-function renderDecisionBrief(model, brief) {
-  const projects = brief.priorityProjects.map(project => `<article class="executive-priority-card card">
+function decisionOverviewMarkup(model, brief) {
+  return `<div class="executive-brief-metrics">${metricCard('Active projects', model.health.total, 'Selected Overview scope')}${metricCard('On Track', model.health.green, 'Green status', 'green')}${metricCard('At Risk', model.health.yellow, 'Yellow status', 'yellow')}${metricCard('Critical', model.health.red, 'Red status', model.health.red ? 'red' : 'neutral')}</div>
+    <div class="executive-portfolio-lead"><h2 class="executive-brief-section-title">Portfolio summary</h2><p>${escapeHtml(brief.portfolioSummary || 'No executive summary is available for this reporting period.')}</p></div>`;
+}
+
+function renderPriorityCard(project) {
+  return `<article class="executive-priority-card card">
     <h3 class="executive-project-title">${escapeHtml(project.projectName)}</h3>
     ${renderBriefField('Movement', project.movement)}
     ${renderBriefField('Blocker', project.blocker)}
     ${renderBriefField('Next step', project.nextStep)}
-  </article>`).join('');
-  const asks = brief.managementAsks.map(ask => `<article class="executive-ask-card">
+  </article>`;
+}
+
+function renderAskCard(ask) {
+  return `<article class="executive-ask-card">
     <h3 class="executive-project-title">${escapeHtml(ask.projectName)}</h3>
     ${renderBriefField('Decision / Support needed', ask.supportNeeded)}
     ${renderBriefField('Business impact', ask.businessImpact)}
-  </article>`).join('');
+  </article>`;
+}
+
+function renderDecisionBrief(model, brief, asks = brief.managementAsks) {
+  const projects = brief.priorityProjects.map(renderPriorityCard).join('');
+  const askCards = asks.map(renderAskCard).join('');
   return `<section class="executive-brief-copy" data-section-unit="executive-summary">
-    <div class="executive-brief-metrics">${metricCard('Active projects', model.health.total, 'Selected Overview scope')}${metricCard('On Track', model.health.green, 'Green status', 'green')}${metricCard('At Risk', model.health.yellow, 'Yellow status', 'yellow')}${metricCard('Critical', model.health.red, 'Red status', model.health.red ? 'red' : 'neutral')}</div>
-    <div class="executive-portfolio-lead"><h2 class="executive-brief-section-title">Portfolio summary</h2><p>${escapeHtml(brief.portfolioSummary || 'No executive summary is available for this reporting period.')}</p></div>
+    ${decisionOverviewMarkup(model, brief)}
     <div class="executive-brief-columns">
       <section><h2 class="executive-brief-section-title">Priority projects</h2><div class="executive-priority-grid">${projects || emptyState('No project movement is available.')}</div></section>
-      <section><h2 class="executive-brief-section-title">Management decisions</h2><div class="executive-ask-grid">${asks || emptyState('No immediate management decision is required this week.')}</div></section>
+      <section><h2 class="executive-brief-section-title">Management decisions</h2><div class="executive-ask-grid">${askCards || emptyState('No immediate management decision is required this week.')}</div></section>
     </div>
   </section>`;
 }
@@ -91,6 +103,70 @@ function renderProjectContext(brief) {
     : '';
   const emptyMessage = brief.fallbackText || 'No project context is available.';
   return `<section class="executive-brief-copy"><p class="executive-context-intro">Supporting movement, blocker, and next-step detail for the current reporting period.</p><div class="executive-context-grid">${projects || emptyState(emptyMessage)}</div>${note}</section>`;
+}
+
+function contentWeight(item) {
+  return Object.values(item || {}).reduce((sum, value) => sum + String(value || '').length, 0);
+}
+
+function chunkByWeight(items, { maxItems, maxWeight }) {
+  const groups = [];
+  let group = [];
+  let weight = 0;
+  items.forEach(item => {
+    const itemWeight = contentWeight(item);
+    if (group.length && (group.length >= maxItems || weight + itemWeight > maxWeight)) {
+      groups.push(group);
+      group = [];
+      weight = 0;
+    }
+    group.push(item);
+    weight += itemWeight;
+  });
+  if (group.length) groups.push(group);
+  return groups;
+}
+
+function renderDecisionContinuation(asks) {
+  return `<section class="executive-brief-copy executive-decision-continuation"><h2 class="executive-brief-section-title">Management decisions</h2><div class="executive-ask-grid">${asks.map(renderAskCard).join('')}</div></section>`;
+}
+
+function renderPriorityContinuation(projects) {
+  return `<section class="executive-brief-copy executive-decision-continuation"><h2 class="executive-brief-section-title">Priority projects</h2><div class="executive-priority-grid">${projects.map(renderPriorityCard).join('')}</div></section>`;
+}
+
+function renderExecutiveSummaryPages(model, brief) {
+  const openingAsks = brief.managementAsks.slice(0, 2);
+  const openingWeight = contentWeight({ portfolio: brief.portfolioSummary })
+    + brief.priorityProjects.reduce((sum, project) => sum + contentWeight(project), 0)
+    + openingAsks.reduce((sum, ask) => sum + contentWeight(ask), 0);
+  const combinedOpening = openingWeight <= 1500;
+  const pages = [reportPage({
+    section: 'executive-summary-brief', title: 'Decision Brief',
+    kicker: 'Executive Summary - Management-ready update', period: model.period,
+    body: combinedOpening
+      ? renderDecisionBrief(model, brief, openingAsks)
+      : `<section class="executive-brief-copy" data-section-unit="executive-summary">${decisionOverviewMarkup(model, brief)}</section>`
+  })];
+  const priorityGroups = combinedOpening ? [] : chunkByWeight(brief.priorityProjects, { maxItems: 2, maxWeight: 900 });
+  priorityGroups.forEach(projects => pages.push(reportPage({
+    section: 'executive-summary-brief-continuation', title: 'Decision Brief',
+    kicker: 'Executive Summary - Management-ready update', period: model.period,
+    continuation: true, body: renderPriorityContinuation(projects)
+  })));
+  const remainingAsks = combinedOpening ? brief.managementAsks.slice(2) : brief.managementAsks;
+  chunkByWeight(remainingAsks, { maxItems: 2, maxWeight: 850 }).forEach(asks => pages.push(reportPage({
+    section: 'executive-summary-brief-continuation', title: 'Decision Brief',
+    kicker: 'Executive Summary - Management-ready update', period: model.period,
+    continuation: true, body: renderDecisionContinuation(asks)
+  })));
+  const projectGroups = chunkByWeight(brief.projects, { maxItems: 2, maxWeight: 900 });
+  (projectGroups.length ? projectGroups : [[]]).forEach((projects, index) => pages.push(reportPage({
+    section: index ? 'executive-summary-context-continuation' : 'executive-summary-context',
+    title: 'Project Context', kicker: 'Executive Summary - Supporting detail', period: model.period,
+    continuation: index > 0, body: renderProjectContext({ ...brief, projects })
+  })));
+  return pages;
 }
 
 function renderAttentionMatrix(model) {
@@ -192,16 +268,7 @@ export function renderOverviewReportHtml({ week, trendWeeks = [], sections, over
 
   if (selected.has('executive-summary')) {
     const brief = parseExecutiveSummaryBrief(model.executiveSummary);
-    pages.push(reportPage({
-      section: 'executive-summary-brief', title: 'Decision Brief',
-      kicker: 'Executive Summary - Management-ready update', period: model.period,
-      body: renderDecisionBrief(model, brief)
-    }));
-    pages.push(reportPage({
-      section: 'executive-summary-context', title: 'Project Context',
-      kicker: 'Executive Summary - Supporting detail', period: model.period,
-      body: renderProjectContext(brief)
-    }));
+    pages.push(...renderExecutiveSummaryPages(model, brief));
   }
 
   const management = [];

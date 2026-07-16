@@ -2,14 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderOverviewReportHtml } from '../src/overview-report.js';
 import {
+  compactExecutiveSummaryFixture,
   completeOverviewReportFixture,
-  structuredExecutiveSummaryFixture
+  legacyExecutiveSummaryFixture,
+  verboseExecutiveSummaryFixture
 } from './report-fixtures.mjs';
 
 test('renders Executive Summary as a fixed two-page Decision Brief', () => {
   const fixture = completeOverviewReportFixture();
   fixture.sections = ['executive-summary'];
-  fixture.week.executiveSummary = structuredExecutiveSummaryFixture();
+  fixture.week.executiveSummary = compactExecutiveSummaryFixture();
 
   const html = renderOverviewReportHtml(fixture);
 
@@ -20,6 +22,34 @@ test('renders Executive Summary as a fixed two-page Decision Brief', () => {
   assert.match(html, /Project Context/);
   assert.match(html, /Management decisions/);
   assert.match(html, /Priority projects/);
+});
+
+test('creates formal continuation pages for six projects and four management decisions', () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['executive-summary'];
+  fixture.week.executiveSummary = verboseExecutiveSummaryFixture();
+
+  const html = renderOverviewReportHtml(fixture);
+
+  assert.equal((html.match(/<section class="report-page" data-report-section="executive-summary-/g) || []).length, 5);
+  assert.match(html, /data-report-section="executive-summary-brief-continuation"/);
+  assert.equal((html.match(/data-report-section="executive-summary-context-continuation"/g) || []).length, 2);
+  assert.equal((html.match(/class="report-page-head"/g) || []).length, 5);
+  assert.equal((html.match(/class="report-footer"/g) || []).length, 5);
+  assert.match(html, /Decision Brief[^<]*Continued/);
+  assert.match(html, /Project Context[^<]*Continued/);
+});
+
+test('puts a legacy unbulleted weekly summary into formal continuation pages', () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['executive-summary'];
+  fixture.week.executiveSummary = legacyExecutiveSummaryFixture();
+
+  const html = renderOverviewReportHtml(fixture);
+
+  assert.equal((html.match(/<section class="report-page" data-report-section="executive-summary-/g) || []).length, 5);
+  assert.equal((html.match(/class="report-page-head"/g) || []).length, 5);
+  assert.doesNotMatch(html, /class="empty-state"/);
 });
 
 test('renders all nine selected Overview sections in dashboard reading order', () => {

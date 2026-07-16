@@ -121,3 +121,54 @@ MANAGEMENT ASK
   Decision / Support needed: Confirm ownership of the commercial validation gate.
   Business impact: Enables reliable customer commitment planning.`;
 }
+
+export function compactExecutiveSummaryFixture() {
+  return `WEEKLY MOVEMENT
+Portfolio Summary: Portfolio delivery remained stable while one validation dependency needs management attention.
+
+- Project: Platform Modernization
+  Movement: Pilot validation advanced and the integration environment is ready.
+  Blocker: Alternate supplier timing remains unconfirmed.
+  Next step: Complete integration testing and confirm the recovery date.
+
+- Project: Module Refresh
+  Movement: The prototype build completed and entered functional verification.
+  Blocker: Laboratory capacity is constrained this week.
+  Next step: Reserve backup validation capacity.
+
+MANAGEMENT ASK
+
+- Project: Module Refresh
+  Decision / Support needed: Approve priority access to backup laboratory capacity.
+  Business impact: Protects the verification and release schedule.
+
+- Project: Platform Modernization
+  Decision / Support needed: Support supplier escalation and recovery-date confirmation.
+  Business impact: Reduces pilot integration uncertainty.`;
+}
+
+export function verboseExecutiveSummaryFixture() {
+  return structuredExecutiveSummaryFixture();
+}
+
+export function legacyExecutiveSummaryFixture() {
+  return `WEEKLY MOVEMENT Portfolio Summary: Portfolio delivery remains stable while validation and supply decisions need attention.
+PMS: Startup review completed and integration preparation advanced.
+Master Controller: Main-board review completed with procurement follow-up.
+Zettabyte: Parallel validation and commercial workstreams were defined.
+Phone Booth Rack: Prototype fabrication and shipment planning progressed.
+Container: Water-leakage improvements completed while commissioning remains blocked.
+Battery Gateway: Diagnostic workflow review completed and simulation is next.
+MANAGEMENT ASK
+PMS: Support cross-functional resource alignment for the next validation cycle.
+Master Controller: Confirm the long-lead procurement strategy.
+Zettabyte: Confirm the external commercial timeline owner.
+Container: Support the site commissioning recovery decision.`;
+}
+
+export function stressExecutiveSummaryFixture() {
+  const paragraph = 'Validation evidence is progressing through cross-functional review while the recovery plan, supplier timing, laboratory capacity, commissioning sequence, commercial dependencies, and customer delivery commitments remain under coordinated management review.';
+  const project = name => `- Project: ${name}\n  Movement: ${paragraph} ${paragraph}\n  Blocker: ${paragraph}\n  Next step: ${paragraph}`;
+  const ask = name => `- Project: ${name}\n  Decision / Support needed: ${paragraph} ${paragraph}\n  Business impact: ${paragraph}`;
+  return `WEEKLY MOVEMENT\nPortfolio Summary: ${paragraph}\n\n${['PMS', 'Master Controller', 'Zettabyte', 'Phone Booth Rack', 'Container', 'Battery Gateway'].map(project).join('\n\n')}\n\nMANAGEMENT ASK\n\n${['PMS', 'Master Controller', 'Zettabyte', 'Container'].map(ask).join('\n\n')}`;
+}

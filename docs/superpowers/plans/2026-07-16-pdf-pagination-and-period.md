@@ -117,7 +117,7 @@ test('creates formal continuation pages for verbose Executive Summary cards', ()
   assert.match(html, /data-report-section="executive-summary-brief-continuation"/);
   assert.match(html, /data-report-section="executive-summary-context"/);
   assert.match(html, /data-report-section="executive-summary-context-continuation"/);
-  assert.equal((html.match(/class="report-page"/g) || []).length, 4);
+  assert.equal((html.match(/class="report-page"/g) || []).length, 5);
   assert.doesNotMatch(html, /executive-brief-columns[\s\S]*executive-ask-card[\s\S]*executive-ask-card[\s\S]*executive-ask-card/);
 });
 ```
@@ -206,11 +206,11 @@ test('renders verbose Executive Summary continuation pages without unframed over
   fixture.sections = ['executive-summary'];
   fixture.week.executiveSummary = verboseExecutiveSummaryFixture();
   const html = renderOverviewReportHtml(fixture);
-  assert.equal((html.match(/class="report-page"/g) || []).length, 4);
-  assert.equal((html.match(/class="report-footer"/g) || []).length, 4);
+  assert.equal((html.match(/class="report-page"/g) || []).length, 5);
+  assert.equal((html.match(/class="report-footer"/g) || []).length, 5);
   const pdf = await renderPdfBuffer(html);
   const pages = Buffer.from(pdf).toString('latin1').match(/\/Type\s*\/Page\b/g) || [];
-  assert.equal(pages.length, 4);
+  assert.equal(pages.length, 5);
 });
 
 test('includes the reporting date range in Project PDF markup', () => {
@@ -218,6 +218,8 @@ test('includes the reporting date range in Project PDF markup', () => {
   assert.match(html, /W28 2026 · Jul 6–Jul 12, 2026/);
 });
 ```
+
+Also add a Puppeteer layout assertion that every `.report-page` starts on a 793.7px A4 boundary, places its header more than 20px from the top, and keeps its footer at least 20px above the page bottom. This catches clipped continuation headers even when page-count-only tests pass.
 
 - [ ] **Step 2: Run the focused layout tests to verify they fail before Tasks 1 and 2 are implemented**
 
@@ -251,3 +253,7 @@ git commit -m "test: cover PDF period and continuation pages"
 gcloud.cmd run deploy pm-dashboard-pdf --source pdf-service --project project-manager-dashboar-a067f --region asia-southeast1 --allow-unauthenticated --ingress all --min-instances 0 --max-instances 1 --concurrency 1 --cpu 1 --memory 1Gi --timeout 120 --service-account pm-dashboard-pdf@project-manager-dashboar-a067f.iam.gserviceaccount.com --set-env-vars "ALLOWED_ORIGIN=https://augusliang23-web.github.io" --async --quiet
 git push v21 HEAD:main
 ```
+
+## Execution adjustment
+
+The first verbose fixture fit the two-card grouping, but the stress fixture exposed an A4 overflow when two very long cards shared a Decision Brief page. The implemented grouping therefore uses both limits: no more than two cards per page and a conservative character-weight budget. When the combined opening would exceed its budget, the renderer emits the metrics and portfolio summary first, then priority-project and management-decision continuation pages. The same weighted grouping is applied to Project Context cards. A Puppeteer test now checks page-boundary alignment, header clearance, footer clearance, and physical PDF page count for the stress case.
