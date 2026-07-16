@@ -22,11 +22,19 @@ const promptHelper = html.match(/function addPortfolioSummaryInstruction\(prompt
 assert.ok(promptHelper, 'portfolio summary prompt helper is missing');
 const promptContext = {};
 vm.runInNewContext(`${promptHelper[0]}; this.addPortfolioSummaryInstruction = addPortfolioSummaryInstruction;`, promptContext);
-const revisedPrompt = promptContext.addPortfolioSummaryInstruction(
-  '- Return exactly these two section headings, each on its own line: WEEKLY MOVEMENT and MANAGEMENT ASK.\n' +
-  '- Never combine multiple projects into one bullet. Use a separate Portfolio: bullet only for a genuinely portfolio-wide point.'
-);
-assert.ok(revisedPrompt.includes('beginning exactly with "Portfolio Summary:"'));
+const legacyPrompt = [
+  '- Under each section, use one bullet per project in this exact pattern: - Exact Project Name: concise update.',
+  '- Use the exact official project name from the supplied data before the colon. Do not add labels such as Delays, Recovery, Escalation, or Kickoff to the project name.',
+  '- Keep every project in a separate bullet and insert one blank line between project bullets so the text remains readable when pasted into email.',
+  '- Each project bullet may contain 1 to 3 concise sentences covering the meaningful movement, business impact, and next step when relevant.',
+  '- Never combine multiple projects into one bullet. Use a separate Portfolio: bullet only for a genuinely portfolio-wide point.',
+  '- WEEKLY MOVEMENT should normally contain 4 to 6 project bullets focused on progress changes, newly completed milestones, delayed milestones, new/continued/resolved risks, and attention changes.',
+  '- MANAGEMENT ASK should contain 2 to 4 project bullets and only decisions, escalations, or unblock actions needed from management.',
+  '- If no management action is needed, write exactly: - No immediate management decision required this week.'
+].join('\n');
+const revisedPrompt = promptContext.addPortfolioSummaryInstruction(legacyPrompt);
+assert.ok(revisedPrompt.includes('Immediately below WEEKLY MOVEMENT write: Portfolio Summary:'));
+assert.ok(revisedPrompt.includes('Movement: <one or two concise sentences>'));
 assert.ok(!revisedPrompt.includes('Use a separate Portfolio: bullet'));
 
 console.log('trend and summary tests passed');

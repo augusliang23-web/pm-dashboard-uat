@@ -60,6 +60,44 @@ Portfolio Summary: Stable portfolio.
   });
 });
 
+test('maps unbulleted legacy summaries with an inline weekly movement heading', () => {
+  const brief = parseExecutiveSummaryBrief(`WEEKLY MOVEMENT Portfolio Summary: Stable portfolio delivery.
+PMS: Progress advanced through startup flowchart review.
+Master Controller: Main-board review completed.
+MANAGEMENT ASK
+PMS: Support cross-functional resource alignment.
+Master Controller: Confirm the long-lead procurement strategy.`);
+
+  assert.equal(brief.portfolioSummary, 'Stable portfolio delivery.');
+  assert.deepEqual(brief.projects, [
+    {
+      projectName: 'PMS',
+      movement: 'Progress advanced through startup flowchart review.',
+      blocker: '',
+      nextStep: ''
+    },
+    {
+      projectName: 'Master Controller',
+      movement: 'Main-board review completed.',
+      blocker: '',
+      nextStep: ''
+    }
+  ]);
+  assert.deepEqual(brief.managementAsks, [
+    {
+      projectName: 'PMS',
+      supportNeeded: 'Support cross-functional resource alignment.',
+      businessImpact: ''
+    },
+    {
+      projectName: 'Master Controller',
+      supportNeeded: 'Confirm the long-lead procurement strategy.',
+      businessImpact: ''
+    }
+  ]);
+  assert.equal(brief.fallbackText, '');
+});
+
 test('caps display content and reports additional details', () => {
   const movement = Array.from({ length: 7 }, (_, index) =>
     `- Project: P${index + 1}\n  Movement: M${index + 1}\n  Blocker: None\n  Next step: N${index + 1}`

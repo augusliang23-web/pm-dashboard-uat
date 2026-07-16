@@ -38,8 +38,19 @@ export function parseExecutiveSummaryBrief(summary = '') {
   };
 
   String(summary || '').replace(/\r\n?/g, '\n').split('\n').forEach(rawLine => {
-    const line = clean(rawLine);
+    let line = clean(rawLine);
     if (!line) return;
+    const inlineHeadingMatch = line.match(/^(WEEKLY MOVEMENT|MANAGEMENT ASK)\s*[:\uFF1A]?\s+(.+)$/i);
+    if (inlineHeadingMatch) {
+      if (inlineHeadingMatch[1].toUpperCase() === 'WEEKLY MOVEMENT') {
+        flushAsk();
+        section = 'movement';
+      } else {
+        flushProject();
+        section = 'ask';
+      }
+      line = clean(inlineHeadingMatch[2]);
+    }
     const normalizedHeading = heading(line);
     if (normalizedHeading === 'WEEKLY MOVEMENT') {
       flushAsk();
@@ -83,6 +94,26 @@ export function parseExecutiveSummaryBrief(summary = '') {
     }
 
     const legacyMatch = line.match(/^[-*+]\s+(.+?)\s*[:：]\s*(.+)$/);
+    const unbulletedLegacyMatch = line.match(/^(.+?)\s*[:\uFF1A]\s*(.+)$/);
+    if (unbulletedLegacyMatch && !line.match(/^[-*+]\s+/) && section === 'movement') {
+      flushProject();
+      projects.push({
+        projectName: clean(unbulletedLegacyMatch[1]),
+        movement: clean(unbulletedLegacyMatch[2]),
+        blocker: '',
+        nextStep: ''
+      });
+      return;
+    }
+    if (unbulletedLegacyMatch && !line.match(/^[-*+]\s+/) && section === 'ask') {
+      flushAsk();
+      managementAsks.push({
+        projectName: clean(unbulletedLegacyMatch[1]),
+        supportNeeded: clean(unbulletedLegacyMatch[2]),
+        businessImpact: ''
+      });
+      return;
+    }
     if (legacyMatch && section === 'movement') {
       flushProject();
       projects.push({
