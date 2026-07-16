@@ -166,6 +166,19 @@ Zettabyte: Confirm the external commercial timeline owner.
 Container: Support the site commissioning recovery decision.`;
 }
 
+export function week28DenseExecutiveSummaryFixture() {
+  return `WEEKLY MOVEMENT Portfolio Summary: Overall portfolio execution remained stable with project counts unchanged, while focus shifted to commissioning recovery on Aston Labs 33kW Container, rolling planning and control enhancement assessment for PMS, hardware design progression in Master Controller, and plan restructuring for Zettabyte.
+33kW Aston Labs Container: Water leakage improvements were completed, but the available validation evidence does not yet demonstrate compliance with the required IP55 test criteria. A generator was deployed for commissioning; however, the chiller and in-row systems have not been powered up, leaving testing activities and key milestones at risk. Aston also provided clarification regarding enclosure IP protection, which has been submitted for internal review.
+PMS: Progress advanced from 55% to 60% through startup flowchart review, source state machine review, and alignment with the US team covering battery messaging, control strategy, operation ownership, UI/UX planning, and firmware testing. The project has adopted a rolling planning approach, with execution plans reviewed weekly to reflect evolving customer requirements. Additional analysis is underway to define the development effort and schedule impact of the parallel protection loop and PMS operation enhancements.
+Master Controller: Progress increased from 20% to 25% with agreement to release the main board Gerber, completion of the module base board and extension board BOMs for factory review, and planned PLC board BOM release next week. Project execution is advancing into the next hardware preparation stage, while long lead-time component planning remains under review.
+Zettabyte 10kW UltraEdge: Project planning was restructured from phase-based milestones into parallel technology validation and commercial architecture tracks. The revised framework provides clearer separation between technical validation and commercial engagement activities, while dependency on an externally confirmed timeline remains unresolved.
+Phone Booth Rack: Fabrication of two prototype samples is progressing, and shipment by sea has been arranged. Current delivery expectations are late August for Utah and early September for Plano, reflecting an updated prototype delivery schedule.
+MANAGEMENT ASK
+33kW Aston Labs Container: Support continued executive engagement with Enetek and ACIS to accelerate installation and commissioning completion, as container power-up and validation activities remain blocked and schedule risk continues. A decision on whether Enetek should continue its remaining scope may be required early next week following review of the latest site progress.
+PMS: Support prioritization and cross-functional resource alignment once the simulation analysis is completed. The estimated development effort and schedule impact of the protection loop and PMS operation enhancements will be incorporated into the next rolling plan update to maintain visibility of upcoming delivery milestones.
+Master Controller: Support early cross-functional review of long lead-time components to confirm the procurement strategy and reduce potential EVT-to-PVT schedule exposure.`;
+}
+
 export function stressExecutiveSummaryFixture() {
   const paragraph = 'Validation evidence is progressing through cross-functional review while the recovery plan, supplier timing, laboratory capacity, commissioning sequence, commercial dependencies, and customer delivery commitments remain under coordinated management review.';
   const project = name => `- Project: ${name}\n  Movement: ${paragraph} ${paragraph}\n  Blocker: ${paragraph}\n  Next step: ${paragraph}`;

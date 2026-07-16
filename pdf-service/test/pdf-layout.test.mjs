@@ -4,12 +4,18 @@ import puppeteer from 'puppeteer';
 import { renderPdfBuffer } from '../src/pdf-renderer.js';
 import { paginateMeasuredFlows } from '../src/measured-paginator.js';
 import { renderOverviewReportHtml } from '../src/overview-report.js';
+import { renderProjectReportHtml } from '../src/project-report.js';
 import {
   compactExecutiveSummaryFixture,
   completeOverviewReportFixture,
+  completeProjectReportFixture,
   stressExecutiveSummaryFixture,
   verboseExecutiveSummaryFixture
 } from './report-fixtures.mjs';
+
+function physicalPageCount(pdf) {
+  return (Buffer.from(pdf).toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length;
+}
 
 test.after(async () => {
   await renderPdfBuffer.close();
@@ -116,6 +122,47 @@ test('splits high-text Executive Summary cards before any wrapper exceeds A4 hei
     assert.equal(pageObjects.length, heights.length);
   } finally {
     await page.close();
+    await browser.close();
+  }
+});
+
+test('full Overview and Project PDFs preserve explicit page parity and period metadata', { timeout: 60000 }, async () => {
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const cases = [
+    ['Overview', renderOverviewReportHtml(completeOverviewReportFixture())],
+    ['Project', renderProjectReportHtml(completeProjectReportFixture())]
+  ];
+
+  try {
+    for (const [label, html] of cases) {
+      const page = await browser.newPage();
+      try {
+        await page.setContent(html, { waitUntil: 'networkidle0' });
+        await page.evaluate(paginateMeasuredFlows);
+        const layout = await page.evaluate(() => ({
+          explicitPages: document.querySelectorAll('.report-page').length,
+          emptyMeasuredPages: [...document.querySelectorAll('[data-measured-page]')]
+            .filter(node => !node.querySelector('[data-pdf-flow-item]')).length,
+          periods: [...document.querySelectorAll('.report-page')].map(node => ({
+            header: node.querySelector('.report-meta')?.textContent || '',
+            footer: node.querySelector('.report-footer span:last-child')?.textContent || ''
+          }))
+        }));
+        const pdf = await renderPdfBuffer(html);
+
+        assert.equal(physicalPageCount(pdf), layout.explicitPages, `${label} physical pages must match HTML pages`);
+        assert.equal(layout.emptyMeasuredPages, 0, `${label} must not contain an empty measured page`);
+        layout.periods.forEach((period, index) => {
+          assert.match(period.header, /W28 2026/,
+            `${label} page ${index + 1} header must show the reporting week`);
+          assert.match(period.header, /Jul 6/, `${label} page ${index + 1} header must show the date range`);
+          assert.equal(period.footer, period.header, `${label} page ${index + 1} footer must repeat the period`);
+        });
+      } finally {
+        await page.close();
+      }
+    }
+  } finally {
     await browser.close();
   }
 });

@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import puppeteer from 'puppeteer';
 import { paginateMeasuredFlows } from '../src/measured-paginator.js';
 import { renderOverviewReportHtml } from '../src/overview-report.js';
-import { completeOverviewReportFixture, legacyExecutiveSummaryFixture } from './report-fixtures.mjs';
+import {
+  completeOverviewReportFixture,
+  legacyExecutiveSummaryFixture,
+  week28DenseExecutiveSummaryFixture
+} from './report-fixtures.mjs';
 
 async function browserPage(html) {
   const browser = await puppeteer.launch({
@@ -20,9 +24,33 @@ async function measuredPages(page) {
     blocks: pageNode.querySelectorAll('[data-pdf-flow-item]').length,
     bodyBottom: pageNode.querySelector('[data-pdf-flow-items]').getBoundingClientRect().bottom,
     footerTop: pageNode.querySelector('.report-footer').getBoundingClientRect().top,
+    footerGap: pageNode.querySelector('.report-footer').getBoundingClientRect().top
+      - pageNode.querySelector('[data-pdf-flow-items]').getBoundingClientRect().bottom,
+    firstBlockHeight: pageNode.querySelector('[data-pdf-flow-item]')?.getBoundingClientRect().height || 0,
     title: pageNode.querySelector('.report-title').textContent.trim(),
     height: pageNode.getBoundingClientRect().height
   })));
+}
+
+function boundaryFixture() {
+  const item = label => `<div data-pdf-flow-item data-flow-kind="boundary" data-page-title="Boundary" data-page-kicker="Test" data-page-section="executive-summary-brief"><span>${label}</span></div>`;
+  return `<!doctype html><html><head><style>
+    *{box-sizing:border-box}html,body{margin:0}.report-page{position:relative;width:297mm;min-height:210mm;padding:10mm;display:flex;flex-direction:column}.report-page-head{height:20mm}.report-body{flex:1}.report-footer{position:absolute;left:10mm;right:10mm;bottom:8mm;height:5mm}[data-pdf-flow-items]{display:grid;gap:0}[data-pdf-flow-item]{min-height:0}
+  </style></head><body><div class="report-document"><section class="report-page" data-measured-flow="executive-summary"><header class="report-page-head"><div><div class="report-kicker">Test</div><h1 class="report-title">Boundary</h1></div></header><main class="report-body"><div data-pdf-flow-items>${item('A')}${item('B')}</div></main><footer class="report-footer"><span>Footer</span></footer></section></div></body></html>`;
+}
+
+async function sizeBoundaryItems(page, overflowPx) {
+  await page.evaluate(extra => {
+    const source = document.querySelector('[data-measured-flow]');
+    source.style.height = '210mm';
+    source.style.overflow = 'hidden';
+    const container = source.querySelector('[data-pdf-flow-items]');
+    const footer = source.querySelector('.report-footer');
+    const available = footer.getBoundingClientRect().top - (8 * 96 / 25.4) - container.getBoundingClientRect().top;
+    const items = [...container.children];
+    items[0].style.height = `${available / 2}px`;
+    items[1].style.height = `${available / 2 + extra}px`;
+  }, overflowPx);
 }
 
 test('fills remaining page space before creating a continuation page', { timeout: 60000 }, async () => {
@@ -47,6 +75,22 @@ test('fills remaining page space before creating a continuation page', { timeout
   } finally {
     await page.close();
     await browser.close();
+  }
+});
+
+test('keeps an exact-boundary block and moves only a just-over-boundary block', { timeout: 60000 }, async () => {
+  for (const [overflowPx, expectedPages] of [[0, 1], [2, 2]]) {
+    const { page, browser } = await browserPage(boundaryFixture());
+    try {
+      await sizeBoundaryItems(page, overflowPx);
+      await page.evaluate(paginateMeasuredFlows);
+      const pages = await measuredPages(page);
+      assert.equal(pages.length, expectedPages);
+      assert.deepEqual(pages.map(result => result.blocks), expectedPages === 1 ? [2] : [1, 1]);
+    } finally {
+      await page.close();
+      await browser.close();
+    }
   }
 });
 
@@ -133,6 +177,61 @@ test('splits one oversized field at a word boundary', { timeout: 60000 }, async 
     assert.match(text, /Movement · Continued/);
     assert.match(text, /FIELD-START/);
     assert.match(text, /FIELD-END/);
+  } finally {
+    await page.close();
+    await browser.close();
+  }
+});
+
+test('packs the dense Week 28 legacy summary without empty or prematurely split pages', { timeout: 60000 }, async () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['executive-summary'];
+  fixture.week.executiveSummary = week28DenseExecutiveSummaryFixture();
+  const { page, browser } = await browserPage(renderOverviewReportHtml(fixture));
+
+  try {
+    await page.evaluate(paginateMeasuredFlows);
+    const pages = await measuredPages(page);
+
+    assert.ok(pages.length < 23);
+    assert.ok(pages.every(result => result.blocks > 0));
+    assert.ok(pages.some(result => result.blocks >= 3));
+    pages.forEach((result, index) => {
+      assert.ok(result.footerGap >= 29, `dense page ${index + 1} must keep the footer gap`);
+      if (index < pages.length - 1) {
+        assert.ok(
+          result.footerGap < pages[index + 1].firstBlockHeight + 13,
+          `dense page ${index + 1} must not leave enough room for the next whole block`
+        );
+      }
+    });
+  } finally {
+    await page.close();
+    await browser.close();
+  }
+});
+
+test('splits an unbroken token without clipping or entering an infinite loop', { timeout: 60000 }, async () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.sections = ['executive-summary'];
+  fixture.week.executiveSummary = `WEEKLY MOVEMENT
+Portfolio Summary: Long-token verification.
+- Project: Token Project
+  Movement: TOKEN-START-${'X'.repeat(20000)}-TOKEN-END
+  Blocker: None
+  Next step: Confirm output.
+MANAGEMENT ASK`;
+  const { page, browser } = await browserPage(renderOverviewReportHtml(fixture));
+
+  try {
+    await page.evaluate(paginateMeasuredFlows);
+    const pages = await measuredPages(page);
+    const text = await page.$eval('body', node => node.textContent);
+
+    assert.match(text, /TOKEN-START/);
+    assert.match(text, /TOKEN-END/);
+    assert.ok(pages.length > 1);
+    pages.forEach((result, index) => assert.ok(result.footerGap >= 29, `token page ${index + 1} must fit`));
   } finally {
     await page.close();
     await browser.close();

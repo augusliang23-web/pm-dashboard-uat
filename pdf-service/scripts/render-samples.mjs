@@ -5,7 +5,8 @@ import { renderOverviewReportHtml } from '../src/overview-report.js';
 import {
   completeOverviewReportFixture,
   completeProjectReportFixture,
-  structuredExecutiveSummaryFixture
+  structuredExecutiveSummaryFixture,
+  week28DenseExecutiveSummaryFixture
 } from '../test/report-fixtures.mjs';
 
 const SAMPLE_TARGET_BYTES = 1.5 * 1024 * 1024;
@@ -19,10 +20,14 @@ try {
   const executiveSummaryFixture = completeOverviewReportFixture();
   executiveSummaryFixture.sections = ['executive-summary'];
   executiveSummaryFixture.week.executiveSummary = structuredExecutiveSummaryFixture();
+  const denseExecutiveSummaryFixture = completeOverviewReportFixture();
+  denseExecutiveSummaryFixture.sections = ['executive-summary'];
+  denseExecutiveSummaryFixture.week.executiveSummary = week28DenseExecutiveSummaryFixture();
   const reports = [
     ['project.pdf', renderProjectReportHtml(completeProjectReportFixture())],
     ['overview.pdf', renderOverviewReportHtml(overviewFixture)],
-    ['executive-summary.pdf', renderOverviewReportHtml(executiveSummaryFixture)]
+    ['executive-summary.pdf', renderOverviewReportHtml(executiveSummaryFixture)],
+    ['executive-summary-dense.pdf', renderOverviewReportHtml(denseExecutiveSummaryFixture)]
   ];
 
   for (const [name, html] of reports) {
