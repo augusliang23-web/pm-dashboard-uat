@@ -32,7 +32,11 @@ function statusPresentation(status) {
 
 function reportList(items, emptyMessage) {
   if (!items.length) return emptyState(emptyMessage);
-  return `<ul class="report-list">${items.slice(0, 8).map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+  return `<ul class="report-list">${items.map(item => `<li data-pdf-split-unit>${escapeHtml(item)}</li>`).join('')}</ul>`;
+}
+
+function projectFlowItem(model, { kind, kicker, section, body, splittable = false }) {
+  return `<div data-pdf-flow-item data-flow-kind="${escapeHtml(kind)}" data-page-title="${escapeHtml(model.name)}" data-page-kicker="${escapeHtml(kicker)}" data-page-section="${escapeHtml(section)}"${splittable ? ' data-pdf-splittable' : ''}>${body}</div>`;
 }
 
 function renderProjectBrief(model) {
@@ -46,14 +50,27 @@ function renderProjectUpdate(model) {
     ['Risk / Blocker', model.risks, 'No risk or blocker reported.', 'risk'],
     ['Weekly actions', model.actions, 'No weekly action reported.', '']
   ];
-  return `<section class="project-update-grid" data-section-unit="project-update">${cards.map(([title, items, emptyMessage, tone]) => `<article class="card project-update-card ${tone}"><div class="report-kicker">Project update</div><h2>${escapeHtml(title)}</h2>${reportList(items, emptyMessage)}</article>`).join('')}</section>`;
+  return cards.map(([title, items, emptyMessage, tone]) => projectFlowItem(model, {
+    kind: 'project-update-card',
+    kicker: 'Project report · Executive summary',
+    section: 'project-summary',
+    splittable: true,
+    body: `<article class="card project-update-card ${tone}"><div class="report-kicker">Project update</div><h2 class="pdf-continuation-label">${escapeHtml(title)}</h2>${reportList(items, emptyMessage)}</article>`
+  })).join('');
 }
 
 function renderProjectSummary(model, selected) {
-  const parts = [];
-  if (selected.has('project-brief')) parts.push(renderProjectBrief(model));
-  if (selected.has('project-update')) parts.push(renderProjectUpdate(model));
-  return parts.join('');
+  const items = [];
+  if (selected.has('project-brief')) items.push(projectFlowItem(model, {
+    kind: 'project-brief',
+    kicker: 'Project report · Executive summary',
+    section: 'project-summary',
+    body: renderProjectBrief(model)
+  }));
+  if (selected.has('project-update')) items.push(renderProjectUpdate(model));
+  return items.length
+    ? `<section class="project-summary-flow"><div data-pdf-flow-items>${items.join('')}</div></section>`
+    : '';
 }
 
 function sortedMilestones(model) {
@@ -77,10 +94,50 @@ function renderMilestoneTimeline(model) {
   }).join('')}</ol>`;
 }
 
+function renderMilestoneFlow(model) {
+  const milestones = sortedMilestones(model);
+  if (!milestones.length) return '';
+  const compact = milestones.length <= 3
+    && milestones.every(item => String(item?.name || '').length <= 28);
+  const items = compact
+    ? [projectFlowItem(model, {
+      kind: 'milestone-timeline',
+      kicker: 'Project report · Milestone timeline',
+      section: 'milestone',
+      body: renderMilestoneTimeline(model)
+    })]
+    : milestones.map(item => {
+      const [tone, label] = statusPresentation(item?.status || 'planned');
+      return projectFlowItem(model, {
+        kind: 'milestone-row',
+        kicker: 'Project report · Milestone timeline',
+        section: 'milestone',
+        body: `<ol class="milestone-list"><li class="milestone-row keep-together" data-pdf-split-unit><time>${escapeHtml(item?.date || 'No target date')}</time><strong>${escapeHtml(item?.name || 'Milestone')}</strong>${statusBadge(tone, label)}</li></ol>`
+      });
+    });
+  return `<section class="milestone-flow" data-section-unit="milestone"><div data-pdf-flow-items>${items.join('')}</div></section>`;
+}
+
 function renderGantt(model) {
   if (!model.workstreams.length) return '';
   const range = buildGanttRange(model.workstreams);
   return `<section class="gantt-grid" data-section-unit="gantt">${renderGanttAxis(range)}${range.rows.map(item => renderGanttRow(item, range)).join('')}</section>`;
+}
+
+function renderGanttFlow(model) {
+  if (!model.workstreams.length) return '';
+  const range = buildGanttRange(model.workstreams);
+  const rows = range.rows.map(item => projectFlowItem(model, {
+    kind: 'gantt-row',
+    kicker: 'Project report · Workstream schedule',
+    section: 'gantt',
+    body: renderGanttRow(item, range)
+  }));
+  return `<section class="gantt-grid" data-section-unit="gantt"><div data-pdf-flow-items><div class="gantt-repeat" data-pdf-repeat-on-page>${renderGanttAxis(range)}</div>${rows.join('')}</div></section>`;
+}
+
+function splittableTable({ headings, rows, className }) {
+  return `<table class="${className}"><thead><tr>${headings.map(heading => `<th>${escapeHtml(heading)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr data-pdf-split-unit>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
 
 function renderTeamAllocation(model) {
@@ -90,7 +147,13 @@ function renderTeamAllocation(model) {
     `${escapeHtml(Number(member.effortPct ?? member.effort) || 0)}%`
   ]);
   if (!rows.length) return '';
-  return `<article class="card resource-card"><div class="report-kicker">Resource plan</div><h2>Team allocation</h2>${dataTable({ headings: ['Name', 'Role', 'Allocation'], rows, className: 'team-allocation-table' })}</article>`;
+  return projectFlowItem(model, {
+    kind: 'team-allocation',
+    kicker: 'Project report · Resource allocation',
+    section: 'resource',
+    splittable: true,
+    body: `<article class="card resource-card"><div class="report-kicker">Resource plan</div><h2 class="pdf-continuation-label">Team allocation</h2>${splittableTable({ headings: ['Name', 'Role', 'Allocation'], rows, className: 'team-allocation-table' })}</article>`
+  });
 }
 
 function renderDisciplineHours(model) {
@@ -101,7 +164,13 @@ function renderDisciplineHours(model) {
     escapeHtml(item.remaining === null ? 'Not available' : item.remaining)
   ]);
   if (!rows.length) return '';
-  return `<article class="card resource-card"><div class="report-kicker">Effort tracking</div><h2>Discipline hours</h2>${dataTable({ headings: ['Discipline', 'Estimated', 'Actual', 'Remaining'], rows, className: 'discipline-hours-table' })}</article>`;
+  return projectFlowItem(model, {
+    kind: 'discipline-hours',
+    kicker: 'Project report · Resource allocation',
+    section: 'resource',
+    splittable: true,
+    body: `<article class="card resource-card"><div class="report-kicker">Effort tracking</div><h2 class="pdf-continuation-label">Discipline hours</h2>${splittableTable({ headings: ['Discipline', 'Estimated', 'Actual', 'Remaining'], rows, className: 'discipline-hours-table' })}</article>`
+  });
 }
 
 function renderResourcePage(model, selected) {
@@ -110,7 +179,7 @@ function renderResourcePage(model, selected) {
   if (selected.has('resources')) parts.push(renderDisciplineHours(model));
   const visible = parts.filter(Boolean);
   if (!visible.length) return '';
-  return `<section class="project-resource-grid ${visible.length === 1 ? 'single' : ''}" data-section-unit="resource">${visible.join('')}</section>`;
+  return `<section class="project-resource-grid ${visible.length === 1 ? 'single' : ''}" data-section-unit="resource"><div data-pdf-flow-items>${visible.join('')}</div></section>`;
 }
 
 function formatMoney(value, currency) {
@@ -126,7 +195,9 @@ function renderBudget(model) {
   const plannedWidth = Math.min(100, budget.planned / denominator * 100);
   const actualWidth = Math.min(100, budget.actual / denominator * 100);
   const varianceTone = budget.variance > 0 ? 'red' : budget.variance < 0 ? 'green' : 'neutral';
-  return `<section data-section-unit="budget"><div class="metric-grid budget-metrics">${metricCard('Total budget', formatMoney(budget.total, budget.currency), budget.currency)}${metricCard('Planned', formatMoney(budget.planned, budget.currency), `${Math.round(budget.planned / denominator * 100)}% of scale`)}${metricCard('Actual', formatMoney(budget.actual, budget.currency), `${budget.usedPct}% used`, budget.usedPct > 100 ? 'red' : 'neutral')}${metricCard('Variance', formatMoney(budget.variance, budget.currency), 'Actual minus planned', varianceTone)}</div><article class="card budget-comparison"><div class="report-kicker">Budget comparison</div><h2>Planned versus actual</h2><div class="budget-bar-row"><span>Planned</span><div class="budget-track"><i class="planned" style="width:${plannedWidth.toFixed(2)}%"></i></div><strong>${escapeHtml(formatMoney(budget.planned, budget.currency))}</strong></div><div class="budget-bar-row"><span>Actual</span><div class="budget-track"><i class="actual ${budget.actual > budget.planned ? 'red' : ''}" style="width:${actualWidth.toFixed(2)}%"></i></div><strong>${escapeHtml(formatMoney(budget.actual, budget.currency))}</strong></div></article></section>`;
+  const metrics = `<div class="metric-grid budget-metrics">${metricCard('Total budget', formatMoney(budget.total, budget.currency), budget.currency)}${metricCard('Planned', formatMoney(budget.planned, budget.currency), `${Math.round(budget.planned / denominator * 100)}% of scale`)}${metricCard('Actual', formatMoney(budget.actual, budget.currency), `${budget.usedPct}% used`, budget.usedPct > 100 ? 'red' : 'neutral')}${metricCard('Variance', formatMoney(budget.variance, budget.currency), 'Actual minus planned', varianceTone)}</div>`;
+  const comparison = `<article class="card budget-comparison"><div class="report-kicker">Budget comparison</div><h2>Planned versus actual</h2><div class="budget-bar-row"><span>Planned</span><div class="budget-track"><i class="planned" style="width:${plannedWidth.toFixed(2)}%"></i></div><strong>${escapeHtml(formatMoney(budget.planned, budget.currency))}</strong></div><div class="budget-bar-row"><span>Actual</span><div class="budget-track"><i class="actual ${budget.actual > budget.planned ? 'red' : ''}" style="width:${actualWidth.toFixed(2)}%"></i></div><strong>${escapeHtml(formatMoney(budget.actual, budget.currency))}</strong></div></article>`;
+  return `<section class="budget-flow" data-section-unit="budget"><div data-pdf-flow-items>${projectFlowItem(model, { kind: 'budget-metrics', kicker: 'Project report · Budget snapshot', section: 'budget', body: metrics })}${projectFlowItem(model, { kind: 'budget-comparison', kicker: 'Project report · Budget snapshot', section: 'budget', body: comparison })}</div></section>`;
 }
 
 export function renderProjectReportHtml({ week, project, sections }) {
@@ -136,27 +207,27 @@ export function renderProjectReportHtml({ week, project, sections }) {
   const summary = renderProjectSummary(model, selected);
   if (summary) pages.push(reportPage({
     section: 'project-summary', title: model.name, kicker: 'Project report · Executive summary',
-    period: model.period, body: summary
+    period: model.period, measuredFlow: 'project-summary', body: summary
   }));
-  const milestone = selected.has('milestone') ? renderMilestoneTimeline(model) : '';
+  const milestone = selected.has('milestone') ? renderMilestoneFlow(model) : '';
   if (milestone) pages.push(reportPage({
     section: 'milestone', title: model.name, kicker: 'Project report · Milestone timeline',
-    period: model.period, body: milestone
+    period: model.period, measuredFlow: 'milestone', body: milestone
   }));
-  const gantt = selected.has('gantt') ? renderGantt(model) : '';
+  const gantt = selected.has('gantt') ? renderGanttFlow(model) : '';
   if (gantt) pages.push(reportPage({
     section: 'gantt', title: model.name, kicker: 'Project report · Workstream schedule',
-    period: model.period, body: gantt
+    period: model.period, measuredFlow: 'gantt', body: gantt
   }));
   const resource = renderResourcePage(model, selected);
   if (resource) pages.push(reportPage({
     section: 'resource', title: model.name, kicker: 'Project report · Resource allocation',
-    period: model.period, body: resource
+    period: model.period, measuredFlow: 'resource', body: resource
   }));
   const budget = selected.has('budget') ? renderBudget(model) : '';
   if (budget) pages.push(reportPage({
     section: 'budget', title: model.name, kicker: 'Project report · Budget snapshot',
-    period: model.period, body: budget
+    period: model.period, measuredFlow: 'budget', body: budget
   }));
   return reportDocument({
     title: model.name || model.code || 'Project report',

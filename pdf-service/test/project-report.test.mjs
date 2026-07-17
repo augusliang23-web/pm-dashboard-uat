@@ -77,3 +77,40 @@ test('keeps long milestone items in vertical rows', () => {
   assert.match(html, /milestone-list/);
   assert.match(html, /milestone-row keep-together/);
 });
+
+test('marks every variable project section for measured continuation pages', () => {
+  const fixture = completeProjectReportFixture();
+  fixture.project.milestones = Array.from({ length: 8 }, (_, index) => ({
+    name: `Milestone marker ${index + 1}`,
+    date: `2026-08-${String(index + 1).padStart(2, '0')}`,
+    status: 'planned'
+  }));
+  fixture.project.ganttWorkstreams = Array.from({ length: 12 }, (_, index) => ({
+    name: `Gantt marker ${index + 1}`,
+    startDate: '2026-07-01',
+    endDate: '2026-08-31',
+    status: 'in-progress',
+    progress: index * 5
+  }));
+  fixture.project.teamMembers = Array.from({ length: 10 }, (_, index) => ({
+    name: `Member ${index + 1}`,
+    roleName: `Role ${index + 1}`,
+    effortPct: 50
+  }));
+  fixture.project.resources = Object.fromEntries(Array.from({ length: 10 }, (_, index) => [
+    `role_${index + 1}`,
+    { role: `Role ${index + 1}`, estimated: 100, actual: 50 }
+  ]));
+
+  const html = renderProjectReportHtml(fixture);
+
+  for (const flow of ['milestone', 'gantt', 'resource', 'budget']) {
+    assert.match(html, new RegExp(`data-measured-flow="${flow}"`));
+  }
+  assert.match(html, /data-pdf-repeat-on-page/);
+  assert.ok((html.match(/data-pdf-split-unit/g) || []).length >= 40);
+  assert.match(html, /Milestone marker 8/);
+  assert.match(html, /Gantt marker 12/);
+  assert.match(html, /Member 10/);
+  assert.match(html, /Role 10/);
+});

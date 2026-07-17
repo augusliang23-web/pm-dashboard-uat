@@ -39,6 +39,68 @@ function boundaryFixture() {
   </style></head><body><div class="report-document"><section class="report-page" data-measured-flow="executive-summary"><header class="report-page-head"><div><div class="report-kicker">Test</div><h1 class="report-title">Boundary</h1></div></header><main class="report-body"><div data-pdf-flow-items>${item('A')}${item('B')}</div></main><footer class="report-footer"><span>Footer</span></footer></section></div></body></html>`;
 }
 
+function splitUnitFixture(items) {
+  const rows = items.map(item => `<li data-pdf-split-unit>${item}</li>`).join('');
+  return `<!doctype html><html><head><style>
+    *{box-sizing:border-box}html,body{margin:0}.report-page{position:relative;width:297mm;min-height:210mm;padding:10mm;display:flex;flex-direction:column}.report-page-head{height:20mm}.report-body{flex:1;padding-top:4mm}.report-footer{position:absolute;left:10mm;right:10mm;bottom:8mm;height:5mm}[data-pdf-flow-items]{display:grid;gap:0}.split-card{border:1px solid #ccc;padding:4mm}.split-card li{min-height:34mm;padding:2mm;overflow-wrap:anywhere}
+  </style></head><body><div class="report-document"><section class="report-page" data-measured-flow="split-units"><header class="report-page-head"><div><div class="report-kicker">Test</div><h1 class="report-title">Split units</h1></div></header><main class="report-body"><div data-pdf-flow-items><div data-pdf-repeat-on-page class="repeat-axis">Repeated axis</div><div data-pdf-flow-item data-page-title="Split units" data-page-kicker="Test" data-page-section="split-units" data-pdf-splittable><article class="split-card"><h2 class="pdf-continuation-label">Delivery items</h2><ul>${rows}</ul></article></div></div></main><footer class="report-footer"><span>Footer</span></footer></section></div></body></html>`;
+}
+
+async function splitUnitPages(page) {
+  return page.evaluate(() => [...document.querySelectorAll('[data-measured-page="split-units"]')].map(node => {
+    const body = node.querySelector('[data-pdf-flow-items]').getBoundingClientRect();
+    const footer = node.querySelector('.report-footer').getBoundingClientRect();
+    return {
+      title: node.querySelector('.report-title').textContent.trim(),
+      label: node.querySelector('.pdf-continuation-label')?.textContent.trim() || '',
+      repeatCount: node.querySelectorAll('[data-pdf-repeat-on-page]').length,
+      footerGap: footer.top - body.bottom
+    };
+  }));
+}
+
+test('splits generic list units in order with continuation context', { timeout: 60000 }, async () => {
+  const markers = Array.from({ length: 6 }, (_, index) => `UNIT-${index + 1}`);
+  const { page, browser } = await browserPage(splitUnitFixture(markers));
+
+  try {
+    await page.evaluate(paginateMeasuredFlows);
+    const actual = await page.$$eval('[data-pdf-split-unit]', nodes => nodes.map(node => node.textContent.trim()));
+    const pages = await splitUnitPages(page);
+
+    assert.deepEqual(actual, markers);
+    assert.ok(pages.length > 1);
+    assert.ok(pages.slice(1).every(item => /Continued$/.test(item.title)));
+    assert.ok(pages.slice(1).every(item => /Continued$/.test(item.label)));
+    assert.ok(pages.every(item => item.repeatCount === 1));
+    assert.ok(pages.every(item => item.footerGap >= 8 * 96 / 25.4 - 1));
+  } finally {
+    await page.close();
+    await browser.close();
+  }
+});
+
+test('splits one oversized generic unit at word and character boundaries', { timeout: 60000 }, async () => {
+  for (const value of [
+    `WORD-START ${'oversized unit content '.repeat(800)} WORD-END`,
+    `TOKEN-START-${'Z'.repeat(18000)}-TOKEN-END`
+  ]) {
+    const { page, browser } = await browserPage(splitUnitFixture([value]));
+    try {
+      await page.evaluate(paginateMeasuredFlows);
+      const text = await page.$eval('body', node => node.textContent);
+      const pages = await splitUnitPages(page);
+      assert.match(text, /(?:WORD|TOKEN)-START/);
+      assert.match(text, /(?:WORD|TOKEN)-END/);
+      assert.ok(pages.length > 1);
+      assert.ok(pages.every(item => item.footerGap >= 8 * 96 / 25.4 - 1));
+    } finally {
+      await page.close();
+      await browser.close();
+    }
+  }
+});
+
 async function sizeBoundaryItems(page, overflowPx) {
   await page.evaluate(extra => {
     const source = document.querySelector('[data-measured-flow]');

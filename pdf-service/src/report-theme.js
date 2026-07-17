@@ -128,6 +128,8 @@ export const REPORT_CSS = `
   .project-context-card dt { color:var(--muted); font-size:7.5pt; font-weight:700; text-transform:uppercase; }
   .project-context-card dd { margin:1mm 0 0; font-weight:700; overflow-wrap:anywhere; }
   .project-update-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4mm; }
+  .project-summary-flow [data-pdf-flow-items] { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4mm; align-items:start; }
+  .project-summary-flow [data-flow-kind="project-brief"],.project-summary-flow [data-pdf-fragment] { grid-column:1 / -1; }
   .project-update-card { min-height:62mm; }
   .project-update-card.risk { border-color:#e5b5b5; background:linear-gradient(180deg,var(--red-soft),var(--white) 38%); }
   .report-list { margin:0; padding-left:5mm; }
@@ -141,7 +143,10 @@ export const REPORT_CSS = `
   .milestone-list { list-style:none; margin:0; padding:0; }
   .milestone-row { display:grid; grid-template-columns:34mm minmax(0,1fr) 28mm; align-items:center; gap:5mm; padding:4mm; border-bottom:1px solid var(--line); }
   .milestone-row time { color:var(--muted); }
+  .milestone-flow [data-pdf-flow-items] { gap:2mm; }
   .gantt-grid { display:grid; gap:2.5mm; }
+  .gantt-grid [data-pdf-flow-items] { display:grid; gap:2.5mm; }
+  .gantt-repeat { min-height:5mm; }
   .gantt-axis { display:flex; justify-content:space-between; margin-left:53mm; padding:0 32mm 1mm 0; color:var(--muted); font-size:7.5pt; }
   .gantt-row { display:grid; grid-template-columns:48mm minmax(0,1fr) 28mm; align-items:center; gap:5mm; min-height:13mm; }
   .gantt-label { min-width:0; }
@@ -154,9 +159,11 @@ export const REPORT_CSS = `
   .gantt-bar.yellow .gantt-completed { background:var(--yellow); } .gantt-bar.red .gantt-completed { background:var(--red); }
   .gantt-bar b { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:6.5pt; color:var(--ink); }
   .gantt-state { text-align:right; }
-  .project-resource-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5mm; align-items:start; }
-  .project-resource-grid.single { grid-template-columns:1fr; }
+  .project-resource-grid > [data-pdf-flow-items] { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5mm; align-items:start; }
+  .project-resource-grid.single > [data-pdf-flow-items] { grid-template-columns:1fr; }
+  .project-resource-grid [data-pdf-fragment] { grid-column:1 / -1; }
   .resource-card { min-width:0; }
+  .resource-card td { overflow-wrap:anywhere; }
   .budget-metrics { margin-bottom:5mm; }
   .budget-comparison { padding:6mm; }
   .budget-bar-row { display:grid; grid-template-columns:22mm minmax(0,1fr) 36mm; align-items:center; gap:4mm; margin:4mm 0; }
@@ -164,6 +171,7 @@ export const REPORT_CSS = `
   .budget-track { height:6mm; overflow:hidden; border-radius:99px; background:#e6ecf2; }
   .budget-track i { display:block; height:100%; background:var(--blue); }
   .budget-track i.actual { background:var(--green); } .budget-track i.red { background:var(--red); }
+  .budget-flow [data-pdf-flow-items] { gap:4mm; }
   .overview-unit + .overview-unit { margin-top:4mm; }
   .overview-unit-head { display:flex; justify-content:space-between; align-items:flex-start; gap:6mm; margin-bottom:3mm; }
   .overview-unit-head h2 { margin-bottom:0; }

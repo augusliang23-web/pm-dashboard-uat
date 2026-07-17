@@ -53,7 +53,6 @@ export function paginateMeasuredFlows({ safetyGapMm = 8, maxIterations = 1000 } 
 
   function splitOversizedItem(item, page) {
     const sourceFields = [...item.querySelectorAll('[data-pdf-field]')];
-    if (!sourceFields.length) return [];
     const target = page.querySelector('[data-pdf-flow-items]');
     const fragments = [];
 
@@ -62,6 +61,122 @@ export function paginateMeasuredFlows({ safetyGapMm = 8, maxIterations = 1000 } 
       const result = fits(page);
       candidate.remove();
       return result;
+    }
+
+    function markContinuation(fragment, continued) {
+      if (!continued) return;
+      fragment.querySelectorAll('.pdf-continuation-label').forEach(label => {
+        if (!label.textContent.endsWith(' · Continued')) label.textContent += ' · Continued';
+      });
+    }
+
+    function unitFragment(start, count, { continued = false, text } = {}) {
+      const fragment = item.cloneNode(true);
+      fragment.dataset.pdfFragment = 'true';
+      const units = [...fragment.querySelectorAll('[data-pdf-split-unit]')];
+      units.forEach((unit, index) => {
+        if (index < start || index >= start + count) unit.remove();
+      });
+      if (text !== undefined) {
+        const selected = fragment.querySelector('[data-pdf-split-unit]');
+        if (selected?.tagName === 'TR') {
+          const columnCount = Math.max(1, selected.children.length);
+          const cell = document.createElement('td');
+          cell.colSpan = columnCount;
+          cell.textContent = text;
+          selected.replaceChildren(cell);
+        } else if (selected) {
+          selected.textContent = text;
+        }
+      }
+      markContinuation(fragment, continued);
+      return fragment;
+    }
+
+    function splitUnits() {
+      const sourceUnits = [...item.querySelectorAll('[data-pdf-split-unit]')];
+      let start = 0;
+      while (start < sourceUnits.length) {
+        let low = 1;
+        let high = sourceUnits.length - start;
+        let best = 0;
+        while (low <= high) {
+          const middle = Math.floor((low + high) / 2);
+          const candidate = unitFragment(start, middle, { continued: fragments.length > 0 });
+          if (candidateFits(candidate)) {
+            best = middle;
+            low = middle + 1;
+          } else {
+            high = middle - 1;
+          }
+        }
+        if (best) {
+          fragments.push(unitFragment(start, best, { continued: fragments.length > 0 }));
+          start += best;
+          continue;
+        }
+
+        const fullText = sourceUnits[start].textContent.trim();
+        if (!fullText) return [];
+        const words = fullText.split(/\s+/).filter(Boolean);
+        let offset = 0;
+        while (offset < words.length) {
+          let wordLow = 1;
+          let wordHigh = words.length - offset;
+          let wordBest = 0;
+          while (wordLow <= wordHigh) {
+            const middle = Math.floor((wordLow + wordHigh) / 2);
+            const text = words.slice(offset, offset + middle).join(' ');
+            const candidate = unitFragment(start, 1, { continued: fragments.length > 0, text });
+            if (candidateFits(candidate)) {
+              wordBest = middle;
+              wordLow = middle + 1;
+            } else {
+              wordHigh = middle - 1;
+            }
+          }
+          if (wordBest) {
+            const text = words.slice(offset, offset + wordBest).join(' ');
+            fragments.push(unitFragment(start, 1, {
+              continued: fragments.length > 0,
+              text
+            }));
+            offset += wordBest;
+            continue;
+          }
+
+          const token = words[offset];
+          let charLow = 1;
+          let charHigh = token.length;
+          let charBest = 0;
+          while (charLow <= charHigh) {
+            const middle = Math.floor((charLow + charHigh) / 2);
+            const candidate = unitFragment(start, 1, {
+              continued: fragments.length > 0,
+              text: token.slice(0, middle)
+            });
+            if (candidateFits(candidate)) {
+              charBest = middle;
+              charLow = middle + 1;
+            } else {
+              charHigh = middle - 1;
+            }
+          }
+          if (!charBest) return [];
+          fragments.push(unitFragment(start, 1, {
+            continued: fragments.length > 0,
+            text: token.slice(0, charBest)
+          }));
+          words[offset] = token.slice(charBest);
+          if (!words[offset]) offset += 1;
+        }
+        start += 1;
+      }
+      return fragments;
+    }
+
+    if (!sourceFields.length) {
+      return item.querySelector('[data-pdf-split-unit]') ? splitUnits() : [];
     }
 
     sourceFields.forEach((field, fieldIndex) => {
@@ -143,7 +258,9 @@ export function paginateMeasuredFlows({ safetyGapMm = 8, maxIterations = 1000 } 
     const flowName = source.dataset.measuredFlow || 'measured-flow';
     const container = source.querySelector('[data-pdf-flow-items]');
     if (!container) return;
-    const items = [...container.children];
+    const children = [...container.children];
+    const repeatTemplates = children.filter(item => item.hasAttribute('data-pdf-repeat-on-page'));
+    const items = children.filter(item => !item.hasAttribute('data-pdf-repeat-on-page'));
     const cleanShell = source.cloneNode(true);
     cleanShell.querySelector('[data-pdf-flow-items]').replaceChildren();
     container.replaceChildren();
@@ -155,6 +272,14 @@ export function paginateMeasuredFlows({ safetyGapMm = 8, maxIterations = 1000 } 
     let iterations = 0;
     const seenTitles = new Set();
 
+    function flowItemCount(target) {
+      return [...target.children].filter(child => !child.hasAttribute('data-pdf-repeat-on-page')).length;
+    }
+
+    function seedRepeatedContent(target) {
+      repeatTemplates.forEach(template => target.append(template.cloneNode(true)));
+    }
+
     const queue = [...items];
     while (queue.length) {
       const item = queue.shift();
@@ -162,16 +287,17 @@ export function paginateMeasuredFlows({ safetyGapMm = 8, maxIterations = 1000 } 
         throw new Error('Measured pagination exceeded its iteration limit.');
       }
       let target = current.querySelector('[data-pdf-flow-items]');
-      if (!target.children.length) {
+      if (!flowItemCount(target)) {
         const title = item.dataset.pageTitle || '';
         configurePage(current, item, seenTitles.has(title));
         seenTitles.add(title);
+        if (!target.querySelector('[data-pdf-repeat-on-page]')) seedRepeatedContent(target);
       }
       target.append(item);
       if (fits(current)) continue;
 
       item.remove();
-      if (target.children.length) {
+      if (flowItemCount(target)) {
         const next = cleanShell.cloneNode(true);
         preparePage(next, flowName);
         current.after(next);
