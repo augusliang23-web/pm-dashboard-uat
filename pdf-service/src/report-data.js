@@ -1,4 +1,8 @@
-import { authorizeReportAccess, ReportAccessError } from './report-access.js';
+import {
+  authorizeExecutiveAudienceView,
+  authorizeReportAccess,
+  ReportAccessError
+} from './report-access.js';
 
 export class ReportDataError extends Error {
   constructor(message, statusCode = 404) {
@@ -49,13 +53,17 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
         .filter(item => access.role !== 'vip' || item.isReleased === true)
         .slice(-6);
     }
-    return {
+    const report = {
       access,
       week,
       trendWeeks,
       sections: request.sections,
       overviewScope: request.overviewScope || 'system'
     };
+    if (request.sections.includes('executive-milestones')) {
+      report.executiveAudienceView = authorizeExecutiveAudienceView(access.role, request.executiveAudienceView);
+    }
+    return report;
   }
 
   const project = (week.projects || []).find(item => item?.code === request.projectCode);

@@ -1068,6 +1068,9 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .print-section-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .print-section-grid label { display:flex; align-items:center; gap:8px; padding:10px 11px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text-light); font-size:11px; font-weight:750; cursor:pointer; }
 .print-section-grid input { accent-color:var(--accent); }
+.print-audience-field { margin-top:10px; padding:10px 11px; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
+.print-audience-field label { display:block; margin-bottom:6px; color:var(--text); font-size:11px; font-weight:750; }
+.print-audience-field select { width:100%; }
 .card-extra-signals { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
 .card-signal { background:var(--s2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
 .card-signal-label { font-size:9px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
@@ -1883,10 +1886,21 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <label><input type="checkbox" value="executive-summary" checked> Executive summary</label>
         <label><input type="checkbox" value="attention-matrix" checked> Attention matrix</label>
         <label><input type="checkbox" value="risk-actions" checked> Risk actions</label>
+        <label><input type="checkbox" value="executive-milestones" checked onchange="syncExecutiveMilestoneAudienceField()"> Executive milestones</label>
         <label><input type="checkbox" value="quarterly-roadmap" checked> Quarterly roadmap</label>
         <label><input type="checkbox" value="project-portfolio" checked> Project portfolio</label>
         <label><input type="checkbox" value="resource-analytics" checked> Resource analytics</label>
         <label><input type="checkbox" value="budget-overview" checked> Budget overview</label>
+      </div>
+      <div class="print-audience-field" id="executiveMilestoneAudienceField">
+        <label for="executiveMilestoneAudienceView">Executive milestone visibility</label>
+        <select class="fs" id="executiveMilestoneAudienceView">
+          <option value="leadership">Leadership only</option>
+          <option value="all-working-team">All working teams</option>
+          <option value="pm-engineering">PM &amp; Engineering</option>
+          <option value="business-product">Business &amp; Product</option>
+          <option value="everyone">Everyone</option>
+        </select>
       </div>
       <div class="resource-validation" id="overviewPrintValidation"></div>
     </div>
@@ -7684,9 +7698,9 @@ window.toggleOverview = () => {
 };
 
 const OVERVIEW_PRINT_PRESETS = {
-  all: ['health-focus', 'weekly-trend', 'executive-summary', 'attention-matrix', 'risk-actions', 'quarterly-roadmap', 'project-portfolio', 'resource-analytics', 'budget-overview'],
+  all: ['health-focus', 'weekly-trend', 'executive-summary', 'attention-matrix', 'risk-actions', 'executive-milestones', 'quarterly-roadmap', 'project-portfolio', 'resource-analytics', 'budget-overview'],
   executive: ['health-focus', 'weekly-trend', 'executive-summary', 'attention-matrix', 'risk-actions'],
-  roadmap: ['quarterly-roadmap', 'project-portfolio'],
+  roadmap: ['executive-milestones', 'quarterly-roadmap', 'project-portfolio'],
   resource: ['resource-analytics'],
   budget: ['budget-overview'],
 };
@@ -7697,6 +7711,7 @@ const OVERVIEW_REPORT_TITLES = {
   'executive-summary': 'Executive Summary',
   'attention-matrix': 'Attention Matrix',
   'risk-actions': 'Risk Actions',
+  'executive-milestones': 'Executive Milestones',
   'quarterly-roadmap': 'Portfolio Roadmap',
   'resource-analytics': 'Resource Analytics',
   'budget-overview': 'Budget Overview',
@@ -7813,6 +7828,7 @@ window.applyOverviewPrintPreset = preset => {
   document.querySelectorAll('#overviewPrintSections input[type="checkbox"]').forEach(input => {
     input.checked = selected.has(input.value);
   });
+  syncExecutiveMilestoneAudienceField();
   const validation = document.getElementById('overviewPrintValidation');
   if (validation) {
     validation.className = 'resource-validation';
@@ -7820,8 +7836,35 @@ window.applyOverviewPrintPreset = preset => {
   }
 };
 
+const EXECUTIVE_PDF_VIEWS_BY_ROLE = {
+  admin: ['leadership', 'all-working-team', 'pm-engineering', 'business-product', 'everyone'],
+  vip: ['leadership', 'all-working-team', 'pm-engineering', 'business-product', 'everyone'],
+  pm: ['pm-engineering', 'all-working-team', 'everyone'],
+  engineering: ['pm-engineering', 'all-working-team', 'everyone'],
+  business: ['business-product', 'all-working-team', 'everyone'],
+  product: ['business-product', 'all-working-team', 'everyone'],
+};
+
+window.syncExecutiveMilestoneAudienceField = () => {
+  const checkbox = document.querySelector('#overviewPrintSections input[value="executive-milestones"]');
+  const wrapper = document.getElementById('executiveMilestoneAudienceField');
+  if (wrapper) wrapper.hidden = !checkbox?.checked;
+};
+
+function configureExecutiveMilestoneAudienceView() {
+  const select = document.getElementById('executiveMilestoneAudienceView');
+  if (!select) return;
+  const allowed = EXECUTIVE_PDF_VIEWS_BY_ROLE[normalizeRole(currentRole)] || ['everyone'];
+  [...select.options].forEach(option => {
+    option.disabled = !allowed.includes(option.value);
+  });
+  select.value = allowed[0];
+  syncExecutiveMilestoneAudienceField();
+}
+
 window.openOverviewPrintDialog = () => {
   applyOverviewPrintPreset('all');
+  configureExecutiveMilestoneAudienceView();
   openAccessibleModal(document.getElementById('overviewPrintOverlay'));
 };
 
@@ -7834,10 +7877,15 @@ window.confirmOverviewPrint = async () => {
     return;
   }
   const selected = checked.map(input => input.value);
+  const executiveAudienceView = selected.includes('executive-milestones')
+    ? document.getElementById('executiveMilestoneAudienceView')?.value
+    : undefined;
   const button = document.getElementById('overviewPdfExportButton');
   button.disabled = true;
   button.setAttribute('aria-busy', 'true');
-  const downloaded = await downloadProfessionalReport({ mode: 'overview', sections: selected, overviewScope }, `overview-${allWeeks[currentIdx]?.weekLabel || 'report'}.pdf`, validation);
+  const request = { mode: 'overview', sections: selected, overviewScope };
+  if (executiveAudienceView) request.executiveAudienceView = executiveAudienceView;
+  const downloaded = await downloadProfessionalReport(request, `overview-${allWeeks[currentIdx]?.weekLabel || 'report'}.pdf`, validation);
   button.disabled = false;
   button.removeAttribute('aria-busy');
   if (downloaded) closeModal('overviewPrintOverlay');

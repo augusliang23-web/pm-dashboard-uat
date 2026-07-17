@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ReportAccessError, authorizeReportAccess } from '../src/report-access.js';
+import {
+  ReportAccessError,
+  authorizeExecutiveAudienceView,
+  authorizeReportAccess
+} from '../src/report-access.js';
 
 test('rejects VIP access to an unreleased reporting week', () => {
   assert.throws(
@@ -16,4 +20,14 @@ test('accepts a released week and normalizes known dashboard roles', () => {
     { mode: 'overview' }
   );
   assert.deepEqual(access, { email: 'pm@example.com', role: 'engineering' });
+});
+
+test('limits Executive milestone views to the authenticated role', () => {
+  assert.equal(authorizeExecutiveAudienceView('vip', 'leadership'), 'leadership');
+  assert.equal(authorizeExecutiveAudienceView('pm'), 'pm-engineering');
+  assert.equal(authorizeExecutiveAudienceView('business', 'everyone'), 'everyone');
+  assert.throws(
+    () => authorizeExecutiveAudienceView('engineering', 'business-product'),
+    error => error instanceof ReportAccessError && error.statusCode === 403
+  );
 });

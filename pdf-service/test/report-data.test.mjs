@@ -81,3 +81,21 @@ test('uses ganttWorkstreams when deciding whether a Gantt section is reportable'
 
   assert.deepEqual(report.sections, ['gantt']);
 });
+
+test('propagates the authorized Executive milestone audience view', async () => {
+  const report = await loadAuthorizedReport({
+    request: {
+      mode: 'overview',
+      weekId: 'W28',
+      sections: ['executive-milestones'],
+      executiveAudienceView: 'business-product'
+    },
+    idToken: 'business@example.com',
+    adapters: {
+      ...adapters,
+      getUserByEmail: async () => ({ role: 'business' })
+    }
+  });
+
+  assert.equal(report.executiveAudienceView, 'business-product');
+});

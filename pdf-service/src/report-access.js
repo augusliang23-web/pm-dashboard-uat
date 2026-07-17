@@ -1,5 +1,14 @@
 const ROLES = new Set(['admin', 'pm', 'vip', 'engineering', 'business', 'product']);
 
+const EXECUTIVE_VIEWS_BY_ROLE = {
+  admin: ['leadership', 'all-working-team', 'pm-engineering', 'business-product', 'everyone'],
+  vip: ['leadership', 'all-working-team', 'pm-engineering', 'business-product', 'everyone'],
+  pm: ['pm-engineering', 'all-working-team', 'everyone'],
+  engineering: ['pm-engineering', 'all-working-team', 'everyone'],
+  business: ['business-product', 'all-working-team', 'everyone'],
+  product: ['business-product', 'all-working-team', 'everyone']
+};
+
 export class ReportAccessError extends Error {
   constructor(message, statusCode = 403) {
     super(message);
@@ -21,4 +30,14 @@ export function authorizeReportAccess(identity, week) {
     throw new ReportAccessError('VIP reports are available only for released weeks.');
   }
   return { email, role };
+}
+
+export function authorizeExecutiveAudienceView(role, requestedView) {
+  const normalizedRole = normalizeDashboardRole(role);
+  const allowedViews = EXECUTIVE_VIEWS_BY_ROLE[normalizedRole];
+  const selectedView = requestedView === undefined ? allowedViews[0] : String(requestedView).trim();
+  if (!allowedViews.includes(selectedView)) {
+    throw new ReportAccessError('The selected Executive milestone view is not available for this role.');
+  }
+  return selectedView;
 }

@@ -51,3 +51,31 @@ test('requires a project code for project reports and a nonempty section list', 
     /At least one report section is required/
   );
 });
+
+test('accepts an Executive milestone audience view only with that section', () => {
+  assert.deepEqual(parseReportRequest({
+    mode: 'overview',
+    weekId: 'W28',
+    sections: ['executive-milestones', 'quarterly-roadmap'],
+    executiveAudienceView: 'business-product'
+  }), {
+    mode: 'overview',
+    weekId: 'W28',
+    sections: ['executive-milestones', 'quarterly-roadmap'],
+    executiveAudienceView: 'business-product'
+  });
+
+  assert.throws(() => parseReportRequest({
+    mode: 'overview',
+    weekId: 'W28',
+    sections: ['quarterly-roadmap'],
+    executiveAudienceView: 'leadership'
+  }), /requires the Executive milestones section/);
+
+  assert.throws(() => parseReportRequest({
+    mode: 'overview',
+    weekId: 'W28',
+    sections: ['executive-milestones'],
+    executiveAudienceView: 'unrestricted'
+  }), /Unsupported executiveAudienceView/);
+});

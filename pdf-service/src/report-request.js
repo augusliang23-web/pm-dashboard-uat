@@ -14,10 +14,19 @@ const OVERVIEW_SECTIONS = new Set([
   'executive-summary',
   'attention-matrix',
   'risk-actions',
+  'executive-milestones',
   'quarterly-roadmap',
   'project-portfolio',
   'resource-analytics',
   'budget-overview'
+]);
+
+const EXECUTIVE_AUDIENCE_VIEWS = new Set([
+  'leadership',
+  'all-working-team',
+  'pm-engineering',
+  'business-product',
+  'everyone'
 ]);
 
 export class ReportRequestError extends Error {
@@ -46,7 +55,7 @@ export function parseReportRequest(input) {
 
   const allowedFields = new Set(mode === 'project'
     ? ['mode', 'weekId', 'projectCode', 'sections']
-    : ['mode', 'weekId', 'sections', 'overviewScope']);
+    : ['mode', 'weekId', 'sections', 'overviewScope', 'executiveAudienceView']);
   for (const field of Object.keys(input)) {
     if (!allowedFields.has(field)) {
       throw new ReportRequestError(`Unexpected report request field: ${field}.`);
@@ -79,6 +88,16 @@ export function parseReportRequest(input) {
       throw new ReportRequestError(`Unsupported overviewScope: ${overviewScope}.`);
     }
     request.overviewScope = overviewScope;
+  }
+  if (mode === 'overview' && input.executiveAudienceView !== undefined) {
+    if (!sections.includes('executive-milestones')) {
+      throw new ReportRequestError('executiveAudienceView requires the Executive milestones section.');
+    }
+    const executiveAudienceView = requiredText(input.executiveAudienceView, 'executiveAudienceView');
+    if (!EXECUTIVE_AUDIENCE_VIEWS.has(executiveAudienceView)) {
+      throw new ReportRequestError(`Unsupported executiveAudienceView: ${executiveAudienceView}.`);
+    }
+    request.executiveAudienceView = executiveAudienceView;
   }
   return request;
 }

@@ -57,3 +57,11 @@ test('v2.0T strategy save commits a clone after confirmation', () => {
   assert.match(testVersion, /const savedWeek = await confirmWeekMutation\(/);
   assert.match(testVersion, /allWeeks\[currentIdx\] = savedWeek/);
 });
+
+test('Overview PDF picker wires Executive milestones before Quarterly Roadmap', () => {
+  assert.ok(
+    production.indexOf('value="executive-milestones"') < production.indexOf('value="quarterly-roadmap"')
+  );
+  assert.match(production, /id="executiveMilestoneAudienceView"/);
+  assert.match(production, /executiveAudienceView/);
+});
