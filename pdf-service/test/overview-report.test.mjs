@@ -96,10 +96,9 @@ test('renders permitted Executive milestones as a measured flow before Quarterly
 
   assert.match(html, /data-measured-flow="executive-milestones"/);
   assert.match(html, /2026 Executive Timeline/);
-  assert.match(html, /Shared delivery/);
-  assert.match(html, /Engineering/);
-  assert.match(html, /Public/);
-  assert.doesNotMatch(html, /Commercial Q3|Leadership Q4/);
+  assert.match(html, /IoE Product Portfolio/);
+  assert.match(html, /Engineering Q2/);
+  assert.doesNotMatch(html, /Customer Q3|Investor Q4/);
   assert.doesNotMatch(html, /Â/);
   assert.ok(html.indexOf('data-section-unit="executive-milestones"') < html.indexOf('data-section-unit="quarterly-roadmap"'));
 });

@@ -50,7 +50,7 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
       const history = await adapters.getTrendWeeks(week);
       trendWeeks = (Array.isArray(history) ? history : [])
         .filter(item => item && typeof item === 'object')
-        .filter(item => access.role !== 'vip' || item.isReleased === true)
+        .filter(item => access.role !== 'executive' || item.isReleased === true)
         .slice(-6);
     }
     const report = {

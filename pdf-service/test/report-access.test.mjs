@@ -6,9 +6,9 @@ import {
   authorizeReportAccess
 } from '../src/report-access.js';
 
-test('rejects VIP access to an unreleased reporting week', () => {
+test('rejects Executive Owner access to an unreleased reporting week', () => {
   assert.throws(
-    () => authorizeReportAccess({ email: 'vip@example.com', role: 'vip' }, { isReleased: false }, { mode: 'overview' }),
+    () => authorizeReportAccess({ email: 'owner@example.com', role: 'executive' }, { isReleased: false }, { mode: 'overview' }),
     ReportAccessError
   );
 });
@@ -23,12 +23,13 @@ test('accepts a released week and normalizes known dashboard roles', () => {
 });
 
 test('limits Executive milestone views to the authenticated role', () => {
-  assert.equal(authorizeExecutiveAudienceView('vip', 'leadership'), 'leadership');
+  assert.equal(authorizeExecutiveAudienceView('executive', 'leadership'), 'leadership');
   assert.equal(authorizeExecutiveAudienceView('pm'), 'pm-engineering');
-  assert.equal(authorizeExecutiveAudienceView('business', 'everyone'), 'everyone');
+  assert.equal(authorizeExecutiveAudienceView('sales', 'everyone'), 'everyone');
+  assert.equal(authorizeExecutiveAudienceView('bd', 'business-product'), 'business-product');
   assert.throws(
     () => authorizeExecutiveAudienceView('engineering', 'business-product'),
     error => error instanceof ReportAccessError && error.statusCode === 403
   );
-  assert.equal(authorizeExecutiveAudienceView('unknown-role'), 'everyone');
+  assert.throws(() => authorizeExecutiveAudienceView('unknown-role'), ReportAccessError);
 });

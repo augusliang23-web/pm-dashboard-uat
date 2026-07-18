@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ReportDataError, loadAuthorizedReport } from '../src/report-data.js';
+import { ReportAccessError } from '../src/report-access.js';
 
 const adapters = {
   verifyIdToken: async token => ({ email: token }),
-  getUserByEmail: async email => ({ role: email.startsWith('vip') ? 'vip' : 'pm' }),
+  getUserByEmail: async email => ({ role: email.startsWith('owner') ? 'executive' : 'pm' }),
   getWeekById: async () => ({
     weekLabel: 'W28 2026',
     isReleased: true,
@@ -90,22 +91,30 @@ test('propagates the authorized Executive milestone audience view', async () => 
       sections: ['executive-milestones'],
       executiveAudienceView: 'business-product'
     },
-    idToken: 'business@example.com',
+    idToken: 'sales@example.com',
     adapters: {
       ...adapters,
-      getUserByEmail: async () => ({ role: 'business' })
+      getUserByEmail: async () => ({ role: 'sales' })
     }
   });
 
   assert.equal(report.executiveAudienceView, 'business-product');
 });
 
-test('defaults an unknown stored role to the Everyone Executive milestone view', async () => {
-  const report = await loadAuthorizedReport({
+test('rejects an unknown stored role instead of widening Executive milestone access', async () => {
+  await assert.rejects(() => loadAuthorizedReport({
     request: { mode: 'overview', weekId: 'W28', sections: ['executive-milestones'] },
     idToken: 'unknown@example.com',
     adapters: { ...adapters, getUserByEmail: async () => ({ role: 'unknown-role' }) }
-  });
+  }), ReportAccessError);
+});
 
-  assert.equal(report.executiveAudienceView, 'everyone');
+test('does not read update-history collections for a historical week PDF', async () => {
+  let historyCalls = 0;
+  await loadAuthorizedReport({
+    request: { mode: 'overview', weekId: 'W28', sections: ['executive-milestones'] },
+    idToken: 'pm@example.com',
+    adapters: { ...adapters, getExecutiveMilestoneUpdates: async () => { historyCalls += 1; return []; } },
+  });
+  assert.equal(historyCalls, 0);
 });

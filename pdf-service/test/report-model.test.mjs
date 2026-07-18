@@ -109,19 +109,19 @@ test('filters Executive milestones for each authorized audience view', () => {
   }).executiveMilestones.rows.map(row => row.label);
 
   assert.deepEqual(labelsFor('leadership'), [
-    'Shared delivery', 'Engineering', 'Commercial', 'Leadership', 'Public'
+    'IoE Product Portfolio', 'Customer Engagements', 'Investors & Strategy'
   ]);
-  assert.deepEqual(labelsFor('pm-engineering'), ['Shared delivery', 'Engineering', 'Public']);
-  assert.deepEqual(labelsFor('business-product'), ['Shared delivery', 'Commercial', 'Public']);
-  assert.deepEqual(labelsFor('all-working-team'), ['Shared delivery', 'Public']);
-  assert.deepEqual(labelsFor('everyone'), ['Public']);
+  assert.deepEqual(labelsFor('pm-engineering'), ['IoE Product Portfolio']);
+  assert.deepEqual(labelsFor('business-product'), ['IoE Product Portfolio', 'Customer Engagements', 'Investors & Strategy']);
+  assert.deepEqual(labelsFor('all-working-team'), ['IoE Product Portfolio']);
+  assert.deepEqual(labelsFor('everyone'), ['IoE Product Portfolio']);
 });
 
 test('normalizes Executive milestone outcomes to display text only', () => {
   const fixture = completeOverviewReportFixture();
   const model = buildOverviewReportModel({ ...fixture, executiveAudienceView: 'leadership' });
-  const engineering = model.executiveMilestones.rows.find(row => row.label === 'Engineering');
+  const engineering = model.executiveMilestones.rows.find(row => row.label === 'IoE Product Portfolio');
 
-  assert.deepEqual(engineering.cells, [[], ['Engineering Q2'], [], []]);
+  assert.deepEqual(engineering.cells, [['Architecture Q1'], ['Engineering Q2'], [], []]);
   assert.equal(JSON.stringify(model.executiveMilestones).includes('Hidden evidence'), false);
 });
