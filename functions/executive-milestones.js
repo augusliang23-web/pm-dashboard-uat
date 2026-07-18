@@ -29,7 +29,7 @@ async function getActor(transaction, request) {
   if (!userSnapshot.exists || userSnapshot.data().active === false) {
     throw new HttpsError('permission-denied', 'The dashboard account is not active.');
   }
-  const role = normalizeRole(userSnapshot.data().role, { allowVipBridge: true });
+  const role = normalizeRole(userSnapshot.data().role);
   if (!role) throw new HttpsError('permission-denied', 'The dashboard role is not authorized.');
   return { email, role, uid: request.auth.uid, userRef };
 }
@@ -49,9 +49,10 @@ async function readWeek(transaction, weekRef) {
   return { ...snapshot.data(), weekId: snapshot.id };
 }
 
-function updateTimeline(transaction, weekRef, week) {
+function updateTimeline(transaction, weekRef, week, actorEmail) {
   transaction.update(weekRef, {
     'strategyLayer.executiveMilestoneTimeline': week.strategyLayer.executiveMilestoneTimeline,
+    lastModifiedBy: actorEmail,
   });
 }
 
@@ -104,7 +105,7 @@ const addExecutiveMilestoneUpdate = onCall(CALLABLE_OPTIONS, async request => {
         actorEmail: actor.email,
         now: new Date().toISOString(),
       });
-      updateTimeline(transaction, weekRef, applied.week);
+      updateTimeline(transaction, weekRef, applied.week, actor.email);
       transaction.create(updateRef, { ...applied.updateRecord, updateId: updateRef.id });
       return applied;
     });
@@ -179,7 +180,7 @@ const decideExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async req
         decisionNote: request.data?.decisionNote,
         now,
       });
-      if (applied.request.state === 'applied' && !applied.alreadyApplied) updateTimeline(transaction, weekRef, applied.week);
+      if (applied.request.state === 'applied' && !applied.alreadyApplied) updateTimeline(transaction, weekRef, applied.week, actor.email);
       if (!applied.alreadyApplied) transaction.update(requestRef, applied.request);
       if (applied.audit) transaction.create(auditRef, { ...applied.audit, auditId: auditRef.id });
       return applied;
@@ -212,7 +213,7 @@ const applyDirectExecutiveMilestoneChange = onCall(CALLABLE_OPTIONS, async reque
         actorEmail: actor.email,
         now: new Date().toISOString(),
       });
-      updateTimeline(transaction, weekRef, applied.week);
+      updateTimeline(transaction, weekRef, applied.week, actor.email);
       transaction.create(auditRef, { ...applied.audit, auditId: auditRef.id });
       return applied;
     });
@@ -255,7 +256,10 @@ const setExecutiveRagOverride = onCall(CALLABLE_OPTIONS, async request => {
         actorRole: actor.role,
         updatedAt: new Date().toISOString(),
       };
-      transaction.update(weekRef, { 'strategyLayer.executiveMilestoneTimeline': timeline });
+      transaction.update(weekRef, {
+        'strategyLayer.executiveMilestoneTimeline': timeline,
+        lastModifiedBy: actor.email,
+      });
       const audit = {
         auditId: auditRef.id,
         action: replacementValue === null ? 'remove-rag-override' : 'set-rag-override',

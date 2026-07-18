@@ -26,6 +26,7 @@ test('authenticates from the token email and reloads the actor role in each tran
   assert.match(source, /transaction\.get\(userRef\)/);
   assert.match(source, /normalizeRole\(userSnapshot\.data\(\)\.role/);
   assert.match(source, /db\.runTransaction/g);
+  assert.doesNotMatch(source, /allowVipBridge:\s*true/);
 });
 
 test('keeps weekly snapshots and append-only records in atomic transactions', () => {
@@ -35,6 +36,7 @@ test('keeps weekly snapshots and append-only records in atomic transactions', ()
   assert.match(source, /executiveMilestoneChangeRequests/);
   assert.match(source, /executiveMilestoneAudit/);
   assert.match(source, /transaction\.update\(weekRef/);
+  assert.match(source, /lastModifiedBy:\s*actor(?:Email|\.email)/);
   assert.match(source, /transaction\.create\(updateRef/);
   assert.match(source, /transaction\.create\(requestRef/);
   assert.match(source, /transaction\.create\(auditRef/);

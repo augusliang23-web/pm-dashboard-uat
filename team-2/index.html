@@ -2570,10 +2570,6 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   <div class="modal-hdr"><h3>Strategic Layer Management</h3><button class="modal-x" onclick="closeModal('strategyOverlay')">×</button></div>
   <div class="strategy-modal-grid">
     <section class="strategy-section">
-      <div class="strategy-section-title">Executive Milestone Timeline</div>
-      <div id="quarterGoalEditor"></div>
-    </section>
-    <section class="strategy-section">
       <div class="strategy-section-title">Project Strategic Mapping</div>
       <div id="projectStrategyEditor"></div>
     </section>
@@ -2629,7 +2625,7 @@ import { getFirestore, collection, doc, onSnapshot, runTransaction, setDoc, upda
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { confirmWeekMutation, getWriteErrorMessage } from "../sync-core.js";
-import { getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline } from "../executive-timeline-core.js";
+import { getExecutiveTimelineCell } from "../executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "../week-carryover.mjs";
 import { downloadProfessionalPdf } from "../professional-pdf-client.mjs";
 
@@ -3023,7 +3019,7 @@ function getRoleVisibleProjectsForOverview(projects) {
   const visibilityFilter = document.getElementById('visSelect')?.value || 'active';
   return filterRoleVisibleProjects(projects, {
     role: currentRole,
-    vipPerspective: isExecutivePerspective(),
+    executivePerspective: isExecutivePerspective(),
     visibilityFilter
   });
 }
@@ -3178,14 +3174,14 @@ function getEmailKey(userOrEmail) {
 }
 
 function normalizeRole(role) {
-  return normalizeExecutiveRole(role, { allowVipBridge: true }) || 'pm';
+  return normalizeExecutiveRole(role) || '';
 }
 
 function getDashboardRole(userDoc) {
   if (!userDoc.exists()) {
     throw new Error('missing-dashboard-role');
   }
-  const role = normalizeExecutiveRole(userDoc.data().role, { allowVipBridge: true });
+  const role = normalizeExecutiveRole(userDoc.data().role);
   if (!role) throw new Error('missing-dashboard-role');
   return role;
 }
@@ -4181,7 +4177,8 @@ async function fetchDynamicPMList() {
     const pmSet = new Set();
     snap.forEach(d => { 
       // Only non-Executive Owner roles are included in the PM list.
-      if (normalizeRole(d.data().role) !== 'executive') {
+      const accountRole = normalizeRole(d.data().role);
+      if (accountRole && accountRole !== 'executive') {
         pmSet.add(getUserDisplayName(d.id)); 
       }
     });
@@ -5922,7 +5919,9 @@ function calculateExecutiveQuarterRag(timeline, catalog, quarterIndex, rows = ti
     }))),
     currentRole,
   ) || 'green';
-  return timeline.ragOverrides?.[`quarter:${quarterKey}`]?.replacementValue || calculated;
+  const canViewAllSections = EXECUTIVE_SECTIONS.every(section => canViewExecutiveSectionByRole(currentRole, section.sectionId));
+  const leadershipOverride = timeline.ragOverrides?.[`quarter:${quarterKey}`]?.replacementValue;
+  return canViewAllSections && leadershipOverride ? leadershipOverride : calculated;
 }
 
 function formatExecutiveUpdateDate(value) {
@@ -6157,7 +6156,7 @@ window.saveExecutiveItemUpdate = async () => {
       rag: validated.rag,
       statusText: validated.statusText,
     });
-    if (!isExecutiveUpdateSessionCurrent(session)) throw new Error('Your dashboard session changed before the update completed.');
+    if (!isExecutiveUpdateSessionCurrent(session, { requireVersion: false })) throw new Error('Your dashboard session changed before the update completed.');
     const refreshed = await getDoc(doc(db, 'weeks', session.weekId));
     if (!isExecutiveUpdateSessionCurrent(session, { requireVersion: false })) throw new Error('Your dashboard session changed before refresh completed.');
     if (refreshed.exists()) allWeeks[currentIdx] = { ...refreshed.data(), __documentId: refreshed.id };
@@ -6281,7 +6280,7 @@ async function refreshExecutivePendingCount() {
 
 function renderExecutiveApprovalInbox(records = []) {
   const list = document.getElementById('executiveApprovalInboxList');
-  const visible = currentRole === 'executive' ? records.filter(record => record.state === 'pending' || record.state === 'conflict') : records;
+  const visible = records;
   if (!visible.length) { list.innerHTML = '<div class="executive-history-empty">No change requests to review.</div>'; return; }
   list.innerHTML = visible.map(record => {
     const isConflict = record.state === 'conflict';
@@ -6295,7 +6294,7 @@ window.openExecutiveApprovalInbox = () => {
   if (executiveApprovalInboxUnsub) executiveApprovalInboxUnsub();
   document.getElementById('executiveApprovalInboxMode').textContent = currentRole === 'admin' ? 'Admin audit-only — Executive Owner makes approval decisions.' : 'Pending requests requiring Executive Owner decision.';
   openAccessibleModal(document.getElementById('executiveApprovalInboxOverlay'));
-  const inboxSource = currentRole === 'executive' ? query(collection(db, 'executiveMilestoneChangeRequests'), where('state', '==', 'pending')) : collection(db, 'executiveMilestoneChangeRequests');
+  const inboxSource = query(collection(db, 'executiveMilestoneChangeRequests'), orderBy('createdAt', 'desc'), limit(100));
   executiveApprovalInboxUnsub = onSnapshot(inboxSource, snapshot => {
     const records = snapshot.docs.map(entry => ({ ...entry.data(), requestId: entry.id })); records.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))); renderExecutiveApprovalInbox(records);
     const pending = records.filter(record => record.state === 'pending').length; const badge = document.getElementById('executivePendingCount'); badge.textContent = String(pending); badge.hidden = pending === 0;
@@ -7988,8 +7987,6 @@ window.openStrategyLayerModal = () => {
   const quarters = getStrategyYears(projs, layer, { includeNextYear: true }).flatMap(getQuarterLabelsForYear);
 
   currentExecutiveEvidenceCatalog = buildExecutiveEvidenceCatalog(projs);
-  document.getElementById('quarterGoalEditor').innerHTML = renderExecutiveMilestoneEditor(layer.executiveMilestoneTimeline);
-  document.querySelectorAll('.etm-outcome-mode').forEach(window.syncExecutiveOutcomeMode);
 
   const checkpointOptions = UNIVERSAL_CHECKPOINTS.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
   document.getElementById('projectStrategyEditor').innerHTML = projs.map(p => {
@@ -8010,12 +8007,7 @@ window.openStrategyLayerModal = () => {
 
 window.openExecutiveTimelineEditor = () => {
   if (!canManageStrategy()) return;
-  openStrategyLayerModal();
-  requestAnimationFrame(() => {
-    const editor = document.getElementById('quarterGoalEditor');
-    editor?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    editor?.querySelector('.etm-title')?.focus();
-  });
+  window.openExecutiveChangeRequest('');
 };
 
 window.addQuarterExecutiveGoalRow = (quarter, goal = {}, layer = getStrategyLayer()) => {
@@ -8049,11 +8041,6 @@ window.saveStrategyLayer = async () => {
   }
   showLoader("Saving Strategy Layer...");
   try {
-    const base = getStrategyLayer(week);
-    const executiveMilestoneTimeline = serializeExecutiveMilestoneTimeline(
-      collectExecutiveMilestoneTimeline(),
-      base.executiveMilestoneTimeline
-    );
     const projectMap = {};
     document.querySelectorAll('.project-map-row').forEach(row => {
       const code = row.dataset.code || '';
@@ -8063,13 +8050,7 @@ window.saveStrategyLayer = async () => {
         projectMap[code] = { businessObjective, checkpoint };
       }
     });
-    const strategyLayer = {
-      activeTrack: 'all',
-      tracks: base.tracks || STRATEGIC_TRACKS,
-      quarterGoals: base.quarterGoals || {},
-      executiveMilestoneTimeline,
-      projectMap
-    };
+    const strategyLayer = { ...(week.strategyLayer || {}), projectMap };
     const savedWeek = await confirmWeekMutation(
       week,
       { strategyLayer, lastModifiedBy: currentUser.email },

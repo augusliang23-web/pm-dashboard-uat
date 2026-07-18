@@ -22,10 +22,10 @@ test('v2.0 strategy save commits a clone after confirmation', () => {
   assert.match(production, /allWeeks\[currentIdx\] = savedWeek/);
 });
 
-test('v2.1 serializes executive timeline cells for Firestore without discarding saved outcome metadata', () => {
+test('v2.2T keeps Executive timeline cells out of the legacy strategy save path', () => {
   assert.match(
     production,
-    /import \{ getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline \} from "\.\/executive-timeline-core\.js"/
+    /import \{ getExecutiveTimelineCell \} from "\.\/executive-timeline-core\.js"/
   );
   assert.match(
     production,
@@ -33,11 +33,11 @@ test('v2.1 serializes executive timeline cells for Firestore without discarding 
   );
   assert.match(
     production,
-    /serializeExecutiveMilestoneTimeline\(\s*collectExecutiveMilestoneTimeline\(\),\s*base\.executiveMilestoneTimeline\s*\)/
+    /const strategyLayer = \{\s*\.\.\.\(week\.strategyLayer \|\| \{\}\),\s*projectMap\s*\}/
   );
   assert.match(
     testVersion,
-    /serializeExecutiveMilestoneTimeline\(\s*collectExecutiveMilestoneTimeline\(\),\s*base\.executiveMilestoneTimeline\s*\)/
+    /const strategyLayer = \{\s*\.\.\.\(week\.strategyLayer \|\| \{\}\),\s*projectMap\s*\}/
   );
 });
 

@@ -179,6 +179,21 @@ test('marks a stale approval conflict without overwriting the week', () => {
   assert.deepEqual(result.week, changed);
 });
 
+test('marks an approval conflict when its target was deleted', () => {
+  const request = createChangeRequest(fixtureWeek(), {
+    role: 'sales', requesterEmail: 'sales@example.com', itemId: 'exec-3', expectedVersion: 4,
+    changeType: 'rename', after: { item: { text: 'Updated board review' } }, reason: 'Clarify',
+  });
+  const changed = fixtureWeek();
+  changed.strategyLayer.executiveMilestoneTimeline.rows[2].cells.q3 = [];
+  const result = applyApprovedRequest(changed, request, {
+    role: 'executive', actorEmail: 'owner@example.com',
+  });
+  assert.equal(result.request.state, 'conflict');
+  assert.match(result.request.conflictReason, /not found/i);
+  assert.deepEqual(result.week, changed);
+});
+
 test('requires Admin or Executive and an audit reason for direct changes', () => {
   const input = {
     role: 'admin', actorEmail: 'admin@example.com', itemId: 'exec-1', expectedVersion: 2,

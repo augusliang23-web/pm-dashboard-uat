@@ -55,6 +55,8 @@ test("clients cannot change an existing Executive timeline directly", async () =
   assert.match(rules, /resource\.data\.get\('strategyLayer'/);
   assert.match(rules, /allow update:\s*if isSignedIn\(\)\s*&&\s*executiveTimelineUnchanged\(\)/);
   assert.match(rules, /allow delete:\s*if false/);
+  assert.match(rules, /allow create:\s*if isAdmin\(\)/);
+  assert.doesNotMatch(rules, /allow read, create:\s*if isSignedIn\(\)/);
 });
 
 test("Executive append-only collections are role-readable and client read-only", async () => {

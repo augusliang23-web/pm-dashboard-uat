@@ -63,20 +63,20 @@ test('serializes executive outcome evidence as Firestore-safe keyed maps', () =>
   });
 });
 
-test('v2.0T wires guarded release and Firestore-safe timeline saves', () => {
+test('v2.2T wires guarded release and preserves the stored Executive timeline', () => {
   assert.match(
     source,
     /import \{ confirmWeekMutation, getWriteErrorMessage \} from "\.\.\/sync-core\.js"/
   );
   assert.match(
     source,
-    /import \{ getExecutiveTimelineCell, serializeExecutiveMilestoneTimeline \} from "\.\.\/executive-timeline-core\.js"/
+    /import \{ getExecutiveTimelineCell \} from "\.\.\/executive-timeline-core\.js"/
   );
   assert.match(source, /const savedWeek = await confirmWeekMutation\(/);
   assert.match(source, /await updateDoc\(doc\(db, "weeks", id\), \{/);
   assert.match(
     source,
-    /serializeExecutiveMilestoneTimeline\(\s*collectExecutiveMilestoneTimeline\(\),\s*base\.executiveMilestoneTimeline\s*\)/
+    /const strategyLayer = \{\s*\.\.\.\(week\.strategyLayer \|\| \{\}\),\s*projectMap\s*\}/
   );
   assert.match(
     source,

@@ -36,7 +36,8 @@ service cloud.firestore {
     }
 
     match /weeks/{weekId} {
-      allow read, create: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isAdmin();
       allow update: if isSignedIn() && executiveTimelineUnchanged();
       allow delete: if false;
     }

@@ -56,7 +56,7 @@ test('attention update rejects released weeks, invalid values, and unauthorized 
   );
   assert.throws(
     () => applyProjectAttentionUpdate(base, {
-      projectCode: 'SYS-1', attention: 'action', role: 'vip',
+      projectCode: 'SYS-1', attention: 'action', role: 'unknown',
     }),
     error => error.code === 'edit-forbidden',
   );

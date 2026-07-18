@@ -72,6 +72,7 @@ test('drawer guards auth identity and renders append-only history newest first',
     assert.match(dashboard, /canUpdateExecutiveSection\(currentRole/);
     assert.match(dashboard, /executive-drawer-read-only/);
     assert.match(dashboard, /@media \(max-width: 760px\)/);
+    assert.match(dashboard, /await executiveApi\.addUpdate\([\s\S]*?isExecutiveUpdateSessionCurrent\(session, \{ requireVersion: false \}\)/);
   }
 });
 
@@ -101,6 +102,7 @@ test('Executive Owner inbox supports approve, reject, conflict, and Admin audit-
     assert.match(dashboard, /state === 'conflict'/);
     assert.match(dashboard, /currentRole === 'executive'/);
     assert.match(dashboard, /Admin audit-only/);
+    assert.match(dashboard, /orderBy\('createdAt', 'desc'\),\s*limit\(100\)/);
     assert.doesNotMatch(dashboard, /executiveApprovalEmail|approvalMailbox|sendApprovalEmail/);
   }
 });
@@ -112,5 +114,22 @@ test('Admin and Executive Owner can set or remove audited summary RAG overrides'
     assert.match(dashboard, /id="executiveRagOverrideReason"/);
     assert.match(dashboard, /executiveApi\.setRagOverride/);
     assert.match(dashboard, /Remove override/);
+    assert.match(dashboard, /const canViewAllSections = EXECUTIVE_SECTIONS\.every\([\s\S]{0,240}?leadershipOverride/);
+  }
+});
+
+test('legacy strategy save cannot rewrite the Executive timeline', () => {
+  for (const dashboard of dashboards) {
+    assert.doesNotMatch(dashboard, /renderExecutiveMilestoneEditor\(layer\.executiveMilestoneTimeline\)/);
+    assert.doesNotMatch(dashboard, /const executiveMilestoneTimeline = serializeExecutiveMilestoneTimeline\(\s*collectExecutiveMilestoneTimeline\(\)/);
+    assert.match(dashboard, /const strategyLayer = \{\s*\.\.\.\(week\.strategyLayer \|\| \{\}\),\s*projectMap\s*\}/);
+  }
+});
+
+test('production dashboards use final role names without a VIP runtime bridge', () => {
+  for (const dashboard of dashboards) {
+    assert.doesNotMatch(dashboard, /allowVipBridge:\s*true/);
+    assert.doesNotMatch(dashboard, /vipPerspective/);
+    assert.match(dashboard, /executivePerspective/);
   }
 });

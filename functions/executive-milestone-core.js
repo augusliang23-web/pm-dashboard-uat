@@ -416,7 +416,7 @@ function applyApprovedRequest(week, request = {}, decision = {}) {
       },
     };
   } catch (error) {
-    if (error.code !== 'aborted' && error.code !== 'already-exists') throw error;
+    if (!['aborted', 'already-exists', 'not-found'].includes(error.code)) throw error;
     nextRequest.state = 'conflict';
     nextRequest.updatedAt = now;
     nextRequest.decidedAt = now;
