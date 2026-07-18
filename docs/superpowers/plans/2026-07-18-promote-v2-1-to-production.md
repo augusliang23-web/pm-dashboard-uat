@@ -64,11 +64,11 @@ Run inside `.worktrees/v2.1-release`:
 
 ```powershell
 git merge-base --is-ancestor origin/main HEAD
-git diff --check origin/main...HEAD
+git diff --check 52c218160949f9a1c6ca54ea13e513381931ae62..HEAD
 git status --short --untracked-files=no
 ```
 
-Expected: ancestry and diff checks exit `0`; there are no tracked uncommitted changes. Known ignored or pre-existing untracked development artifacts are not part of the candidate tree.
+Expected: ancestry and promotion-doc diff checks exit `0`; there are no tracked uncommitted changes. The previously published v2.1 history has known whitespace-only warnings in older files, so the check is scoped to commits added after the approved functional release `52c2181`. Known pre-existing untracked development artifacts are not part of the candidate tree.
 
 ### Task 2: Verify the exact production candidate
 
@@ -129,11 +129,11 @@ Run:
 ```powershell
 git fetch origin
 git merge-base --is-ancestor origin/main HEAD
-git diff --check origin/main...HEAD
+git diff --check 52c218160949f9a1c6ca54ea13e513381931ae62..HEAD
 git status --short --untracked-files=no
 ```
 
-Expected: `origin/main` is still an ancestor, the diff check exits `0`, and there are no tracked uncommitted changes.
+Expected: `origin/main` is still an ancestor, the promotion-doc diff check exits `0`, and there are no tracked uncommitted changes.
 
 ### Task 3: Publish the fast-forward release
 
