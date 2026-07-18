@@ -14,7 +14,7 @@ Promote the fully tested v2.1 dashboard currently published from `v21/main` to t
 
 ## Promotion Design
 
-Create an isolated release worktree from the latest `origin/main`, fast-forward it to the approved v2.1 release history, and verify the merged result before publishing. Push the verified release commit to `origin/main` using a non-force push.
+Use the existing isolated `v2.1-release` worktree, verify that the latest `origin/main` remains its ancestor, and verify the complete candidate before publishing. Push the verified release commit to `origin/main` using a non-force push.
 
 The promotion includes the complete v2.1 release history rather than cherry-picking only the latest list-editor commits. This preserves all features and dependencies that were tested together on the v2.1 site, including the structured PM list editor, responsive Risk/Action inputs, paired Single Project preview, PDF updates, security fixes, and earlier v2.1 improvements.
 

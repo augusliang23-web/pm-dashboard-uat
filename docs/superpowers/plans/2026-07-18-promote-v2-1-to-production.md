@@ -4,7 +4,7 @@
 
 **Goal:** Fast-forward the original PM production dashboard from v2.0 to the complete tested v2.1 release and verify the deployed production URL.
 
-**Architecture:** Use an isolated Git worktree based on the latest `origin/main`, then perform a fast-forward-only merge from `codex/v2.1-release`. Verify the exact promoted commit locally, push it to `origin/main` without force, and validate both the GitHub Pages workflow and live production page.
+**Architecture:** Reuse the existing isolated Git worktree on `codex/v2.1-release`, verify that the latest `origin/main` is its ancestor, and treat its exact head as the production candidate. Verify the candidate locally, push it to `origin/main` without force, and validate both the GitHub Pages workflow and live production page.
 
 **Tech Stack:** Git, PowerShell, Node.js test runner, npm, GitHub Pages, browser-based deployment verification
 
@@ -19,7 +19,7 @@
 
 ---
 
-### Task 1: Create the isolated production promotion worktree
+### Task 1: Verify the isolated production promotion worktree
 
 **Files:**
 - Reference: `docs/superpowers/specs/2026-07-18-promote-v2-1-to-production-design.md`
@@ -27,7 +27,7 @@
 
 **Interfaces:**
 - Consumes: `origin/main`, `codex/v2.1-release`, Git worktree metadata
-- Produces: clean named branch `codex/v2.1-production-promotion` in `.worktrees/v2.1-production-promotion`
+- Produces: verified clean candidate on `codex/v2.1-release` in `.worktrees/v2.1-release`
 
 - [ ] **Step 1: Fetch both release remotes and verify ancestry**
 
@@ -43,28 +43,32 @@ git rev-parse codex/v2.1-release
 
 Expected: every command exits `0`; `origin/main` remains an ancestor of `codex/v2.1-release`.
 
-- [ ] **Step 2: Create an isolated worktree from production**
+- [ ] **Step 2: Verify the existing isolated release worktree**
 
-Run from the repository root:
+Run inside `.worktrees/v2.1-release`:
 
 ```powershell
-git worktree add .worktrees/v2.1-production-promotion -b codex/v2.1-production-promotion origin/main
+$gitDir = git rev-parse --git-dir
+$gitCommon = git rev-parse --git-common-dir
+$branch = git branch --show-current
+"GIT_DIR=$gitDir"
+"GIT_COMMON=$gitCommon"
+"BRANCH=$branch"
 ```
 
-Expected: Git creates the named branch and worktree without modifying the dirty primary workspace.
+Expected: `GIT_DIR` and `GIT_COMMON` differ and the branch is `codex/v2.1-release`, proving the candidate is already isolated from the dirty primary workspace.
 
-- [ ] **Step 3: Fast-forward the isolated branch to the approved release**
+- [ ] **Step 3: Verify the isolated branch is the approved release candidate**
 
-Run inside `.worktrees/v2.1-production-promotion`:
+Run inside `.worktrees/v2.1-release`:
 
 ```powershell
-git merge --ff-only codex/v2.1-release
 git merge-base --is-ancestor origin/main HEAD
 git diff --check origin/main...HEAD
-git status --short
+git status --short --untracked-files=no
 ```
 
-Expected: the merge is a fast-forward; ancestry and diff checks exit `0`; there are no tracked uncommitted changes.
+Expected: ancestry and diff checks exit `0`; there are no tracked uncommitted changes. Known ignored or pre-existing untracked development artifacts are not part of the candidate tree.
 
 ### Task 2: Verify the exact production candidate
 
@@ -75,7 +79,7 @@ Expected: the merge is a fast-forward; ancestry and diff checks exit `0`; there 
 - Verify: `pdf-service/test/*.test.mjs`
 
 **Interfaces:**
-- Consumes: production candidate at `codex/v2.1-production-promotion`
+- Consumes: production candidate at `codex/v2.1-release`
 - Produces: recorded root, PDF, Team 2 baseline, release-marker, and Git integrity evidence
 
 - [ ] **Step 1: Verify the v2.1 release markers and promoted feature wiring**
@@ -126,7 +130,7 @@ Run:
 git fetch origin
 git merge-base --is-ancestor origin/main HEAD
 git diff --check origin/main...HEAD
-git status --short
+git status --short --untracked-files=no
 ```
 
 Expected: `origin/main` is still an ancestor, the diff check exits `0`, and there are no tracked uncommitted changes.
@@ -134,7 +138,7 @@ Expected: `origin/main` is still an ancestor, the diff check exits `0`, and ther
 ### Task 3: Publish the fast-forward release
 
 **Files:**
-- Publish: complete Git tree at `codex/v2.1-production-promotion`
+- Publish: complete Git tree at `codex/v2.1-release`
 
 **Interfaces:**
 - Consumes: fully verified production candidate
