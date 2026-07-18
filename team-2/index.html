@@ -787,6 +787,40 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .executive-freshness { padding:2px 5px; border-radius:999px; background:var(--gdim); color:#37775A; font-size:8px; font-weight:850; white-space:nowrap; }
 .executive-freshness.due { background:var(--ydim); color:#8E6C1F; }
 .executive-freshness.overdue { background:var(--rdim); color:#A84F4F; }
+.executive-drawer-overlay { justify-content:flex-end; align-items:stretch; padding:0; }
+.executive-drawer { display:flex; flex-direction:column; width:min(480px,100vw); height:100%; background:var(--s1); box-shadow:-16px 0 40px rgba(36,52,70,.18); }
+.executive-drawer-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:20px; border-bottom:1px solid var(--border); }
+.executive-drawer-head h2 { margin-top:4px; color:var(--text); font-size:20px; }
+.executive-drawer-kicker { color:var(--accent-hov); font-size:10px; font-weight:850; letter-spacing:.06em; text-transform:uppercase; }
+.executive-drawer-content { display:grid; gap:18px; padding:20px; overflow:auto; }
+.executive-drawer-section { display:grid; gap:8px; color:var(--text); }
+.executive-drawer-section h3, .executive-drawer-label { color:var(--text); font-size:12px; font-weight:850; }
+.executive-drawer-section small { color:var(--muted); font-size:9px; }
+.executive-drawer-section textarea { width:100%; resize:vertical; padding:10px; border:1px solid var(--border2); border-radius:8px; color:var(--text); font:inherit; font-size:12px; }
+.executive-drawer-rag { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.executive-drawer-rag button { display:flex; align-items:center; justify-content:center; gap:7px; min-height:38px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text-light); cursor:pointer; font-weight:800; }
+.executive-drawer-rag button span { width:9px; height:9px; border-radius:50%; background:var(--green); }
+.executive-drawer-rag button[data-executive-rag="yellow"] span { background:var(--yellow); }
+.executive-drawer-rag button[data-executive-rag="red"] span { background:var(--red); }
+.executive-drawer-rag button.active { border-color:var(--accent); box-shadow:0 0 0 2px var(--gdim); color:var(--text); }
+.executive-drawer-rag button:disabled, .executive-drawer-section textarea:disabled { cursor:not-allowed; opacity:.58; }
+.executive-drawer-read-only { padding:9px 11px; border:1px solid #C8DDEB; border-radius:8px; background:#F1F7FB; color:#44667F; font-size:10px; }
+.executive-drawer-section-head { display:flex; align-items:center; justify-content:space-between; }
+.executive-drawer-section-head span { color:var(--muted); font-size:9px; }
+.executive-update-history { display:grid; gap:8px; }
+.executive-history-item { padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
+.executive-history-top { display:flex; justify-content:space-between; gap:8px; margin-bottom:5px; font-size:9px; }
+.executive-history-rag { font-weight:900; text-transform:uppercase; }
+.executive-history-text { color:var(--text); font-size:11px; line-height:1.45; white-space:pre-wrap; }
+.executive-history-meta, .executive-history-empty { color:var(--muted); font-size:9px; }
+.executive-drawer-actions { display:flex; gap:8px; margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); background:#fff; }
+.executive-drawer-actions .btn:first-child { margin-right:auto; }
+@media (max-width: 760px) {
+  .executive-drawer-overlay { align-items:flex-end; }
+  .executive-drawer { width:100%; height:auto; max-height:92vh; border-radius:14px 14px 0 0; }
+  .executive-drawer-rag { grid-template-columns:1fr; }
+  .executive-drawer-actions { flex-wrap:wrap; }
+}
 .exec-outcome-head { display:flex; gap:6px; align-items:flex-start; justify-content:space-between; }
 .exec-outcome-badges { display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; }
 .exec-outcome-badge { padding:2px 5px; border:1px solid var(--border); border-radius:999px; color:var(--muted); background:#fff; font-family:'IBM Plex Mono',monospace; font-size:8px; white-space:nowrap; }
@@ -1882,6 +1916,43 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 
 <main id="printReportRoot" aria-hidden="true"></main>
 
+<div class="overlay executive-drawer-overlay" id="executiveItemDrawerOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveItemDrawerTitle">
+  <aside class="executive-drawer">
+    <div class="executive-drawer-head">
+      <div>
+        <div class="executive-drawer-kicker" id="executiveItemDrawerContext">Executive milestone</div>
+        <h2 id="executiveItemDrawerTitle">Milestone update</h2>
+      </div>
+      <button type="button" class="btn-icon" onclick="closeExecutiveItemDrawer()" aria-label="Close milestone drawer">×</button>
+    </div>
+    <div class="executive-drawer-content">
+      <div id="executiveDrawerReadOnly" class="executive-drawer-read-only" hidden>Read-only access. You may review history or request a structural change.</div>
+      <section class="executive-drawer-section">
+        <h3>RAG status</h3>
+        <div class="executive-drawer-rag" role="group" aria-label="Milestone RAG status">
+          <button type="button" data-executive-rag="green" onclick="selectExecutiveDrawerRag('green')"><span></span>Green</button>
+          <button type="button" data-executive-rag="yellow" onclick="selectExecutiveDrawerRag('yellow')"><span></span>Yellow</button>
+          <button type="button" data-executive-rag="red" onclick="selectExecutiveDrawerRag('red')"><span></span>Red</button>
+        </div>
+      </section>
+      <label class="executive-drawer-section" for="executiveStatusUpdate">
+        <span class="executive-drawer-label">Monthly status update</span>
+        <textarea id="executiveStatusUpdate" rows="5" maxlength="1200" placeholder="What changed, why, and what happens next?"></textarea>
+        <small>A written update is mandatory whenever RAG changes.</small>
+      </label>
+      <div id="executiveItemDrawerError" class="resource-validation error" role="alert" aria-live="assertive"></div>
+      <section class="executive-drawer-section">
+        <div class="executive-drawer-section-head"><h3>Update history</h3><span>Newest first</span></div>
+        <div id="executiveUpdateHistory" class="executive-update-history"><div class="executive-history-empty">Loading history…</div></div>
+      </section>
+    </div>
+    <div class="executive-drawer-actions">
+      <button type="button" class="btn" id="executiveRequestChangeBtn" onclick="openExecutiveChangeRequest(executiveUpdateSession?.itemId)">Request structural change</button>
+      <button type="button" class="btn btn-primary" id="executiveSaveUpdateBtn" onclick="saveExecutiveItemUpdate()">Save monthly update</button>
+    </div>
+  </aside>
+</div>
+
 <div class="overlay" id="overviewPrintOverlay" role="dialog" aria-modal="true" aria-labelledby="overviewPrintTitle">
   <div class="modal" style="width:min(620px,92vw);">
     <div class="modal-hdr">
@@ -2524,7 +2595,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script src="../professional-pdf-config.js"></script>
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
-import { EXECUTIVE_SECTIONS, calculateVisibleExecutiveRag, canUpdateExecutiveSection, canViewExecutiveSection as canViewExecutiveSectionByRole, createExecutiveLegacyItemId, getExecutiveUpdateFreshness, normalizeExecutiveRole } from "./js/executive-governance.mjs";
+import { EXECUTIVE_SECTIONS, calculateVisibleExecutiveRag, canUpdateExecutiveSection, canViewExecutiveSection as canViewExecutiveSectionByRole, createExecutiveLegacyItemId, getExecutiveUpdateFreshness, normalizeExecutiveRole, validateExecutiveItemUpdate } from "./js/executive-governance.mjs";
 import { createExecutiveApi } from "./js/executive-api.mjs";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
@@ -2553,6 +2624,9 @@ let allWeeks = [];
 let currentIdx = -1;
 let currentUser = null;
 let currentRole = 'pm';
+let executiveUpdateSession = null;
+let executiveUpdateHistoryUnsub = null;
+let executiveUpdateSaving = false;
 let authSessionGeneration = 0;
 let isAdminExecutivePreview = false;
 let currentPMFilter = 'all';
@@ -2663,6 +2737,7 @@ async function loadGanttTemplateConfig(authGeneration, authUser) {
     ownerEmail,
   )) return false;
   stopGanttTemplateConfigSubscription();
+  if (executiveUpdateSession) window.closeExecutiveItemDrawer();
   const generation = ganttTemplateSubscriptionGeneration;
   return new Promise(resolve => {
     let settled = false;
@@ -5895,6 +5970,173 @@ document.addEventListener('click', event => {
   window.openExecutiveItemDrawer?.(button.dataset.executiveItemId);
 });
 
+function executiveWeekDocumentId(week = allWeeks[currentIdx]) {
+  return String(week?.__documentId || week?.weekLabel || '').trim().replace(/\s+/g, '-');
+}
+
+function findExecutiveTimelineItem(itemId) {
+  const timeline = getStrategyLayer().executiveMilestoneTimeline;
+  for (const row of timeline.rows || []) {
+    for (let quarterIndex = 0; quarterIndex < 4; quarterIndex += 1) {
+      const item = (row.cells?.[quarterIndex] || []).find(candidate => candidate.id === itemId);
+      if (item) return { timeline, row, quarterIndex, quarterKey: 'q' + (quarterIndex + 1), item };
+    }
+  }
+  return null;
+}
+
+function isExecutiveUpdateSessionCurrent(session = executiveUpdateSession, options = {}) {
+  if (!session || session !== executiveUpdateSession) return false;
+  if (session.authUid !== (currentUser?.uid || '')) return false;
+  if (session.authEmail !== getEmailKey(currentUser)) return false;
+  if (session.role !== currentRole) return false;
+  if (session.weekId !== executiveWeekDocumentId()) return false;
+  const location = findExecutiveTimelineItem(session.itemId);
+  if (!location) return false;
+  return options.requireVersion === false || Number(location.item.version || 0) === Number(session.version || 0);
+}
+
+function executiveHistoryDate(value) {
+  const date = value?.toDate ? value.toDate() : new Date(value || 0);
+  return Number.isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleString();
+}
+
+function renderExecutiveUpdateHistory(records = []) {
+  const history = document.getElementById('executiveUpdateHistory');
+  if (!history) return;
+  if (!records.length) {
+    history.innerHTML = '<div class="executive-history-empty">No updates recorded yet.</div>';
+    return;
+  }
+  history.innerHTML = records.map(record => '<article class="executive-history-item">'
+    + '<div class="executive-history-top"><span class="executive-history-rag">' + escHtml(executiveRagLabel(record.ragAfter || 'green')) + '</span><span>' + escHtml(executiveHistoryDate(record.createdAt)) + '</span></div>'
+    + '<div class="executive-history-text">' + escHtml(record.statusText || '-') + '</div>'
+    + '<div class="executive-history-meta">' + escHtml(record.actorEmail || 'Unknown actor') + ' · ' + escHtml(record.actorRole || '') + '</div>'
+    + '</article>').join('');
+}
+
+function renderExecutiveItemDrawer(location, canEdit) {
+  const item = normalizeExecutiveOutcome(location.item);
+  const context = document.getElementById('executiveItemDrawerContext');
+  const title = document.getElementById('executiveItemDrawerTitle');
+  const readOnly = document.getElementById('executiveDrawerReadOnly');
+  const textarea = document.getElementById('executiveStatusUpdate');
+  const saveButton = document.getElementById('executiveSaveUpdateBtn');
+  if (context) context.textContent = location.row.label + ' · ' + location.quarterKey.toUpperCase();
+  if (title) title.textContent = item.text || 'Milestone update';
+  if (readOnly) readOnly.hidden = canEdit;
+  if (textarea) {
+    textarea.value = '';
+    textarea.disabled = !canEdit;
+  }
+  document.querySelectorAll('[data-executive-rag]').forEach(button => {
+    button.classList.toggle('active', button.dataset.executiveRag === item.rag);
+    button.disabled = !canEdit;
+  });
+  if (saveButton) {
+    saveButton.hidden = !canEdit;
+    saveButton.disabled = false;
+  }
+  const error = document.getElementById('executiveItemDrawerError');
+  if (error) {
+    error.textContent = '';
+    error.className = 'resource-validation';
+  }
+}
+
+window.selectExecutiveDrawerRag = rag => {
+  if (!isExecutiveUpdateSessionCurrent() || !executiveUpdateSession.canEdit) return;
+  document.querySelectorAll('[data-executive-rag]').forEach(button => {
+    button.classList.toggle('active', button.dataset.executiveRag === rag);
+  });
+};
+
+window.openExecutiveItemDrawer = itemId => {
+  const location = findExecutiveTimelineItem(String(itemId || ''));
+  if (!location || !canViewExecutiveSection(location.row)) return;
+  if (executiveUpdateHistoryUnsub) executiveUpdateHistoryUnsub();
+  const week = allWeeks[currentIdx];
+  const canEdit = canUpdateExecutiveSection(currentRole, location.row.sectionId) && !isWeekReleased(week);
+  executiveUpdateSession = {
+    authUid: currentUser?.uid || '',
+    authEmail: getEmailKey(currentUser),
+    role: currentRole,
+    weekId: executiveWeekDocumentId(week),
+    itemId: location.item.id,
+    sectionId: location.row.sectionId,
+    version: Number(location.item.version || 0),
+    canEdit,
+    originalRag: location.item.rag || 'green',
+  };
+  renderExecutiveItemDrawer(location, canEdit);
+  renderExecutiveUpdateHistory([]);
+  const history = document.getElementById('executiveUpdateHistory');
+  if (history) history.innerHTML = '<div class="executive-history-empty">Loading history…</div>';
+  const historyQuery = query(
+    collection(db, 'executiveMilestoneUpdates'),
+    where('weekId', '==', executiveUpdateSession.weekId),
+    where('itemId', '==', executiveUpdateSession.itemId),
+    where('sectionId', '==', executiveUpdateSession.sectionId),
+    orderBy('createdAt', 'desc'),
+  );
+  const session = executiveUpdateSession;
+  executiveUpdateHistoryUnsub = onSnapshot(historyQuery, snapshot => {
+    if (!isExecutiveUpdateSessionCurrent(session, { requireVersion: false })) return;
+    renderExecutiveUpdateHistory(snapshot.docs.map(item => item.data()));
+  }, error => {
+    if (!isExecutiveUpdateSessionCurrent(session, { requireVersion: false })) return;
+    if (history) history.innerHTML = '<div class="executive-history-empty">' + escHtml(error.message || 'History is unavailable.') + '</div>';
+  });
+  openAccessibleModal(document.getElementById('executiveItemDrawerOverlay'));
+};
+
+window.closeExecutiveItemDrawer = () => {
+  if (executiveUpdateHistoryUnsub) executiveUpdateHistoryUnsub();
+  executiveUpdateHistoryUnsub = null;
+  executiveUpdateSession = null;
+  executiveUpdateSaving = false;
+  document.getElementById('executiveItemDrawerOverlay')?.classList.remove('open');
+  if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
+  modalReturnFocus = null;
+};
+
+window.saveExecutiveItemUpdate = async () => {
+  const session = executiveUpdateSession;
+  if (executiveUpdateSaving || !isExecutiveUpdateSessionCurrent(session) || !session.canEdit) return;
+  const rag = document.querySelector('[data-executive-rag].active')?.dataset.executiveRag || session.originalRag;
+  const statusText = document.getElementById('executiveStatusUpdate')?.value.trim() || '';
+  const errorBox = document.getElementById('executiveItemDrawerError');
+  try {
+    if (!statusText) throw new Error('Enter a monthly status update before saving.');
+    const validated = validateExecutiveItemUpdate({ originalRag: session.originalRag, rag, statusText });
+    executiveUpdateSaving = true;
+    const saveButton = document.getElementById('executiveSaveUpdateBtn');
+    if (saveButton) saveButton.disabled = true;
+    await executiveApi.addUpdate({
+      weekId: session.weekId,
+      itemId: session.itemId,
+      expectedVersion: session.version,
+      rag: validated.rag,
+      statusText: validated.statusText,
+    });
+    if (!isExecutiveUpdateSessionCurrent(session)) throw new Error('Your dashboard session changed before the update completed.');
+    const refreshed = await getDoc(doc(db, 'weeks', session.weekId));
+    if (!isExecutiveUpdateSessionCurrent(session, { requireVersion: false })) throw new Error('Your dashboard session changed before refresh completed.');
+    if (refreshed.exists()) allWeeks[currentIdx] = { ...refreshed.data(), __documentId: refreshed.id };
+    window.closeExecutiveItemDrawer();
+    window.render();
+    showSaveToast('Executive milestone update saved.');
+  } catch (error) {
+    executiveUpdateSaving = false;
+    const saveButton = document.getElementById('executiveSaveUpdateBtn');
+    if (saveButton) saveButton.disabled = false;
+    if (errorBox) {
+      errorBox.className = 'resource-validation error';
+      errorBox.textContent = error.message || 'Unable to save the Executive milestone update.';
+    }
+  }
+}
+
 function renderProjectQuarterItems(items) {
   if (!items.length) return '<div class="pqm-empty">No PM milestone in this quarter.</div>';
   return `<div class="pqm-items">${items.map(i => {
@@ -8011,6 +8253,10 @@ window.closeProjectOverlayFromBackdrop = event => {
 };
 
 window.closeModal = id => {
+  if (id === 'executiveItemDrawerOverlay') {
+    window.closeExecutiveItemDrawer();
+    return;
+  }
   if (id === 'projEditOverlay' && projectMutationInFlight) return;
   if (id === 'ganttTemplateOverlay' && ganttTemplateSaveInFlight) return;
   const modal = document.getElementById(id);

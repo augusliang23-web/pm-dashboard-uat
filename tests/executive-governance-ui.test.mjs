@@ -44,3 +44,33 @@ test('roadmap renders section and quarter RAG after filtering hidden rows', () =
     assert.match(source, /dcdc-quarter-rag/);
   }
 });
+
+test('focused drawer supports permission-aware RAG and monthly updates', () => {
+  for (const dashboard of dashboards) {
+    assert.match(dashboard, /id="executiveItemDrawerOverlay"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="executiveItemDrawerTitle"/);
+    assert.match(dashboard, /data-executive-rag="green"/);
+    assert.match(dashboard, /data-executive-rag="yellow"/);
+    assert.match(dashboard, /data-executive-rag="red"/);
+    assert.match(dashboard, /id="executiveStatusUpdate"/);
+    assert.match(dashboard, /id="executiveUpdateHistory"/);
+    assert.match(dashboard, /Request structural change/);
+    assert.match(dashboard, /function renderExecutiveItemDrawer\(/);
+    assert.match(dashboard, /window\.openExecutiveItemDrawer =/);
+    assert.match(dashboard, /window\.saveExecutiveItemUpdate =/);
+    assert.match(dashboard, /executiveApi\.addUpdate/);
+  }
+});
+
+test('drawer guards auth identity and renders append-only history newest first', () => {
+  for (const dashboard of dashboards) {
+    assert.match(dashboard, /function isExecutiveUpdateSessionCurrent\(/);
+    for (const field of ['authUid', 'authEmail', 'role', 'weekId', 'itemId', 'version']) {
+      assert.match(dashboard, new RegExp(`${field}:`));
+    }
+    assert.match(dashboard, /collection\(db, 'executiveMilestoneUpdates'\)/);
+    assert.match(dashboard, /orderBy\('createdAt', 'desc'\)/);
+    assert.match(dashboard, /canUpdateExecutiveSection\(currentRole/);
+    assert.match(dashboard, /executive-drawer-read-only/);
+    assert.match(dashboard, /@media \(max-width: 760px\)/);
+  }
+});
