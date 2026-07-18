@@ -52,3 +52,21 @@ test('Project Editor labels explain visible list controls instead of hidden newl
   assert.doesNotMatch(html, /Highlight \(Press Enter for new bullet point\)/);
   assert.doesNotMatch(html, /Press Enter for new bullet point/);
 });
+
+test('Single Project preview renders paired Risk and Required Action rows', () => {
+  assert.match(html, /class="project-risk-table-wrap"/);
+  assert.match(html, /<th>Risk \/ Blocker<\/th>/);
+  assert.match(html, /<th>Required Action<\/th>/);
+  assert.match(html, /id="pd_risk_action_rows"/);
+  assert.match(html, /function renderProjectRiskActionTable\(project\)/);
+  assert.match(html, /class="project-risk-primary">Primary</);
+  assert.match(html, /No active risk\/action reported\./);
+  assert.match(html, /row\.risk \? renderListHtml\(row\.risk\) : '—'/);
+  assert.match(html, /row\.action \? renderListHtml\(row\.action\) : '—'/);
+  assert.match(html, /renderProjectRiskActionTable\(p\)/);
+});
+
+test('Single Project paired table stays two-column and scrollable at narrow widths', () => {
+  assert.match(html, /\.project-risk-table-wrap\s*\{[^}]*overflow-x:\s*auto/s);
+  assert.match(html, /\.project-risk-table\s*\{[^}]*min-width:\s*620px[^}]*table-layout:\s*fixed/s);
+});

@@ -367,6 +367,13 @@ body {
 .detail-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 32px; }
 .detail-left, .detail-right { min-width: 0; }
 .detail-right { background: var(--s2); padding: 24px; border-radius: 8px; border: 1px solid var(--border); height: fit-content; }
+.project-risk-table-wrap { margin-top:8px; overflow-x:auto; border:1px solid var(--border); border-radius:8px; }
+.project-risk-table { width:100%; min-width:620px; border-collapse:collapse; table-layout:fixed; }
+.project-risk-table th, .project-risk-table td { padding:10px 12px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; overflow-wrap:anywhere; }
+.project-risk-table th { color:var(--muted); background:var(--s2); font-family:'IBM Plex Mono', monospace; font-size:9px; text-transform:uppercase; letter-spacing:.04em; }
+.project-risk-table tr:last-child td { border-bottom:0; }
+.project-risk-primary { display:inline-flex; margin:0 6px 6px 0; padding:2px 6px; border-radius:999px; background:#FDECEC; color:#B85F5F; font-size:9px; font-weight:800; text-transform:uppercase; }
+.project-risk-empty { color:var(--muted); font-style:italic; text-align:center !important; }
 @media (max-width: 1100px) {
   .detail-grid { grid-template-columns: minmax(0, 1fr); }
 }
@@ -2097,10 +2104,13 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <div class="stext" id="pd_highlight"></div>
         <div class="info-lbl" style="color:var(--blue-text); margin-top:20px;">Weekly Key Actions (for next week)</div>
         <div class="stext" id="pd_weekly_actions"></div>
-        <div class="info-lbl" style="color:var(--red); margin-top:20px;">Risk / Blocker</div>
-        <div class="stext" id="pd_risk"></div>
-        <div class="info-lbl" style="color:var(--text-light); margin-top:20px;">Risk Required Actions</div>
-        <div class="stext" id="pd_next"></div>
+        <div class="info-lbl" style="color:var(--red); margin-top:20px;">Risk &amp; Required Action</div>
+        <div class="project-risk-table-wrap">
+          <table class="project-risk-table">
+            <thead><tr><th>Risk / Blocker</th><th>Required Action</th></tr></thead>
+            <tbody id="pd_risk_action_rows"></tbody>
+          </table>
+        </div>
       </div>
     </div>
     <div class="detail-right">
@@ -4265,10 +4275,7 @@ function canEditProject(proj) {
 const RELEASED_WEEK_PROJECT_EDIT_MESSAGE = 'This week has been released to VIP and project content can no longer be changed. Please contact the system administrator if further changes are required.';
 
 function formatBullets(text) {
-  if (!text || !text.trim()) return '-';
-  const lines = text.split('\n').map(l => l.trim().replace(/^[-*•]\s*/, '')).filter(l => l);
-  if (lines.length === 0) return '-';
-  return `<ul style="margin: 0; padding-left: 16px; list-style-type: disc;">` + lines.map(l => `<li style="margin-bottom: 4px;">${escHtml(l)}</li>`).join('') + `</ul>`;
+  return renderListHtml(text);
 }
 
 const LIST_COMMANDS = [
@@ -6398,6 +6405,22 @@ function renderProjectResources(project) {
   </table>`;
 }
 
+function renderProjectRiskActionTable(project) {
+  const target = document.getElementById('pd_risk_action_rows');
+  if (!target) return;
+  const rows = normalizeRiskActionRows(project);
+  if (!rows.length) {
+    target.innerHTML = '<tr><td class="project-risk-empty" colspan="2">No active risk/action reported.</td></tr>';
+    return;
+  }
+  target.innerHTML = rows.map(row => `
+    <tr>
+      <td>${row.primary ? '<span class="project-risk-primary">Primary</span>' : ''}${row.risk ? renderListHtml(row.risk) : '—'}</td>
+      <td>${row.action ? renderListHtml(row.action) : '—'}</td>
+    </tr>
+  `).join('');
+}
+
 window.openProjDetail = (code) => {
   const week = allWeeks[currentIdx];
   const rawProject = week.projects.find(x => x.code === code);
@@ -6413,8 +6436,7 @@ window.openProjDetail = (code) => {
   
   document.getElementById('pd_highlight').innerHTML = formatBullets(p.highlight);
   document.getElementById('pd_weekly_actions').innerHTML = formatBullets(p.weeklyActions || p.weeklyAction || 'No weekly actions yet.');
-  document.getElementById('pd_risk').innerHTML = formatBullets(p.risk);
-  document.getElementById('pd_next').innerHTML = formatBullets(p.next);
+  renderProjectRiskActionTable(p);
   
   const smap = {'green':'ON TRACK', 'yellow':'AT RISK', 'red':'CRITICAL'};
   const projectStatus = normalizeOverviewRagStatus(p.status);

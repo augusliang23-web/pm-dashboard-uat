@@ -82,19 +82,31 @@ function contentLines(value) {
   return String(value || '').split('\n').map(item => item.trim()).filter(Boolean);
 }
 
+function multilineContent(value) {
+  if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean).join('\n');
+  return String(value || '').replace(/\r\n?/g, '\n').trim();
+}
+
 export function normalizeRiskActionRows(project = {}) {
   const stored = project.riskActions || project.riskPairs;
   if (Array.isArray(stored) && stored.length) {
-    return stored.map(item => ({
-      risk: String(item?.risk || item?.description || '').trim(),
-      action: contentLines(item?.action || item?.actions || item?.mitigation || item?.requiredAction).join('\n'),
+    const rows = stored.map((item, sourceIndex) => ({
+      risk: multilineContent(item?.risk || item?.description),
+      action: multilineContent(item?.action || item?.actions || item?.mitigation || item?.requiredAction),
+      primary: item?.primary === true || item?.isPrimary === true,
+      sourceIndex,
     })).filter(item => item.risk || item.action);
+    if (rows.length && !rows.some(item => item.primary)) rows[0].primary = true;
+    return rows
+      .sort((a, b) => Number(b.primary) - Number(a.primary) || a.sourceIndex - b.sourceIndex)
+      .map(({ sourceIndex, ...item }) => item);
   }
   const risks = contentLines(project.risk);
   const actions = contentLines(project.next);
   return Array.from({ length: Math.max(risks.length, actions.length) }, (_, index) => ({
     risk: risks[index] || '',
     action: actions[index] || '',
+    primary: index === 0,
   }));
 }
 
