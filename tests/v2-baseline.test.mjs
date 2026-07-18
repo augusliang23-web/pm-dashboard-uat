@@ -12,8 +12,8 @@ test('locks the Team 2 production dashboard baseline', () => {
     'initializeApp(FIREBASE_CONFIG)',
     'getFirestore(app)',
     'getAuth(app)',
-    "currentRole === 'vip'",
-    'isAdminVipPreview',
+    "currentRole === 'executive'",
+    'isAdminExecutivePreview',
     'toggleOverview()',
     'openProjEdit(',
     'saveProjEdit()',
@@ -205,7 +205,7 @@ test('released weeks retain a disabled project edit control with an explanatory 
   const normalStart = dashboard.indexOf('function renderNormal(');
   const normalEnd = dashboard.indexOf('function renderExec(', normalStart);
   const normalSource = dashboard.slice(normalStart, normalEnd);
-  const releasedMessage = 'This week has been released to VIP and project content can no longer be changed. Please contact the system administrator if further changes are required.';
+  const releasedMessage = 'This week has been released to Executive Owner and project content can no longer be changed. Please contact the system administrator if further changes are required.';
 
   assert.ok(normalSource.includes('const isReleased = isWeekReleased(allWeeks[currentIdx]);'));
   assert.ok(normalSource.includes('class="locked-project-edit"'));
@@ -240,7 +240,7 @@ test('gates Overview project mutations per project at render and write boundarie
 });
 
 test('restricts global strategy and executive timeline controls and handlers to administrators', () => {
-  assert.ok(dashboard.includes("const canManageStrategy = () => currentRole === 'admin' && !isAdminVipPreview;"));
+  assert.ok(dashboard.includes("const canManageStrategy = () => currentRole === 'admin' && !isAdminExecutivePreview;"));
   assert.ok(dashboard.includes('${executive && canManageStrategy() ? `<button class="btn btn-primary no-print"'));
   for (const handler of [
     'window.addExecutiveTimelineRow = () =>',
@@ -387,10 +387,10 @@ test('resource save preserves unknown disciplines and known-entry metadata', () 
   assert.ok(dashboard.includes('mergeResourceEntry('));
 });
 
-test('resource editor retains existing project authorization for admin, PM, and VIP roles', () => {
+test('resource editor retains existing project authorization for admin, PM, and Executive Owner roles', () => {
   assert.ok(dashboard.includes("if (isNew ? currentRole !== 'admin' : !canEditProject(existingProject)) return;"));
   assert.ok(dashboard.includes("if (currentRole === 'admin') return true;"));
-  assert.ok(dashboard.includes("if (currentRole === 'vip') return false;"));
+  assert.ok(dashboard.includes("if (currentRole === 'executive') return false;"));
   const guardStart = dashboard.indexOf('function canEditProject(');
   const guardEnd = dashboard.indexOf('\n}', guardStart);
   const guardSource = dashboard.slice(guardStart, guardEnd);

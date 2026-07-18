@@ -4,12 +4,14 @@ import test from 'node:test';
 
 const dashboard = await readFile(new URL('../team-2/index.html', import.meta.url), 'utf8');
 
-test('dashboard roles include engineering, business, and product access groups', () => {
+test('dashboard roles use Executive Owner, Sales, BD, and Product access groups', () => {
+  assert.match(dashboard, /executive/);
   assert.match(dashboard, /engineering/);
-  assert.match(dashboard, /business/);
+  assert.match(dashboard, /sales/);
+  assert.match(dashboard, /bd/);
   assert.match(dashboard, /product/);
+  assert.match(dashboard, /normalizeExecutiveRole/);
   assert.match(dashboard, /function canViewExecutiveSection\(/);
-  assert.match(dashboard, /audience/);
   assert.match(dashboard, /sectionId/);
 });
 
