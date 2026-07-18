@@ -134,6 +134,8 @@ test('creates a canonical pending request only for visible sections', () => {
   assert.equal(request.before.item.text, 'Board review');
   assert.equal(request.after.item.text, 'Quarterly board review');
   assert.equal(request.targetVersion, 4);
+  assert.equal(request.sourceSectionId, 'investors-strategy');
+  assert.equal(request.targetSectionId, 'investors-strategy');
   assert.throws(() => createChangeRequest(fixtureWeek(), {
     role: 'pm', requesterEmail: 'pm@example.com', itemId: 'exec-2', expectedVersion: 1,
     changeType: 'rename', after: { item: { text: 'Hidden' } }, reason: 'Rename',

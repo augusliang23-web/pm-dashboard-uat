@@ -74,3 +74,43 @@ test('drawer guards auth identity and renders append-only history newest first',
     assert.match(dashboard, /@media \(max-width: 760px\)/);
   }
 });
+
+test('structural requests use an exact diff and approved change types', () => {
+  for (const dashboard of dashboards) {
+    assert.match(dashboard, /id="executiveChangeRequestOverlay"[^>]*role="dialog"/);
+    for (const type of ['add', 'rename', 'move-section', 'move-quarter', 'reorder', 'delete']) {
+      assert.match(dashboard, new RegExp(`value="${type}"`));
+    }
+    assert.match(dashboard, /id="executiveChangeBefore"/);
+    assert.match(dashboard, /id="executiveChangeAfter"/);
+    assert.match(dashboard, /id="executiveChangeReason"/);
+    assert.match(dashboard, /function buildExecutiveChangePayload\(/);
+    assert.match(dashboard, /executiveApi\.createRequest/);
+    assert.match(dashboard, /executiveApi\.applyDirectChange/);
+  }
+});
+
+test('Executive Owner inbox supports approve, reject, conflict, and Admin audit-only review', () => {
+  for (const dashboard of dashboards) {
+    assert.match(dashboard, /id="executiveApprovalInboxBtn"/);
+    assert.match(dashboard, /id="executivePendingCount"/);
+    assert.match(dashboard, /id="executiveApprovalInboxOverlay"[^>]*role="dialog"/);
+    assert.match(dashboard, /window\.openExecutiveApprovalInbox =/);
+    assert.match(dashboard, /window\.decideExecutiveChangeRequest =/);
+    assert.match(dashboard, /executiveApi\.decideRequest/);
+    assert.match(dashboard, /state === 'conflict'/);
+    assert.match(dashboard, /currentRole === 'executive'/);
+    assert.match(dashboard, /Admin audit-only/);
+    assert.doesNotMatch(dashboard, /executiveApprovalEmail|approvalMailbox|sendApprovalEmail/);
+  }
+});
+
+test('Admin and Executive Owner can set or remove audited summary RAG overrides', () => {
+  for (const dashboard of dashboards) {
+    assert.match(dashboard, /data-executive-rag-override=/);
+    assert.match(dashboard, /id="executiveRagOverrideOverlay"/);
+    assert.match(dashboard, /id="executiveRagOverrideReason"/);
+    assert.match(dashboard, /executiveApi\.setRagOverride/);
+    assert.match(dashboard, /Remove override/);
+  }
+});

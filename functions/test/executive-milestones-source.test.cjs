@@ -38,6 +38,8 @@ test('keeps weekly snapshots and append-only records in atomic transactions', ()
   assert.match(source, /transaction\.create\(updateRef/);
   assert.match(source, /transaction\.create\(requestRef/);
   assert.match(source, /transaction\.create\(auditRef/);
+  assert.match(source, /snapshot\.data\(\)\.isReleased\s*===\s*true/);
+  assert.match(source, /Released reporting weeks cannot be changed/);
 });
 
 test('exports every callable beside presence aggregation', () => {

@@ -33,6 +33,20 @@ test("firebase config maps the Firestore rules source", async () => {
   assert.equal(config.firestore?.rules, "firestore.rules");
 });
 
+test("firebase config includes Executive history query indexes", async () => {
+  const config = JSON.parse(await readFile(new URL("../firebase.json", import.meta.url), "utf8"));
+  const indexes = JSON.parse(await readFile(new URL("../firestore.indexes.json", import.meta.url), "utf8"));
+
+  assert.equal(config.firestore?.indexes, "firestore.indexes.json");
+  const updates = indexes.indexes.find(index => index.collectionGroup === "executiveMilestoneUpdates");
+  assert.deepEqual(updates.fields, [
+    { fieldPath: "weekId", order: "ASCENDING" },
+    { fieldPath: "itemId", order: "ASCENDING" },
+    { fieldPath: "sectionId", order: "ASCENDING" },
+    { fieldPath: "createdAt", order: "DESCENDING" },
+  ]);
+});
+
 test("clients cannot change an existing Executive timeline directly", async () => {
   const rules = await readRules();
 

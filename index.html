@@ -807,6 +807,17 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .executive-compact-item { display:grid; grid-template-columns:9px minmax(0,1fr) auto; align-items:start; gap:7px; width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text); text-align:left; cursor:pointer; }
 .executive-compact-item:hover, .executive-compact-item:focus-visible { border-color:var(--border2); background:var(--s2); outline:none; box-shadow:0 0 0 2px rgba(120,179,149,.15); }
 .executive-compact-item.read-only { cursor:default; }
+.executive-summary-rag-control { display:inline-flex; align-items:center; gap:5px; border:0; background:transparent; padding:0; color:inherit; font:inherit; cursor:pointer; }
+.executive-pending-count { position:absolute; top:-5px; right:-5px; min-width:17px; height:17px; padding:0 4px; border-radius:9px; background:#C53030; color:#fff; font-size:10px; line-height:17px; text-align:center; }
+.executive-governance-form { display:grid; gap:14px; }
+.executive-governance-form label { display:grid; gap:6px; font-weight:600; }
+.executive-change-diff { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.executive-change-diff pre { min-height:110px; max-height:220px; overflow:auto; margin:6px 0 0; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--s2); white-space:pre-wrap; font-size:11px; }
+.executive-approval-list { display:grid; gap:10px; }
+.executive-approval-card { border:1px solid var(--border); border-radius:10px; padding:12px; display:grid; gap:8px; }
+.executive-approval-card.conflict { border-color:#C53030; }
+.executive-approval-card pre { margin:0; padding:8px; background:var(--s2); border-radius:6px; white-space:pre-wrap; font-size:11px; }
+.executive-approval-actions, .modal-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
 .executive-compact-rag { width:9px; height:9px; margin-top:3px; border-radius:50%; background:var(--green); }
 .executive-compact-rag.yellow { background:var(--yellow); }
 .executive-compact-rag.red { background:var(--red); }
@@ -846,6 +857,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .executive-drawer-actions { display:flex; gap:8px; margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); background:#fff; }
 .executive-drawer-actions .btn:first-child { margin-right:auto; }
 @media (max-width: 760px) {
+  .executive-change-diff { grid-template-columns:1fr; }
   .executive-drawer-overlay { align-items:flex-end; }
   .executive-drawer { width:100%; height:auto; max-height:92vh; border-radius:14px 14px 0 0; }
   .executive-drawer-rag { grid-template-columns:1fr; }
@@ -1980,10 +1992,43 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       </section>
     </div>
     <div class="executive-drawer-actions">
-      <button type="button" class="btn" id="executiveRequestChangeBtn" onclick="openExecutiveChangeRequest(executiveUpdateSession?.itemId)">Request structural change</button>
+      <button type="button" class="btn" id="executiveRequestChangeBtn" onclick="openExecutiveChangeRequestFromDrawer()">Request structural change</button>
       <button type="button" class="btn btn-primary" id="executiveSaveUpdateBtn" onclick="saveExecutiveItemUpdate()">Save monthly update</button>
     </div>
   </aside>
+</div>
+
+<div class="overlay" id="executiveChangeRequestOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveChangeRequestTitle">
+  <div class="modal" style="width:min(720px,94vw);">
+    <div class="modal-hdr"><h3 id="executiveChangeRequestTitle">Executive milestone structural change</h3><button class="modal-x" onclick="closeModal('executiveChangeRequestOverlay')" aria-label="Close structural change dialog">×</button></div>
+    <div class="modal-body executive-governance-form">
+      <div class="form-grid-2">
+        <label>Change type<select class="fs" id="executiveChangeType" onchange="renderExecutiveChangePreview()"><option value="add">Add</option><option value="rename">Rename</option><option value="move-section">Move section</option><option value="move-quarter">Move quarter</option><option value="reorder">Reorder</option><option value="delete">Delete</option></select></label>
+        <label>Milestone title<input class="fi" id="executiveChangeTitle" maxlength="240" oninput="renderExecutiveChangePreview()"></label>
+        <label>Section<select class="fs" id="executiveChangeSection" onchange="renderExecutiveChangePreview()"></select></label>
+        <label>Quarter<select class="fs" id="executiveChangeQuarter" onchange="renderExecutiveChangePreview()"><option value="q1">Q1</option><option value="q2">Q2</option><option value="q3">Q3</option><option value="q4">Q4</option></select></label>
+        <label>Position<input class="fi" id="executiveChangeIndex" type="number" min="0" value="0" oninput="renderExecutiveChangePreview()"></label>
+      </div>
+      <label>Reason<textarea class="fi" id="executiveChangeReason" rows="3" maxlength="1200" placeholder="Explain why this structural change is needed."></textarea></label>
+      <div class="executive-change-diff"><div><strong>Before</strong><pre id="executiveChangeBefore">—</pre></div><div><strong>After</strong><pre id="executiveChangeAfter">—</pre></div></div>
+      <div id="executiveChangeError" class="resource-validation" role="alert" aria-live="assertive"></div>
+      <div class="modal-actions"><button class="btn" onclick="closeModal('executiveChangeRequestOverlay')">Cancel</button><button class="btn" id="executiveSubmitChangeBtn" onclick="submitExecutiveChangeRequest(false)">Submit for approval</button><button class="btn btn-primary" id="executiveDirectChangeBtn" onclick="submitExecutiveChangeRequest(true)">Apply direct change</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="executiveApprovalInboxOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveApprovalInboxTitle">
+  <div class="modal" style="width:min(860px,94vw);">
+    <div class="modal-hdr"><div><h3 id="executiveApprovalInboxTitle">Executive change inbox</h3><small id="executiveApprovalInboxMode"></small></div><button class="modal-x" onclick="closeModal('executiveApprovalInboxOverlay')" aria-label="Close Executive inbox">×</button></div>
+    <div class="modal-body"><div id="executiveApprovalInboxList" class="executive-approval-list">Loading requests…</div></div>
+  </div>
+</div>
+
+<div class="overlay" id="executiveRagOverrideOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveRagOverrideTitle">
+  <div class="modal" style="width:min(540px,92vw);">
+    <div class="modal-hdr"><h3 id="executiveRagOverrideTitle">Summary RAG override</h3><button class="modal-x" onclick="closeModal('executiveRagOverrideOverlay')" aria-label="Close RAG override">×</button></div>
+    <div class="modal-body executive-governance-form"><p id="executiveRagOverrideTarget"></p><label>Override RAG<select class="fs" id="executiveRagOverrideValue"><option value="green">Green</option><option value="yellow">Yellow</option><option value="red">Red</option></select></label><label>Audit reason<textarea class="fi" id="executiveRagOverrideReason" rows="3" maxlength="1200"></textarea></label><div id="executiveRagOverrideError" class="resource-validation" role="alert"></div><div class="modal-actions"><button class="btn" id="executiveRemoveRagOverrideBtn" onclick="saveExecutiveRagOverride(true)">Remove override</button><button class="btn btn-primary" onclick="saveExecutiveRagOverride(false)">Save override</button></div></div>
+  </div>
 </div>
 
 <div class="overlay" id="overviewPrintOverlay" role="dialog" aria-modal="true" aria-labelledby="overviewPrintTitle">
@@ -2090,6 +2135,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button class="btn-icon admin-only" id="executivePreviewBtn" style="display:none;" onclick="toggleExecutivePreview()" title="Preview as Executive Owner" aria-label="Preview as Executive Owner">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
+      <button class="btn-icon" id="executiveApprovalInboxBtn" style="display:none; position:relative;" onclick="openExecutiveApprovalInbox()" title="Executive change inbox" aria-label="Executive change inbox">✓<span id="executivePendingCount" class="executive-pending-count">0</span></button>
       <button class="btn-icon executive-hidden" onclick="toggleOverview()" id="btnOverview" title="Toggle Overview Mode">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
       </button>
@@ -2642,7 +2688,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script src="./professional-pdf-config.js"></script>
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
-import { EXECUTIVE_SECTIONS, calculateVisibleExecutiveRag, canUpdateExecutiveSection, canViewExecutiveSection as canViewExecutiveSectionByRole, createExecutiveLegacyItemId, getExecutiveUpdateFreshness, normalizeExecutiveRole, validateExecutiveItemUpdate } from "./js/executive-governance.mjs";
+import { EXECUTIVE_SECTIONS, calculateVisibleExecutiveRag, canChangeExecutiveStructure, canUpdateExecutiveSection, canViewExecutiveSection as canViewExecutiveSectionByRole, createExecutiveLegacyItemId, getExecutiveUpdateFreshness, normalizeExecutiveRole, validateExecutiveItemUpdate } from "./js/executive-governance.mjs";
 import { createExecutiveApi } from "./js/executive-api.mjs";
 import { applyListCommand, getSelectionListType, handleListEnter, handleListPaste, normalizeListText, renderListHtml } from "./js/list-editor.mjs";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
@@ -2675,6 +2721,10 @@ let currentRole = 'pm';
 let executiveUpdateSession = null;
 let executiveUpdateHistoryUnsub = null;
 let executiveUpdateSaving = false;
+let executiveChangeSession = null;
+let executiveApprovalInboxUnsub = null;
+let executiveApprovalDecisionInFlight = false;
+let executiveRagOverrideSession = null;
 let authSessionGeneration = 0;
 let isAdminExecutivePreview = false;
 let currentPMFilter = 'all';
@@ -4017,6 +4067,11 @@ function quiesceDashboardForAuthTransition() {
   stopGanttTemplateConfigSubscription();
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
+  if (executiveApprovalInboxUnsub) executiveApprovalInboxUnsub();
+  executiveApprovalInboxUnsub = null;
+  executiveChangeSession = null;
+  executiveRagOverrideSession = null;
+  ['executiveChangeRequestOverlay', 'executiveApprovalInboxOverlay', 'executiveRagOverrideOverlay'].forEach(id => document.getElementById(id)?.classList.remove('open'));
   currentRole = 'pending';
   isAdminExecutivePreview = false;
   allWeeks = [];
@@ -4227,6 +4282,7 @@ function setupUI() {
   document.querySelectorAll('.executive-hidden').forEach(el => el.style.display = '');
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
   document.getElementById('presenceUsageBtn').style.display = 'none';
+  document.getElementById('executiveApprovalInboxBtn').style.display = 'none';
   
   isOverview = false;
   document.getElementById('btnOverview').classList.remove('active');
@@ -4241,6 +4297,7 @@ function setupUI() {
     document.getElementById('executivePreviewBtn').style.display = 'inline-flex';
     document.getElementById('addProjectBtn').style.display = 'inline-flex';
     document.getElementById('ganttTemplateSettingsBtn').style.display = 'inline-flex';
+    document.getElementById('executiveApprovalInboxBtn').style.display = 'inline-flex';
   } 
   else if (currentRole === 'pm') {
     document.getElementById('onlineUsersContainer').style.display = 'flex';
@@ -4252,12 +4309,14 @@ function setupUI() {
     isOverview = true;
     document.getElementById('normalView').style.display = 'none';
     document.getElementById('execView').style.display = 'block';
+    document.getElementById('executiveApprovalInboxBtn').style.display = 'inline-flex';
   }
   
   const sel = document.getElementById('topPmSelect');
   sel.innerHTML = `<option value="all">👥 All PMs</option>` + 
     PM_LIST.map(pm => `<option value="${pm}">${pm}</option>`).join('');
   updateMasterDataLists();
+  refreshExecutivePendingCount();
   refreshFxRates();
 }
 
@@ -6086,6 +6145,7 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
   const reportingLabel = allWeeks[currentIdx]?.weekLabel || getSelectedReportingDate();
   const sectionRags = new Map(visibleRows.map(row => [row.sectionId, calculateExecutiveSectionRag(timeline, row)]));
   const quarterRags = quarters.map((quarter, index) => calculateExecutiveQuarterRag(timeline, catalog, index, visibleRows));
+  const canChangeStructure = canChangeExecutiveStructure(currentRole) && !isWeekReleased(allWeeks[currentIdx]);
   if (!visibleRows.length) return '';
   return `<section class="roadmap-block executive-milestone-block">
     <div class="roadmap-block-head">
@@ -6093,15 +6153,15 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
         <div class="roadmap-block-title">Executive milestones</div>
         <div class="roadmap-block-note">Leadership-level quarterly timeline, separate from PM project milestone input.</div>
       </div>
-      <span class="reason-pill">${year}</span>
+      <div class="executive-approval-actions">${!isWeekReleased(allWeeks[currentIdx]) ? `<button type="button" class="btn btn-ghost" onclick="openExecutiveChangeRequest('')">Request structural change</button>` : ''}<span class="reason-pill">${year}</span></div>
     </div>
     <div class="dcdc-timeline">
       <div class="dcdc-title">${escHtml(timeline.title || `Selected ${year} DCDC Milestone Timeline`)}</div>
       <div class="dcdc-grid">
         <div class="dcdc-cell dcdc-corner"></div>
-        ${quarters.map((q, index) => `<div class="dcdc-cell dcdc-quarter"><div class="dcdc-quarter-content"><span>${escHtml(q)}</span><span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span></div></div>`).join('')}
+        ${quarters.map((q, index) => `<div class="dcdc-cell dcdc-quarter"><div class="dcdc-quarter-content"><span>${escHtml(q)}</span>${canChangeStructure ? `<button type="button" class="executive-summary-rag-control" data-executive-rag-override="quarter" data-target-id="q${index + 1}" onclick="openExecutiveRagOverride('quarter','q${index + 1}')"><span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span></button>` : `<span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span>`}</div></div>`).join('')}
         ${visibleRows.map(row => `
-          <div class="dcdc-cell dcdc-row-label"><span>${escHtml(row.label)}</span><span class="dcdc-section-rag ${sectionRags.get(row.sectionId)}">${escHtml(executiveRagLabel(sectionRags.get(row.sectionId)))}</span></div>
+          <div class="dcdc-cell dcdc-row-label"><span>${escHtml(row.label)}</span>${canChangeStructure ? `<button type="button" class="executive-summary-rag-control" data-executive-rag-override="section" data-target-id="${escHtml(row.sectionId)}" onclick="openExecutiveRagOverride('section','${escHtml(row.sectionId)}')"><span class="dcdc-section-rag ${sectionRags.get(row.sectionId)}">${escHtml(executiveRagLabel(sectionRags.get(row.sectionId)))}</span></button>` : `<span class="dcdc-section-rag ${sectionRags.get(row.sectionId)}">${escHtml(executiveRagLabel(sectionRags.get(row.sectionId)))}</span>`}</div>
           ${(row.cells || []).map(items => `<div class="dcdc-cell"><div class="executive-compact-list">${(items || []).map(item => renderExecutiveCompactItem(item, row)).join('')}</div></div>`).join('')}
         `).join('')}
       </div>
@@ -6186,6 +6246,8 @@ function renderExecutiveItemDrawer(location, canEdit) {
     saveButton.hidden = !canEdit;
     saveButton.disabled = false;
   }
+  const requestButton = document.getElementById('executiveRequestChangeBtn');
+  if (requestButton) requestButton.hidden = isWeekReleased(allWeeks[currentIdx]);
   const error = document.getElementById('executiveItemDrawerError');
   if (error) {
     error.textContent = '';
@@ -6285,6 +6347,226 @@ window.saveExecutiveItemUpdate = async () => {
     }
   }
 }
+
+async function refreshExecutiveWeekSnapshot(weekId) {
+  if (!weekId || weekId !== executiveWeekDocumentId()) return false;
+  const refreshed = await getDoc(doc(db, 'weeks', weekId));
+  if (!refreshed.exists() || weekId !== executiveWeekDocumentId()) return false;
+  allWeeks[currentIdx] = { ...refreshed.data(), __documentId: refreshed.id };
+  window.render();
+  return true;
+}
+
+function executiveLocationSnapshot(location) {
+  if (!location) return null;
+  return {
+    sectionId: location.row.sectionId,
+    quarterKey: location.quarterKey,
+    index: location.row.cells[location.quarterIndex].findIndex(item => item.id === location.item.id),
+    item: normalizeExecutiveOutcome(location.item),
+  };
+}
+
+function isExecutiveChangeSessionCurrent(session = executiveChangeSession) {
+  return Boolean(session
+    && session === executiveChangeSession
+    && session.authUid === (currentUser?.uid || '')
+    && session.authEmail === getEmailKey(currentUser)
+    && session.role === currentRole
+    && session.weekId === executiveWeekDocumentId());
+}
+
+function buildExecutiveChangePayload() {
+  if (!isExecutiveChangeSessionCurrent()) throw new Error('Your dashboard session changed. Reopen the request.');
+  const changeType = document.getElementById('executiveChangeType').value;
+  const title = document.getElementById('executiveChangeTitle').value.trim();
+  const sectionId = document.getElementById('executiveChangeSection').value;
+  const quarterKey = document.getElementById('executiveChangeQuarter').value;
+  const index = Math.max(0, Number.parseInt(document.getElementById('executiveChangeIndex').value, 10) || 0);
+  const reason = document.getElementById('executiveChangeReason').value.trim();
+  if (!reason) throw new Error('Enter the reason for this structural change.');
+  const before = executiveChangeSession.before ? structuredClone(executiveChangeSession.before) : null;
+  let after = before ? structuredClone(before) : null;
+  if (changeType === 'add') {
+    if (!title) throw new Error('Enter a milestone title.');
+    after = { sectionId, quarterKey, index, item: { id: executiveChangeSession.newItemId, text: title, version: 0, rag: 'green' } };
+  } else {
+    if (!before) throw new Error('The selected milestone no longer exists.');
+    if (changeType === 'delete') after = null;
+    if (changeType === 'rename') {
+      if (!title) throw new Error('Enter a milestone title.');
+      after.item.text = title;
+    }
+    if (changeType === 'move-section') { after.sectionId = sectionId; after.index = index; }
+    if (changeType === 'move-quarter') { after.quarterKey = quarterKey; after.index = index; }
+    if (changeType === 'reorder') after.index = index;
+  }
+  return {
+    weekId: executiveChangeSession.weekId,
+    itemId: before?.item?.id || executiveChangeSession.newItemId,
+    expectedVersion: Number(before?.item?.version || 0),
+    changeType,
+    before,
+    after,
+    reason,
+  };
+}
+
+function renderExecutiveChangePreview() {
+  if (!isExecutiveChangeSessionCurrent()) return;
+  const type = document.getElementById('executiveChangeType').value;
+  const before = executiveChangeSession.before;
+  let after = before ? structuredClone(before) : null;
+  const title = document.getElementById('executiveChangeTitle').value.trim();
+  const sectionId = document.getElementById('executiveChangeSection').value;
+  const quarterKey = document.getElementById('executiveChangeQuarter').value;
+  const index = Math.max(0, Number.parseInt(document.getElementById('executiveChangeIndex').value, 10) || 0);
+  if (type === 'add') after = { sectionId, quarterKey, index, item: { id: executiveChangeSession.newItemId, text: title, version: 0, rag: 'green' } };
+  if (type === 'rename' && after) after.item.text = title;
+  if (type === 'move-section' && after) { after.sectionId = sectionId; after.index = index; }
+  if (type === 'move-quarter' && after) { after.quarterKey = quarterKey; after.index = index; }
+  if (type === 'reorder' && after) after.index = index;
+  if (type === 'delete') after = null;
+  document.getElementById('executiveChangeBefore').textContent = before ? JSON.stringify(before, null, 2) : 'New milestone';
+  document.getElementById('executiveChangeAfter').textContent = after ? JSON.stringify(after, null, 2) : 'Deleted';
+}
+window.renderExecutiveChangePreview = renderExecutiveChangePreview;
+
+window.openExecutiveChangeRequestFromDrawer = () => {
+  const itemId = executiveUpdateSession?.itemId || '';
+  window.closeExecutiveItemDrawer();
+  window.openExecutiveChangeRequest(itemId);
+};
+
+window.openExecutiveChangeRequest = itemId => {
+  if (isWeekReleased(allWeeks[currentIdx])) return;
+  const location = itemId ? findExecutiveTimelineItem(String(itemId)) : null;
+  if (itemId && (!location || !canViewExecutiveSection(location.row))) return;
+  const visibleSections = EXECUTIVE_SECTIONS.filter(section => canViewExecutiveSectionByRole(currentRole, section.sectionId));
+  if (!visibleSections.length) return;
+  const before = executiveLocationSnapshot(location);
+  executiveChangeSession = {
+    authUid: currentUser?.uid || '', authEmail: getEmailKey(currentUser), role: currentRole,
+    weekId: executiveWeekDocumentId(), before,
+    newItemId: `exec-${crypto.randomUUID?.() || Date.now().toString(36)}`,
+  };
+  document.getElementById('executiveChangeType').value = before ? 'rename' : 'add';
+  document.getElementById('executiveChangeTitle').value = before?.item?.text || '';
+  document.getElementById('executiveChangeSection').innerHTML = visibleSections.map(section => `<option value="${escHtml(section.sectionId)}">${escHtml(section.label)}</option>`).join('');
+  document.getElementById('executiveChangeSection').value = before?.sectionId || visibleSections[0].sectionId;
+  document.getElementById('executiveChangeQuarter').value = before?.quarterKey || 'q1';
+  document.getElementById('executiveChangeIndex').value = before?.index ?? 0;
+  document.getElementById('executiveChangeReason').value = '';
+  document.getElementById('executiveChangeError').textContent = '';
+  const direct = canChangeExecutiveStructure(currentRole);
+  document.getElementById('executiveSubmitChangeBtn').hidden = direct;
+  document.getElementById('executiveDirectChangeBtn').hidden = !direct;
+  renderExecutiveChangePreview();
+  openAccessibleModal(document.getElementById('executiveChangeRequestOverlay'));
+};
+
+window.submitExecutiveChangeRequest = async direct => {
+  const errorBox = document.getElementById('executiveChangeError');
+  try {
+    const payload = buildExecutiveChangePayload();
+    if (direct && !canChangeExecutiveStructure(currentRole)) throw new Error('Direct changes require Admin or Executive Owner access.');
+    if (direct) await executiveApi.applyDirectChange(payload);
+    else await executiveApi.createRequest(payload);
+    closeModal('executiveChangeRequestOverlay');
+    if (direct) await refreshExecutiveWeekSnapshot(payload.weekId);
+    await refreshExecutivePendingCount();
+    showSaveToast(direct ? 'Executive milestone changed.' : 'Change request submitted.');
+  } catch (error) {
+    errorBox.className = 'resource-validation error';
+    errorBox.textContent = error.message || 'Unable to submit the change.';
+  }
+};
+
+async function refreshExecutivePendingCount() {
+  const badge = document.getElementById('executivePendingCount');
+  if (!badge || !['admin', 'executive'].includes(currentRole)) return;
+  try {
+    const snapshot = await getDocs(query(collection(db, 'executiveMilestoneChangeRequests'), where('state', '==', 'pending')));
+    badge.textContent = String(snapshot.size);
+    badge.hidden = snapshot.empty;
+  } catch {
+    badge.hidden = true;
+  }
+}
+
+function renderExecutiveApprovalInbox(records = []) {
+  const list = document.getElementById('executiveApprovalInboxList');
+  const visible = currentRole === 'executive' ? records.filter(record => record.state === 'pending' || record.state === 'conflict') : records;
+  if (!visible.length) { list.innerHTML = '<div class="executive-history-empty">No change requests to review.</div>'; return; }
+  list.innerHTML = visible.map(record => {
+    const isConflict = record.state === 'conflict';
+    const canDecide = currentRole === 'executive' && record.state === 'pending' && !executiveApprovalDecisionInFlight;
+    return `<article class="executive-approval-card ${isConflict ? 'conflict' : ''}"><div><strong>${escHtml(record.changeType || 'change')}</strong> · ${escHtml(record.state || 'unknown')} · ${escHtml(record.requesterEmail || '')}</div><div>${escHtml(record.reason || '')}</div><div class="executive-change-diff"><div><small>Before</small><pre>${escHtml(JSON.stringify(record.before, null, 2))}</pre></div><div><small>After</small><pre>${escHtml(JSON.stringify(record.after, null, 2))}</pre></div></div>${isConflict ? `<div class="resource-validation error">${escHtml(record.conflictReason || 'The milestone changed before approval.')}</div>` : ''}${canDecide ? `<div class="executive-approval-actions"><button class="btn" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','reject')">Reject</button><button class="btn btn-primary" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','approve')">Approve</button></div>` : ''}</article>`;
+  }).join('');
+}
+
+window.openExecutiveApprovalInbox = () => {
+  if (!['admin', 'executive'].includes(currentRole)) return;
+  if (executiveApprovalInboxUnsub) executiveApprovalInboxUnsub();
+  document.getElementById('executiveApprovalInboxMode').textContent = currentRole === 'admin' ? 'Admin audit-only — Executive Owner makes approval decisions.' : 'Pending requests requiring Executive Owner decision.';
+  openAccessibleModal(document.getElementById('executiveApprovalInboxOverlay'));
+  const inboxSource = currentRole === 'executive'
+    ? query(collection(db, 'executiveMilestoneChangeRequests'), where('state', '==', 'pending'))
+    : collection(db, 'executiveMilestoneChangeRequests');
+  executiveApprovalInboxUnsub = onSnapshot(inboxSource, snapshot => {
+    const records = snapshot.docs.map(entry => ({ ...entry.data(), requestId: entry.id }));
+    records.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    renderExecutiveApprovalInbox(records);
+    const pending = records.filter(record => record.state === 'pending').length;
+    const badge = document.getElementById('executivePendingCount');
+    badge.textContent = String(pending); badge.hidden = pending === 0;
+  }, error => { document.getElementById('executiveApprovalInboxList').textContent = error.message || 'Inbox is unavailable.'; });
+};
+
+window.decideExecutiveChangeRequest = async (requestId, decision) => {
+  if (currentRole !== 'executive' || executiveApprovalDecisionInFlight) return;
+  const decisionNote = window.prompt(`${decision === 'approve' ? 'Approval' : 'Rejection'} note (optional):`, '') ?? '';
+  executiveApprovalDecisionInFlight = true;
+  document.querySelectorAll('#executiveApprovalInboxList button').forEach(button => { button.disabled = true; });
+  try {
+    const result = await executiveApi.decideRequest({ requestId, decision, decisionNote });
+    await refreshExecutivePendingCount();
+    if (result.state === 'applied') await refreshExecutiveWeekSnapshot(result.weekId);
+    showSaveToast(result.state === 'conflict' ? 'Request has a version conflict; submit a new request.' : `Request ${result.state || (decision === 'approve' ? 'approved' : 'rejected')}.`);
+  } catch (error) {
+    showSaveToast(error.message || 'Unable to decide the request.');
+  } finally {
+    executiveApprovalDecisionInFlight = false;
+    document.querySelectorAll('#executiveApprovalInboxList button').forEach(button => { button.disabled = false; });
+  }
+};
+
+window.openExecutiveRagOverride = (scope, targetId) => {
+  if (!canChangeExecutiveStructure(currentRole) || isWeekReleased(allWeeks[currentIdx])) return;
+  const timeline = normalizeExecutiveMilestoneTimeline(getStrategyLayer().executiveMilestoneTimeline);
+  const existing = timeline.ragOverrides?.[`${scope}:${targetId}`] || null;
+  executiveRagOverrideSession = { authUid: currentUser?.uid || '', authEmail: getEmailKey(currentUser), role: currentRole, weekId: executiveWeekDocumentId(), scope, targetId };
+  document.getElementById('executiveRagOverrideTarget').textContent = `${scope === 'quarter' ? 'Quarter' : 'Section'}: ${targetId}`;
+  document.getElementById('executiveRagOverrideValue').value = existing?.replacementValue || 'green';
+  document.getElementById('executiveRagOverrideReason').value = '';
+  document.getElementById('executiveRemoveRagOverrideBtn').hidden = !existing;
+  document.getElementById('executiveRagOverrideError').textContent = '';
+  openAccessibleModal(document.getElementById('executiveRagOverrideOverlay'));
+};
+
+window.saveExecutiveRagOverride = async remove => {
+  const session = executiveRagOverrideSession;
+  const errorBox = document.getElementById('executiveRagOverrideError');
+  try {
+    if (!session || session.authUid !== (currentUser?.uid || '') || session.authEmail !== getEmailKey(currentUser) || session.role !== currentRole || session.weekId !== executiveWeekDocumentId() || !canChangeExecutiveStructure(currentRole)) throw new Error('Your dashboard session changed. Reopen the override.');
+    const reason = document.getElementById('executiveRagOverrideReason').value.trim();
+    if (!reason) throw new Error('Enter an audit reason for this override change.');
+    await executiveApi.setRagOverride({ weekId: session.weekId, scope: session.scope, targetId: session.targetId, rag: remove ? null : document.getElementById('executiveRagOverrideValue').value, reason });
+    closeModal('executiveRagOverrideOverlay');
+    await refreshExecutiveWeekSnapshot(session.weekId);
+    showSaveToast(remove ? 'RAG override removed.' : 'RAG override saved.');
+  } catch (error) { errorBox.className = 'resource-validation error'; errorBox.textContent = error.message || 'Unable to change the RAG override.'; }
+};
 
 function renderProjectQuarterItems(items) {
   if (!items.length) return '<div class="pqm-empty">No PM milestone in this quarter.</div>';
@@ -8456,6 +8738,10 @@ window.closeModal = id => {
     window.closeExecutiveItemDrawer();
     return;
   }
+  if (id === 'executiveApprovalInboxOverlay' && executiveApprovalInboxUnsub) executiveApprovalInboxUnsub();
+  if (id === 'executiveApprovalInboxOverlay') executiveApprovalInboxUnsub = null;
+  if (id === 'executiveChangeRequestOverlay') executiveChangeSession = null;
+  if (id === 'executiveRagOverrideOverlay') executiveRagOverrideSession = null;
   if (id === 'projEditOverlay' && projectMutationInFlight) return;
   if (id === 'ganttTemplateOverlay' && ganttTemplateSaveInFlight) return;
   const modal = document.getElementById(id);

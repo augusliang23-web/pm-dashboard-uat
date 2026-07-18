@@ -43,6 +43,9 @@ function requireWeekId(data) {
 async function readWeek(transaction, weekRef) {
   const snapshot = await transaction.get(weekRef);
   if (!snapshot.exists) throw new HttpsError('not-found', 'Reporting week was not found.');
+  if (snapshot.data().isReleased === true) {
+    throw new HttpsError('failed-precondition', 'Released reporting weeks cannot be changed.');
+  }
   return { ...snapshot.data(), weekId: snapshot.id };
 }
 

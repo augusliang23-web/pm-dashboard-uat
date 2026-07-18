@@ -364,6 +364,8 @@ function createChangeRequest(week, input = {}) {
     requestId: String(input.requestId || ''),
     weekId: String(input.weekId || week.weekId || ''),
     ...proposal,
+    sourceSectionId: proposal.before?.sectionId || '',
+    targetSectionId: proposal.after?.sectionId || proposal.before?.sectionId || '',
     reason,
     requesterEmail: String(input.requesterEmail || '').trim().toLowerCase(),
     requesterRole: role,
