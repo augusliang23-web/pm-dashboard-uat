@@ -5,6 +5,7 @@ const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestor
 initializeApp();
 
 const db = getFirestore();
+const executiveMilestones = require("./executive-milestones");
 const SESSION_COLLECTION = "presenceSessions";
 const ROLLUP_COLLECTION = "presenceDailyRollups";
 const SESSION_TIMEOUT_MS = 12 * 60 * 1000;
@@ -126,3 +127,9 @@ exports.aggregatePresenceSessions = onSchedule({
   }
   console.log(`Presence aggregation complete: ${aggregated} session(s).`);
 });
+
+exports.addExecutiveMilestoneUpdate = executiveMilestones.addExecutiveMilestoneUpdate;
+exports.createExecutiveMilestoneChangeRequest = executiveMilestones.createExecutiveMilestoneChangeRequest;
+exports.decideExecutiveMilestoneChangeRequest = executiveMilestones.decideExecutiveMilestoneChangeRequest;
+exports.applyDirectExecutiveMilestoneChange = executiveMilestones.applyDirectExecutiveMilestoneChange;
+exports.setExecutiveRagOverride = executiveMilestones.setExecutiveRagOverride;
