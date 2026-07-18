@@ -1,0 +1,82 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+  EXECUTIVE_SECTIONS,
+  calculateVisibleExecutiveRag,
+  canApproveExecutiveRequest,
+  canChangeExecutiveStructure,
+  canUpdateExecutiveSection,
+  canViewExecutiveSection,
+  getExecutiveUpdateFreshness,
+  normalizeExecutiveRole,
+  validateExecutiveItemUpdate,
+} from '../js/executive-governance.mjs';
+
+test('uses the approved roles and fixed Executive sections', () => {
+  assert.deepEqual(EXECUTIVE_SECTIONS.map(item => [item.sectionId, item.label]), [
+    ['ioe-product-portfolio', 'IoE Product Portfolio'],
+    ['customer-engagements', 'Customer Engagements'],
+    ['investors-strategy', 'Investors & Strategy'],
+  ]);
+  assert.equal(normalizeExecutiveRole('business'), '');
+  assert.equal(normalizeExecutiveRole('unknown-role'), '');
+  assert.equal(normalizeExecutiveRole('sales'), 'sales');
+  assert.equal(normalizeExecutiveRole('bd'), 'bd');
+  assert.equal(normalizeExecutiveRole('executive'), 'executive');
+  assert.equal(normalizeExecutiveRole('vip', { allowVipBridge: true }), 'executive');
+  assert.equal(normalizeExecutiveRole('vip'), '');
+});
+
+test('enforces the approved view and update matrix', () => {
+  assert.equal(canUpdateExecutiveSection('pm', 'ioe-product-portfolio'), true);
+  assert.equal(canViewExecutiveSection('pm', 'customer-engagements'), false);
+  assert.equal(canViewExecutiveSection('sales', 'investors-strategy'), true);
+  assert.equal(canUpdateExecutiveSection('sales', 'investors-strategy'), false);
+  assert.equal(canUpdateExecutiveSection('bd', 'customer-engagements'), true);
+  assert.equal(canUpdateExecutiveSection('product', 'customer-engagements'), true);
+  assert.equal(canChangeExecutiveStructure('executive'), true);
+  assert.equal(canChangeExecutiveStructure('admin'), true);
+  assert.equal(canChangeExecutiveStructure('sales'), false);
+  assert.equal(canApproveExecutiveRequest('executive'), true);
+  assert.equal(canApproveExecutiveRequest('admin'), false);
+  assert.equal(canViewExecutiveSection('unknown-role', 'ioe-product-portfolio'), false);
+});
+
+test('calculates RAG from visible items only', () => {
+  const items = [
+    { sectionId: 'ioe-product-portfolio', rag: 'green' },
+    { sectionId: 'customer-engagements', rag: 'red' },
+  ];
+  assert.equal(calculateVisibleExecutiveRag(items, 'pm'), 'green');
+  assert.equal(calculateVisibleExecutiveRag(items, 'executive'), 'red');
+  assert.equal(calculateVisibleExecutiveRag(items, 'unknown-role'), null);
+});
+
+test('marks updates due after 31 days and overdue after 45 days', () => {
+  const now = Date.parse('2026-07-18T00:00:00Z');
+  assert.equal(getExecutiveUpdateFreshness('2026-06-17T00:00:00Z', now), 'current');
+  assert.equal(getExecutiveUpdateFreshness('2026-06-16T00:00:00Z', now), 'due');
+  assert.equal(getExecutiveUpdateFreshness('2026-06-02T00:00:00Z', now), 'overdue');
+  assert.equal(getExecutiveUpdateFreshness('', now), 'overdue');
+});
+
+test('requires an explanation only when RAG changes', () => {
+  assert.throws(
+    () => validateExecutiveItemUpdate({ originalRag: 'green', rag: 'yellow', statusText: ' ' }),
+    /status update is required/i,
+  );
+  assert.deepEqual(
+    validateExecutiveItemUpdate({ originalRag: 'green', rag: 'green', statusText: ' Monthly review complete ' }),
+    { rag: 'green', statusText: 'Monthly review complete' },
+  );
+});
+
+test('keeps root and Team 2 governance contracts identical', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const [root, team2] = await Promise.all([
+    readFile(new URL('../js/executive-governance.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../team-2/js/executive-governance.mjs', import.meta.url), 'utf8'),
+  ]);
+  assert.equal(team2, root);
+});
