@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const dashboardPath = new URL('../team-2/index.html', import.meta.url);
 const dashboard = await readFile(dashboardPath, 'utf8');
+const rootDashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
 
 test('locks the Team 2 production dashboard baseline', () => {
@@ -32,15 +33,24 @@ test('locks the Team 2 production dashboard baseline', () => {
   assert.doesNotMatch(dashboard, /prototype\.(?:html|png)/i);
 });
 
-test('exposes the v2.1 release and base commit in the UI', () => {
-  assert.ok(dashboard.includes("const DASHBOARD_RELEASE = 'v2.1';"));
-  assert.ok(dashboard.includes("const DASHBOARD_BASE_COMMIT = '6d9f7bd';"));
+test('exposes the v2.2T release and base commit in the UI', () => {
+  assert.ok(dashboard.includes("const DASHBOARD_RELEASE = 'v2.2T';"));
+  assert.ok(dashboard.includes("const DASHBOARD_BASE_COMMIT = 'f0d6784';"));
   assert.match(dashboard, /id="dashboardVersion"/);
   assert.ok(
     dashboard.includes(
       "document.getElementById('dashboardVersion').textContent = `${DASHBOARD_RELEASE} · base ${DASHBOARD_BASE_COMMIT}`;",
     ),
   );
+});
+
+test('keeps the root and Team 2 entry points on the same v2.2T release', () => {
+  for (const dashboardEntry of [rootDashboard, dashboard]) {
+    assert.ok(dashboardEntry.includes("const DASHBOARD_RELEASE = 'v2.2T';"));
+    assert.ok(dashboardEntry.includes("const DASHBOARD_BASE_COMMIT = 'f0d6784';"));
+    assert.ok(dashboardEntry.includes('<span class="hdr-version">v2.2T</span>'));
+    assert.ok(dashboardEntry.includes("environment: 'v2.2T'"));
+  }
 });
 
 test('trims portfolio editor values while guarding controls not yet rendered', () => {
