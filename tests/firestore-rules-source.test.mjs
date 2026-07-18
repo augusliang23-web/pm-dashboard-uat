@@ -32,3 +32,31 @@ test("firebase config maps the Firestore rules source", async () => {
 
   assert.equal(config.firestore?.rules, "firestore.rules");
 });
+
+test("clients cannot change an existing Executive timeline directly", async () => {
+  const rules = await readRules();
+
+  assert.match(rules, /function\s+executiveTimelineUnchanged\(\)/);
+  assert.match(rules, /request\.resource\.data\.get\('strategyLayer'/);
+  assert.match(rules, /resource\.data\.get\('strategyLayer'/);
+  assert.match(rules, /allow update:\s*if isSignedIn\(\)\s*&&\s*executiveTimelineUnchanged\(\)/);
+  assert.match(rules, /allow delete:\s*if false/);
+});
+
+test("Executive append-only collections are role-readable and client read-only", async () => {
+  const rules = await readRules();
+
+  assert.match(rules, /function\s+dashboardRole\(\)/);
+  assert.match(rules, /function\s+isExecutive\(\)/);
+  assert.match(rules, /function\s+canViewExecutiveSection\(sectionId\)/);
+  for (const collection of [
+    "executiveMilestoneUpdates",
+    "executiveMilestoneChangeRequests",
+    "executiveMilestoneAudit",
+  ]) {
+    assert.match(rules, new RegExp(`match\\s+/${collection}`));
+  }
+  assert.match(rules, /match\s+\/executiveMilestoneUpdates[\s\S]*?allow write:\s*if false/);
+  assert.match(rules, /match\s+\/executiveMilestoneChangeRequests[\s\S]*?allow write:\s*if false/);
+  assert.match(rules, /match\s+\/executiveMilestoneAudit[\s\S]*?allow write:\s*if false/);
+});

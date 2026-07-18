@@ -5,10 +5,29 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAdmin() {
+    function dashboardRole() {
       return isSignedIn()
         && request.auth.token.email != null
-        && get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin';
+        ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role
+        : '';
+    }
+
+    function isAdmin() {
+      return dashboardRole() == 'admin';
+    }
+
+    function isExecutive() {
+      return dashboardRole() == 'executive';
+    }
+
+    function canViewExecutiveSection(sectionId) {
+      return dashboardRole() in ['admin', 'executive', 'sales', 'bd', 'product']
+        || (dashboardRole() in ['pm', 'engineering'] && sectionId == 'ioe-product-portfolio');
+    }
+
+    function executiveTimelineUnchanged() {
+      return request.resource.data.get('strategyLayer', {}).get('executiveMilestoneTimeline', null)
+        == resource.data.get('strategyLayer', {}).get('executiveMilestoneTimeline', null);
     }
 
     match /users/{userId} {
@@ -17,7 +36,27 @@ service cloud.firestore {
     }
 
     match /weeks/{weekId} {
-      allow read, write: if isSignedIn();
+      allow read, create: if isSignedIn();
+      allow update: if isSignedIn() && executiveTimelineUnchanged();
+      allow delete: if false;
+    }
+
+    match /executiveMilestoneUpdates/{updateId} {
+      allow read: if isSignedIn()
+        && canViewExecutiveSection(resource.data.sectionId);
+      allow write: if false;
+    }
+
+    match /executiveMilestoneChangeRequests/{requestId} {
+      allow read: if isAdmin()
+        || isExecutive()
+        || (isSignedIn() && resource.data.requesterEmail == request.auth.token.email);
+      allow write: if false;
+    }
+
+    match /executiveMilestoneAudit/{auditId} {
+      allow read: if isAdmin() || isExecutive();
+      allow write: if false;
     }
 
     match /logs/{logId} {
