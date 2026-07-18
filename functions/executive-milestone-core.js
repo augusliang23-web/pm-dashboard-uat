@@ -35,6 +35,16 @@ function cloneJson(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
 }
 
+function createExecutiveLegacyItemId(sectionId, quarterKey, index, text) {
+  const seed = [sectionId, quarterKey, Number(index) || 0, String(text || '').trim()].join('|');
+  let hash = 2166136261;
+  for (let position = 0; position < seed.length; position += 1) {
+    hash ^= seed.charCodeAt(position);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `exec-${(hash >>> 0).toString(36)}`;
+}
+
 function normalizedVersion(value) {
   const version = Number.parseInt(value, 10);
   return Number.isFinite(version) && version >= 0 ? version : 0;
@@ -90,11 +100,13 @@ function sectionRow(week, sectionId) {
 }
 
 function locationSnapshot(location) {
+  const item = normalizeItem(location.item);
+  if (!item.id) item.id = location.resolvedItemId;
   return {
     sectionId: location.sectionId,
     quarterKey: location.quarterKey,
     index: location.itemIndex,
-    item: cloneJson(location.item),
+    item,
   };
 }
 
@@ -108,6 +120,7 @@ function authorizeView(role, sectionId) {
 }
 
 function normalizeItem(item = {}) {
+  if (typeof item === 'string') item = { text: item };
   const rag = RAGS.has(String(item.rag || '').toLowerCase())
     ? String(item.rag).toLowerCase()
     : item.manualHealth === 'delayed' || item.status === 'delayed'
@@ -218,6 +231,7 @@ function applyProposal(week, proposal) {
   }
 
   const item = normalizeItem(removed);
+  if (!item.id) item.id = proposal.itemId;
   item.version = normalizedVersion(item.version) + 1;
   if (proposal.changeType === 'rename') item.text = String(proposal.after.item.text || '').trim();
 
@@ -260,15 +274,26 @@ function findItemLocation(week, itemId) {
     const cells = cellsOf(row);
     for (const quarterKey of QUARTER_KEYS) {
       const items = Array.isArray(cells[quarterKey]) ? cells[quarterKey] : [];
-      const itemIndex = items.findIndex(item => item && typeof item === 'object' && String(item.id || '') === targetId);
+      const itemIndex = items.findIndex((item, index) => {
+        const text = typeof item === 'string' ? item : item?.text || item?.label || '';
+        const resolvedId = item && typeof item === 'object' && item.id
+          ? String(item.id)
+          : createExecutiveLegacyItemId(String(row.sectionId || ''), quarterKey, index, text);
+        return resolvedId === targetId;
+      });
       if (itemIndex >= 0) {
+        const foundItem = items[itemIndex];
+        const text = typeof foundItem === 'string' ? foundItem : foundItem?.text || foundItem?.label || '';
         return {
           row,
           rowIndex,
           sectionId: String(row.sectionId || ''),
           quarterKey,
           itemIndex,
-          item: items[itemIndex],
+          item: foundItem,
+          resolvedItemId: foundItem && typeof foundItem === 'object' && foundItem.id
+            ? String(foundItem.id)
+            : createExecutiveLegacyItemId(String(row.sectionId || ''), quarterKey, itemIndex, text),
         };
       }
     }
@@ -298,6 +323,7 @@ function applyItemUpdate(week, input = {}) {
   const nextWeek = cloneJson(week);
   const nextLocation = findItemLocation(nextWeek, input.itemId);
   const item = normalizeItem(nextLocation.item);
+  if (!item.id) item.id = nextLocation.resolvedItemId;
   item.version = currentVersion + 1;
   item.rag = rag;
   item.manualHealth = RAG_TO_HEALTH[rag];
@@ -432,6 +458,7 @@ module.exports = {
   SECTION_IDS,
   QUARTER_KEYS,
   normalizeRole,
+  createExecutiveLegacyItemId,
   authorizeUpdate,
   findItemLocation,
   applyItemUpdate,

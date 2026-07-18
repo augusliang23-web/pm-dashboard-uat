@@ -796,6 +796,27 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .dcdc-row-label { font-size:14px; font-weight:900; line-height:1.25; color:var(--text); background:#F8FBFD; }
 .dcdc-list { margin:0; padding-left:18px; color:var(--text); }
 .dcdc-list li { margin:0 0 9px; font-size:13px; line-height:1.36; font-weight:700; }
+.dcdc-row-label { display:flex; flex-direction:column; gap:8px; }
+.dcdc-section-rag { display:inline-flex; align-items:center; gap:5px; width:max-content; padding:3px 7px; border-radius:999px; background:var(--gdim); color:#37775A; font-size:9px; font-weight:900; }
+.dcdc-section-rag::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--green); }
+.dcdc-section-rag.yellow { background:var(--ydim); color:#8E6C1F; }
+.dcdc-section-rag.yellow::before { background:var(--yellow); }
+.dcdc-section-rag.red { background:var(--rdim); color:#A84F4F; }
+.dcdc-section-rag.red::before { background:var(--red); }
+.executive-compact-list { display:grid; gap:7px; }
+.executive-compact-item { display:grid; grid-template-columns:9px minmax(0,1fr) auto; align-items:start; gap:7px; width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text); text-align:left; cursor:pointer; }
+.executive-compact-item:hover, .executive-compact-item:focus-visible { border-color:var(--border2); background:var(--s2); outline:none; box-shadow:0 0 0 2px rgba(120,179,149,.15); }
+.executive-compact-item.read-only { cursor:default; }
+.executive-compact-rag { width:9px; height:9px; margin-top:3px; border-radius:50%; background:var(--green); }
+.executive-compact-rag.yellow { background:var(--yellow); }
+.executive-compact-rag.red { background:var(--red); }
+.executive-compact-body { display:grid; min-width:0; gap:3px; }
+.executive-compact-title { overflow:hidden; color:var(--text); font-size:11px; font-weight:850; line-height:1.3; text-overflow:ellipsis; white-space:nowrap; }
+.executive-compact-update { overflow:hidden; color:var(--text-light); font-size:9px; line-height:1.3; text-overflow:ellipsis; white-space:nowrap; }
+.executive-compact-meta { overflow:hidden; color:var(--muted); font-size:8px; text-overflow:ellipsis; white-space:nowrap; }
+.executive-freshness { padding:2px 5px; border-radius:999px; background:var(--gdim); color:#37775A; font-size:8px; font-weight:850; white-space:nowrap; }
+.executive-freshness.due { background:var(--ydim); color:#8E6C1F; }
+.executive-freshness.overdue { background:var(--rdim); color:#A84F4F; }
 .exec-outcome-head { display:flex; gap:6px; align-items:flex-start; justify-content:space-between; }
 .exec-outcome-badges { display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; }
 .exec-outcome-badge { padding:2px 5px; border:1px solid var(--border); border-radius:999px; color:var(--muted); background:#fff; font-family:'IBM Plex Mono',monospace; font-size:8px; white-space:nowrap; }
@@ -2550,7 +2571,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script src="./professional-pdf-config.js"></script>
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
-import { normalizeExecutiveRole } from "./js/executive-governance.mjs";
+import { EXECUTIVE_SECTIONS, calculateVisibleExecutiveRag, canUpdateExecutiveSection, canViewExecutiveSection as canViewExecutiveSectionByRole, createExecutiveLegacyItemId, getExecutiveUpdateFreshness, normalizeExecutiveRole } from "./js/executive-governance.mjs";
 import { createExecutiveApi } from "./js/executive-api.mjs";
 import { applyListCommand, getSelectionListType, handleListEnter, handleListPaste, normalizeListText, renderListHtml } from "./js/list-editor.mjs";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
@@ -5065,11 +5086,15 @@ const HEALTH_OPTIONS = [
   ['red', 'Blocked']
 ];
 
-const EXECUTIVE_SECTION_DEFINITIONS = [
-  { sectionId: 'solution-ecosystem', label: 'Solution & ecosystem', audience: 'all-working-team' },
-  { sectionId: 'customers-gtm', label: 'Customers & GTM', audience: 'business-product' },
-  { sectionId: 'investors-others', label: 'Investors & Others', audience: 'leadership-only' },
-];
+const EXECUTIVE_SECTION_MIGRATION = {
+  'solution-ecosystem': 'ioe-product-portfolio',
+  'customers-gtm': 'customer-engagements',
+  'investors-others': 'investors-strategy',
+};
+const EXECUTIVE_SECTION_DEFINITIONS = EXECUTIVE_SECTIONS.map((section, index) => ({
+  ...section,
+  audience: ['pm-engineering', 'business-product', 'leadership-only'][index],
+}));
 
 const EXECUTIVE_AUDIENCE_OPTIONS = [
   ['all-working-team', 'All working teams'],
@@ -5092,9 +5117,9 @@ const DCDC_EXECUTIVE_MILESTONE_TIMELINE = {
   quarters: ['Q1', 'Q2', 'Q3', 'Q4'],
   rows: [
     {
-      sectionId: 'solution-ecosystem',
+      sectionId: 'ioe-product-portfolio',
       audience: 'all-working-team',
-      label: 'Solution & ecosystem',
+      label: 'IoE Product Portfolio',
       cells: [
         ['33 kW container shipped to Plano'],
         ['33kW container integration Complete in Plano', '10 kW Micro Edge design', 'Beta version of PMS software', 'POC with Zettabyte Phase1 complete (2 sites)'],
@@ -5103,9 +5128,9 @@ const DCDC_EXECUTIVE_MILESTONE_TIMELINE = {
       ]
     },
     {
-      sectionId: 'customers-gtm',
+      sectionId: 'customer-engagements',
       audience: 'business-product',
-      label: 'Customers & GTM',
+      label: 'Customer Engagements',
       cells: [
         ['Joint announcement with STT GDC on DCDC infra'],
         ['Telco CO transformation to data center whitepaper'],
@@ -5114,9 +5139,9 @@ const DCDC_EXECUTIVE_MILESTONE_TIMELINE = {
       ]
     },
     {
-      sectionId: 'investors-others',
+      sectionId: 'investors-strategy',
       audience: 'leadership-only',
-      label: 'Investors & Others',
+      label: 'Investors & Strategy',
       cells: [
         ['EDB program secured'],
         ['Investor engagements', 'NewCo creation'],
@@ -5134,9 +5159,9 @@ const DCDC_EXECUTIVE_MILESTONE_TIMELINE = {
 };
 
 const EXECUTIVE_CATEGORY_LABELS = [
-  'Solution & ecosystem',
-  'Customers & GTM',
-  'Investors & Others',
+  'IoE Product Portfolio',
+  'Customer Engagements',
+  'Investors & Strategy',
 ];
 
 function executiveCategoryKey(label = '') {
@@ -5144,7 +5169,8 @@ function executiveCategoryKey(label = '') {
 }
 
 function defaultExecutiveSectionFor(row = {}, index = 0) {
-  const byId = EXECUTIVE_SECTION_DEFINITIONS.find(item => item.sectionId === row.sectionId);
+  const migratedId = EXECUTIVE_SECTION_MIGRATION[row.sectionId] || row.sectionId;
+  const byId = EXECUTIVE_SECTION_DEFINITIONS.find(item => item.sectionId === migratedId);
   if (byId) return byId;
   const key = executiveCategoryKey(row.label);
   return EXECUTIVE_SECTION_DEFINITIONS.find(item => executiveCategoryKey(item.label) === key)
@@ -5157,8 +5183,7 @@ function normalizeExecutiveAudience(value, fallback = 'leadership-only') {
 }
 
 function canViewExecutiveSection(row = {}, role = currentRole) {
-  const audience = normalizeExecutiveAudience(row.audience, 'leadership-only');
-  return EXECUTIVE_AUDIENCE_ROLES[audience]?.has(normalizeRole(role)) === true;
+  return canViewExecutiveSectionByRole(role, row.sectionId);
 }
 
 function normalizeExecutiveMilestoneTimeline(raw = {}) {
@@ -5167,13 +5192,19 @@ function normalizeExecutiveMilestoneTimeline(raw = {}) {
   const rows = (source.rows || []).map((row, rowIndex) => {
     const section = defaultExecutiveSectionFor(row, rowIndex);
     return {
-    sectionId: String(row.sectionId || section.sectionId),
-    audience: normalizeExecutiveAudience(row.audience, section.audience),
-    label: String(row.label || section.label || ''),
+    sectionId: section.sectionId,
+    audience: section.audience,
+    label: section.label,
     cells: Array.from({ length: 4 }, (_, index) => {
       const cell = getExecutiveTimelineCell(row.cells, index);
       const items = Array.isArray(cell) ? cell : textLines(cell);
-      return items.map(normalizeExecutiveOutcome).filter(item => item.text.trim());
+      return items.map((item, itemIndex) => {
+        const normalized = normalizeExecutiveOutcome(item);
+        if (!normalized.id) {
+          normalized.id = createExecutiveLegacyItemId(section.sectionId, `q${index + 1}`, itemIndex, normalized.text);
+        }
+        return normalized;
+      }).filter(item => item.text.trim());
     })
   };
   }).filter(row => row.label || row.cells.some(cell => cell.length));
@@ -5189,6 +5220,7 @@ function normalizeExecutiveMilestoneTimeline(raw = {}) {
     rows: rows.length ? rows : DCDC_EXECUTIVE_MILESTONE_TIMELINE.rows,
     phases: phases.some(Boolean) ? phases : DCDC_EXECUTIVE_MILESTONE_TIMELINE.phases,
     categoryOverrides,
+    ragOverrides: source.ragOverrides && typeof source.ragOverrides === 'object' ? source.ragOverrides : {},
   };
 }
 
@@ -5908,8 +5940,51 @@ function executiveRagLabel(health) {
   return 'Green';
 }
 
+function executiveItemRag(item) {
+  return normalizeExecutiveOutcome(item).rag || 'green';
+}
+
+function calculateExecutiveSectionRag(timeline, row) {
+  const calculated = calculateVisibleExecutiveRag(
+    (row.cells || []).flat().map(item => ({ sectionId: row.sectionId, rag: executiveItemRag(item) })),
+    currentRole,
+  ) || 'green';
+  return timeline.ragOverrides?.[`section:${row.sectionId}`]?.replacementValue || calculated;
+}
+
 function calculateExecutiveQuarterRag(timeline, catalog, quarterIndex, rows = timeline.rows || []) {
-  return calculateExecutiveQuarterSummary(timeline, catalog, quarterIndex, rows).health;
+  const quarterKey = `q${quarterIndex + 1}`;
+  const calculated = calculateVisibleExecutiveRag(
+    rows.flatMap(row => (row.cells?.[quarterIndex] || []).map(item => ({
+      sectionId: row.sectionId,
+      rag: executiveItemRag(item),
+    }))),
+    currentRole,
+  ) || 'green';
+  return timeline.ragOverrides?.[`quarter:${quarterKey}`]?.replacementValue || calculated;
+}
+
+function formatExecutiveUpdateDate(value) {
+  if (!value) return 'Not updated';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Not updated' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function renderExecutiveCompactItem(source, row) {
+  const item = normalizeExecutiveOutcome(source);
+  const rag = executiveItemRag(item);
+  const freshness = getExecutiveUpdateFreshness(item.latestStatusAt);
+  const freshnessLabel = freshness === 'overdue' ? 'Overdue' : freshness === 'due' ? 'Update due' : 'Current';
+  const canUpdate = canUpdateExecutiveSection(currentRole, row.sectionId);
+  return `<button type="button" class="executive-compact-item ${rag}${canUpdate ? '' : ' read-only'}" data-executive-item-id="${escHtml(item.id)}" data-executive-can-update="${canUpdate}" aria-label="${escHtml(`${item.text}, ${executiveRagLabel(rag)}`)}">
+    <span class="executive-compact-rag ${rag}" aria-hidden="true"></span>
+    <span class="executive-compact-body">
+      <span class="executive-compact-title">${escHtml(item.text || '-')}</span>
+      <span class="executive-compact-update">${escHtml(item.latestStatusText || 'No monthly update yet.')}</span>
+      <span class="executive-compact-meta">${escHtml(formatExecutiveUpdateDate(item.latestStatusAt))} · ${escHtml(item.latestStatusBy || 'No owner')}</span>
+    </span>
+    <span class="executive-freshness ${freshness}">${escHtml(freshnessLabel)}</span>
+  </button>`;
 }
 
 function renderExecutiveCategorySummaries(timeline, catalog, rows = timeline.rows || []) {
@@ -5934,6 +6009,8 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
   const quarters = timeline.quarters || ['Q1', 'Q2', 'Q3', 'Q4'];
   const catalog = buildExecutiveEvidenceCatalog(projs);
   const reportingLabel = allWeeks[currentIdx]?.weekLabel || getSelectedReportingDate();
+  const sectionRags = new Map(visibleRows.map(row => [row.sectionId, calculateExecutiveSectionRag(timeline, row)]));
+  const quarterRags = quarters.map((quarter, index) => calculateExecutiveQuarterRag(timeline, catalog, index, visibleRows));
   if (!visibleRows.length) return '';
   return `<section class="roadmap-block executive-milestone-block">
     <div class="roadmap-block-head">
@@ -5947,10 +6024,10 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
       <div class="dcdc-title">${escHtml(timeline.title || `Selected ${year} DCDC Milestone Timeline`)}</div>
       <div class="dcdc-grid">
         <div class="dcdc-cell dcdc-corner"></div>
-        ${quarters.map(q => `<div class="dcdc-cell dcdc-quarter">${escHtml(q)}</div>`).join('')}
+        ${quarters.map((q, index) => `<div class="dcdc-cell dcdc-quarter"><div class="dcdc-quarter-content"><span>${escHtml(q)}</span><span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span></div></div>`).join('')}
         ${visibleRows.map(row => `
-          <div class="dcdc-cell dcdc-row-label">${escHtml(row.label)}</div>
-          ${(row.cells || []).map(items => `<div class="dcdc-cell"><ul class="dcdc-list">${(items || []).map(item => renderExecutiveOutcomeLegacy(item, catalog, reportingLabel)).join('')}</ul></div>`).join('')}
+          <div class="dcdc-cell dcdc-row-label"><span>${escHtml(row.label)}</span><span class="dcdc-section-rag ${sectionRags.get(row.sectionId)}">${escHtml(executiveRagLabel(sectionRags.get(row.sectionId)))}</span></div>
+          ${(row.cells || []).map(items => `<div class="dcdc-cell"><div class="executive-compact-list">${(items || []).map(item => renderExecutiveCompactItem(item, row)).join('')}</div></div>`).join('')}
         `).join('')}
       </div>
       <div class="dcdc-phase-row">
@@ -5960,6 +6037,12 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
     </div>
   </section>`;
 }
+
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('[data-executive-item-id]');
+  if (!button) return;
+  window.openExecutiveItemDrawer?.(button.dataset.executiveItemId);
+});
 
 function renderProjectQuarterItems(items) {
   if (!items.length) return '<div class="pqm-empty">No PM milestone in this quarter.</div>';

@@ -8,6 +8,7 @@ import {
   canChangeExecutiveStructure,
   canUpdateExecutiveSection,
   canViewExecutiveSection,
+  createExecutiveLegacyItemId,
   getExecutiveUpdateFreshness,
   normalizeExecutiveRole,
   validateExecutiveItemUpdate,
@@ -26,6 +27,13 @@ test('uses the approved roles and fixed Executive sections', () => {
   assert.equal(normalizeExecutiveRole('executive'), 'executive');
   assert.equal(normalizeExecutiveRole('vip', { allowVipBridge: true }), 'executive');
   assert.equal(normalizeExecutiveRole('vip'), '');
+});
+
+test('derives a stable legacy item id from its fixed location and text', () => {
+  const first = createExecutiveLegacyItemId('ioe-product-portfolio', 'q1', 0, 'Launch');
+  assert.equal(first, createExecutiveLegacyItemId('ioe-product-portfolio', 'q1', 0, 'Launch'));
+  assert.notEqual(first, createExecutiveLegacyItemId('ioe-product-portfolio', 'q2', 0, 'Launch'));
+  assert.match(first, /^exec-[a-z0-9]+$/);
 });
 
 test('enforces the approved view and update matrix', () => {

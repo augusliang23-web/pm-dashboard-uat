@@ -7,6 +7,7 @@ const {
   applyItemUpdate,
   authorizeUpdate,
   createChangeRequest,
+  createExecutiveLegacyItemId,
   findItemLocation,
   normalizeRole,
 } = require('../executive-milestone-core.js');
@@ -80,6 +81,18 @@ test('finds an item in Firestore-safe quarter maps', () => {
     { sectionId: location.sectionId, quarterKey: location.quarterKey, itemIndex: location.itemIndex },
     { sectionId: 'customer-engagements', quarterKey: 'q2', itemIndex: 0 },
   );
+});
+
+test('finds and upgrades a legacy item through its deterministic id', () => {
+  const week = fixtureWeek();
+  week.strategyLayer.executiveMilestoneTimeline.rows[0].cells.q4 = ['Legacy launch'];
+  const itemId = createExecutiveLegacyItemId('ioe-product-portfolio', 'q4', 0, 'Legacy launch');
+  const result = applyItemUpdate(week, {
+    role: 'pm', itemId, expectedVersion: 0, rag: 'green', statusText: 'Legacy item reviewed',
+    actorEmail: 'pm@example.com', now: '2026-07-18T00:00:00.000Z',
+  });
+  assert.equal(result.item.id, itemId);
+  assert.equal(result.item.version, 1);
 });
 
 test('applies one item update immutably and increments its version', () => {

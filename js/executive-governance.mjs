@@ -27,6 +27,16 @@ const UPDATE = {
 const RAG_SEVERITY = Object.freeze({ green: 0, yellow: 1, red: 2 });
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+export function createExecutiveLegacyItemId(sectionId, quarterKey, index, text) {
+  const seed = [sectionId, quarterKey, Number(index) || 0, String(text || '').trim()].join('|');
+  let hash = 2166136261;
+  for (let position = 0; position < seed.length; position += 1) {
+    hash ^= seed.charCodeAt(position);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `exec-${(hash >>> 0).toString(36)}`;
+}
+
 export function normalizeExecutiveRole(value, { allowVipBridge = false } = {}) {
   const role = String(value || '').trim().toLowerCase();
   if (allowVipBridge && role === 'vip') return 'executive';
