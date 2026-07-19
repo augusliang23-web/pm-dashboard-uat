@@ -18,7 +18,7 @@ test('both dashboards use the fixed Executive sections and governance helpers', 
   }
 });
 
-test('compact roadmap items expose RAG, latest update, identity, actor, date, and freshness', () => {
+test('compact roadmap items separate RAG from neutral update-record metadata', () => {
   for (const dashboard of dashboards) {
     assert.match(dashboard, /data-executive-item-id=/);
     assert.match(dashboard, /class="executive-compact-item/);
@@ -28,7 +28,13 @@ test('compact roadmap items expose RAG, latest update, identity, actor, date, an
     assert.match(dashboard, /latestStatusAt/);
     assert.match(dashboard, /latestStatusBy/);
     assert.match(dashboard, /getExecutiveUpdateFreshness/);
-    assert.match(dashboard, /executive-freshness/);
+    assert.match(dashboard, /executive-update-record/);
+    assert.match(dashboard, /Update record/);
+    assert.match(dashboard, /No update recorded/);
+    assert.match(dashboard, /Refresh requested/);
+    assert.match(dashboard, /Please refresh/);
+    assert.match(dashboard, /freshness of the leadership status update only/);
+    assert.doesNotMatch(dashboard, /freshnessLabel = freshness === 'overdue'/);
   }
 });
 
