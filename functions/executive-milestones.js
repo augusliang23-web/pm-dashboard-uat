@@ -100,20 +100,44 @@ function worstRag(items) {
   return rags.reduce((worst, rag) => severity[rag] > severity[worst] ? rag : worst, rags[0]);
 }
 
-function calculateOverrideTarget(timeline, scope, targetId) {
+function calculateOverrideTarget(timeline, scope, targetId, config = defaultTimelineConfig()) {
   const rows = Array.isArray(timeline?.rows) ? timeline.rows : [];
   if (scope === 'section') {
+    if (!config.sections.some(section => section.sectionId === targetId)) throw new HttpsError('not-found', 'Executive section was not found.');
     const row = rows.find(candidate => candidate?.sectionId === targetId);
     if (!row) throw new HttpsError('not-found', 'Executive section was not found.');
     const cells = Array.isArray(row.cells)
       ? row.cells
-      : ['q1', 'q2', 'q3', 'q4'].map(key => row.cells?.[key] || []);
+      : config.quarters.map(quarter => row.cells?.[quarter.quarterId] || []);
     return worstRag(cells.flat());
   }
-  if (scope === 'quarter' && ['q1', 'q2', 'q3', 'q4'].includes(targetId)) {
-    return worstRag(rows.flatMap(row => Array.isArray(row.cells) ? row.cells[Number(targetId.slice(1)) - 1] || [] : row.cells?.[targetId] || []));
+  const quarterIndex = config.quarters.findIndex(quarter => quarter.quarterId === targetId);
+  if (scope === 'quarter' && quarterIndex >= 0) {
+    return worstRag(rows.flatMap(row => Array.isArray(row.cells) ? row.cells[quarterIndex] || [] : row.cells?.[targetId] || []));
   }
   throw new HttpsError('invalid-argument', 'A valid RAG override target is required.');
+}
+
+function sameIds(left, right, field) {
+  return left.length === right.length && left.every((item, index) => item[field] === right[index][field]);
+}
+
+function validateTimelineConfigChange(currentConfig, rawConfig) {
+  if (!Array.isArray(rawConfig?.sections) || !Array.isArray(rawConfig?.quarters)) {
+    throw new HttpsError('invalid-argument', 'Timeline sections and quarters are required.');
+  }
+  const nextConfig = normalizeTimelineConfig(rawConfig);
+  if (nextConfig.sections.length !== rawConfig.sections.length || nextConfig.quarters.length !== rawConfig.quarters.length) {
+    throw new HttpsError('invalid-argument', 'Every Section and Quarter needs a stable ID and a label.');
+  }
+  if (new Set(nextConfig.sections.map(section => section.sectionId)).size !== nextConfig.sections.length
+    || new Set(nextConfig.quarters.map(quarter => quarter.quarterId)).size !== nextConfig.quarters.length) {
+    throw new HttpsError('invalid-argument', 'Section and Quarter IDs must be unique.');
+  }
+  if (!sameIds(currentConfig.sections, nextConfig.sections, 'sectionId') || !sameIds(currentConfig.quarters, nextConfig.quarters, 'quarterId')) {
+    throw new HttpsError('invalid-argument', 'Section and Quarter IDs cannot be changed here.');
+  }
+  return { ...nextConfig, version: currentConfig.version + 1 };
 }
 
 const addExecutiveMilestoneUpdate = onCall(CALLABLE_OPTIONS, async request => {
@@ -257,6 +281,41 @@ const applyDirectExecutiveMilestoneChange = onCall(CALLABLE_OPTIONS, async reque
   }
 });
 
+const saveExecutiveMilestoneTimelineConfig = onCall(CALLABLE_OPTIONS, async request => {
+  try {
+    const expectedVersion = Number.parseInt(request.data?.expectedVersion, 10);
+    const reason = String(request.data?.reason || '').trim();
+    if (!Number.isFinite(expectedVersion) || expectedVersion < 1) throw new HttpsError('invalid-argument', 'A valid timeline configuration version is required.');
+    if (!reason) throw new HttpsError('invalid-argument', 'A reason is required for timeline settings changes.');
+    const auditRef = db.collection('executiveMilestoneAudit').doc();
+    const result = await db.runTransaction(async transaction => {
+      const actor = await getActor(transaction, request);
+      if (!['admin', 'executive'].includes(actor.role)) throw new HttpsError('permission-denied', 'Only Admin or Executive Owner can edit timeline settings.');
+      const configRef = executiveTimelineConfigRef();
+      const configSnapshot = await transaction.get(configRef);
+      const currentConfig = normalizeTimelineConfig(configSnapshot.exists ? configSnapshot.data() : defaultTimelineConfig());
+      if (expectedVersion !== currentConfig.version) throw new HttpsError('aborted', 'Timeline settings changed. Reload and try again.');
+      const nextConfig = validateTimelineConfigChange(currentConfig, request.data?.config);
+      transaction.set(configRef, { ...nextConfig, updatedAt: new Date().toISOString(), updatedBy: actor.email });
+      transaction.create(auditRef, {
+        auditId: auditRef.id,
+        action: 'timeline-config-change',
+        reason,
+        before: currentConfig,
+        after: nextConfig,
+        configVersion: nextConfig.version,
+        actorEmail: actor.email,
+        actorRole: actor.role,
+        createdAt: new Date().toISOString(),
+      });
+      return nextConfig;
+    });
+    return { ok: true, version: result.version };
+  } catch (error) {
+    throw asHttpsError(error);
+  }
+});
+
 const setExecutiveRagOverride = onCall(CALLABLE_OPTIONS, async request => {
   try {
     const weekId = requireWeekId(request.data);
@@ -273,9 +332,10 @@ const setExecutiveRagOverride = onCall(CALLABLE_OPTIONS, async request => {
     const result = await db.runTransaction(async transaction => {
       const actor = await getActor(transaction, request);
       if (!['admin', 'executive'].includes(actor.role)) throw new HttpsError('permission-denied', 'Role is not authorized to override Executive RAG.');
+      const config = await readExecutiveTimelineConfig(transaction);
       const week = await readWeek(transaction, weekRef);
       const timeline = JSON.parse(JSON.stringify(week.strategyLayer?.executiveMilestoneTimeline || {}));
-      const calculatedValue = calculateOverrideTarget(timeline, scope, targetId);
+      const calculatedValue = calculateOverrideTarget(timeline, scope, targetId, config);
       const key = [scope, targetId].join(':');
       timeline.ragOverrides = timeline.ragOverrides && typeof timeline.ragOverrides === 'object' ? timeline.ragOverrides : {};
       const previousOverride = timeline.ragOverrides[key] || null;
@@ -306,6 +366,7 @@ const setExecutiveRagOverride = onCall(CALLABLE_OPTIONS, async request => {
         reason,
         actorEmail: actor.email,
         actorRole: actor.role,
+        configVersion: config.version,
         createdAt: new Date().toISOString(),
       };
       transaction.create(auditRef, audit);
@@ -322,5 +383,6 @@ module.exports = {
   createExecutiveMilestoneChangeRequest,
   decideExecutiveMilestoneChangeRequest,
   applyDirectExecutiveMilestoneChange,
+  saveExecutiveMilestoneTimelineConfig,
   setExecutiveRagOverride,
 };

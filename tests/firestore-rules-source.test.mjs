@@ -76,3 +76,11 @@ test("Executive append-only collections are role-readable and client read-only",
   assert.match(rules, /match\s+\/executiveMilestoneChangeRequests[\s\S]*?allow write:\s*if false/);
   assert.match(rules, /match\s+\/executiveMilestoneAudit[\s\S]*?allow write:\s*if false/);
 });
+
+test("Executive configuration is client-readable but callable-write-only", async () => {
+  const rules = await readRules();
+
+  assert.match(rules, /match\s+\/executiveMilestoneConfig\/\{configId\}/);
+  assert.match(rules, /allow read:\s*if isSignedIn\(\);\s*allow write:\s*if false;/);
+  assert.doesNotMatch(rules, /sectionId == 'ioe-product-portfolio'/);
+});

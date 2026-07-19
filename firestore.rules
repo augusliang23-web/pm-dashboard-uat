@@ -21,8 +21,9 @@ service cloud.firestore {
     }
 
     function canViewExecutiveSection(sectionId) {
-      return dashboardRole() in ['admin', 'executive', 'sales', 'bd', 'product']
-        || (dashboardRole() in ['pm', 'engineering'] && sectionId == 'ioe-product-portfolio');
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/executiveMilestoneConfig/timeline)
+        && dashboardRole() in get(/databases/$(database)/documents/executiveMilestoneConfig/timeline).data.sectionPolicies[sectionId].viewRoles;
     }
 
     function executiveTimelineUnchanged() {
@@ -40,6 +41,11 @@ service cloud.firestore {
       allow create: if isAdmin();
       allow update: if isSignedIn() && executiveTimelineUnchanged();
       allow delete: if false;
+    }
+
+    match /executiveMilestoneConfig/{configId} {
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     match /executiveMilestoneUpdates/{updateId} {

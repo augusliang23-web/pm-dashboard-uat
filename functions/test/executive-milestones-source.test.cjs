@@ -14,6 +14,7 @@ test('defines all Executive milestone callable handlers', () => {
     'decideExecutiveMilestoneChangeRequest',
     'applyDirectExecutiveMilestoneChange',
     'setExecutiveRagOverride',
+    'saveExecutiveMilestoneTimelineConfig',
   ]) {
     assert.match(source, new RegExp(`const\\s+${name}\\s*=\\s*onCall`), name);
   }
@@ -52,6 +53,14 @@ test('reloads live timeline configuration for every Executive mutation', () => {
   assert.match(source, /config,\s*$/m);
 });
 
+test('defines a version-checked timeline configuration change with audit', () => {
+  const source = read('executive-milestones.js');
+  assert.match(source, /saveExecutiveMilestoneTimelineConfig/);
+  assert.match(source, /timeline-config-change/);
+  assert.match(source, /expectedVersion/);
+  assert.match(source, /Only Admin or Executive Owner can edit timeline settings/);
+});
+
 test('exports every callable beside presence aggregation', () => {
   const source = read('index.js');
   assert.match(source, /aggregatePresenceSessions/);
@@ -61,6 +70,7 @@ test('exports every callable beside presence aggregation', () => {
     'decideExecutiveMilestoneChangeRequest',
     'applyDirectExecutiveMilestoneChange',
     'setExecutiveRagOverride',
+    'saveExecutiveMilestoneTimelineConfig',
   ]) {
     assert.match(source, new RegExp(`exports\\.${name}\\s*=\\s*executiveMilestones\\.${name}`), name);
   }
