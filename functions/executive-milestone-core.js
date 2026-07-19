@@ -3,7 +3,7 @@
 const ROLES = new Set(['admin', 'executive', 'pm', 'engineering', 'sales', 'bd', 'product']);
 const SECTION_IDS = ['ioe-product-portfolio', 'customer-engagements', 'investors-strategy'];
 const QUARTER_KEYS = ['q1', 'q2', 'q3', 'q4'];
-const CHANGE_TYPES = new Set(['add', 'rename', 'move-section', 'move-quarter', 'reorder', 'delete']);
+const CHANGE_TYPES = new Set(['add', 'rename', 'move', 'move-section', 'move-quarter', 'reorder', 'delete']);
 const RAGS = new Set(['green', 'yellow', 'red']);
 const RAG_TO_HEALTH = { green: 'on-track', yellow: 'at-risk', red: 'delayed' };
 const VIEW = {
@@ -186,6 +186,11 @@ function proposalFor(week, input, role) {
     const text = String(input.after?.item?.text || '').trim();
     if (!text) fail('Milestone title is required.', 'invalid-argument');
     after.item.text = text;
+  } else if (changeType === 'move') {
+    after.sectionId = normalizedSection(input.after?.sectionId);
+    after.quarterKey = normalizedQuarter(input.after?.quarterKey);
+    authorizeView(role, after.sectionId);
+    after.index = normalizedIndex(input.after?.index, Number.MAX_SAFE_INTEGER);
   } else if (changeType === 'move-section') {
     after.sectionId = normalizedSection(input.after?.sectionId);
     authorizeView(role, after.sectionId);
@@ -235,14 +240,14 @@ function applyProposal(week, proposal) {
   item.version = normalizedVersion(item.version) + 1;
   if (proposal.changeType === 'rename') item.text = String(proposal.after.item.text || '').trim();
 
-  const destinationSection = proposal.changeType === 'move-section' ? proposal.after.sectionId : current.sectionId;
-  const destinationQuarter = proposal.changeType === 'move-quarter' ? proposal.after.quarterKey : current.quarterKey;
+  const destinationSection = proposal.changeType === 'move' || proposal.changeType === 'move-section' ? proposal.after.sectionId : current.sectionId;
+  const destinationQuarter = proposal.changeType === 'move' || proposal.changeType === 'move-quarter' ? proposal.after.quarterKey : current.quarterKey;
   const destination = sectionRow(nextWeek, destinationSection).row;
   const destinationCells = ensureFirestoreSafeCells(destination);
   const destinationList = destinationCells[destinationQuarter];
   const requestedIndex = proposal.changeType === 'rename'
     ? current.itemIndex
-    : proposal.changeType === 'reorder' || proposal.changeType === 'move-section' || proposal.changeType === 'move-quarter'
+    : proposal.changeType === 'reorder' || proposal.changeType === 'move' || proposal.changeType === 'move-section' || proposal.changeType === 'move-quarter'
       ? proposal.after.index
       : destinationList.length;
   const index = normalizedIndex(requestedIndex, destinationList.length);

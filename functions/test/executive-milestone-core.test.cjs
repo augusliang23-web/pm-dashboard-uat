@@ -208,3 +208,17 @@ test('requires Admin or Executive and an audit reason for direct changes', () =>
   assert.equal(result.audit.action, 'direct-change');
   assert.equal(result.audit.reason, 'Schedule moved');
 });
+
+test('moves a milestone to a different section and quarter in one exact proposal', () => {
+  const week = fixtureWeek();
+  const proposal = createChangeRequest(week, {
+    role: 'sales', requesterEmail: 'sales@example.com', itemId: 'exec-3', expectedVersion: 4,
+    changeType: 'move',
+    after: { sectionId: 'customer-engagements', quarterKey: 'q4', index: 0 },
+    reason: 'The commercial milestone is now planned for the Q4 customer workstream.',
+  });
+  assert.equal(proposal.after.sectionId, 'customer-engagements');
+  assert.equal(proposal.after.quarterKey, 'q4');
+  const applied = applyApprovedRequest(week, proposal, { role: 'executive', actorEmail: 'executive@example.com' });
+  assert.equal(applied.week.strategyLayer.executiveMilestoneTimeline.rows[1].cells.q4[0].id, 'exec-3');
+});

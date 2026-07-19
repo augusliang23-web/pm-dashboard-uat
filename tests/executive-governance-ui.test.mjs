@@ -59,7 +59,9 @@ test('focused drawer supports permission-aware RAG and monthly updates', () => {
     assert.match(dashboard, /data-executive-rag="red"/);
     assert.match(dashboard, /id="executiveStatusUpdate"/);
     assert.match(dashboard, /id="executiveUpdateHistory"/);
-    assert.match(dashboard, /Request structural change/);
+    assert.match(dashboard, /Rename/);
+    assert.match(dashboard, /Move to/);
+    assert.match(dashboard, /Delete milestone/);
     assert.match(dashboard, /function renderExecutiveItemDrawer\(/);
     assert.match(dashboard, /window\.openExecutiveItemDrawer =/);
     assert.match(dashboard, /window\.saveExecutiveItemUpdate =/);
@@ -82,16 +84,22 @@ test('drawer guards auth identity and renders append-only history newest first',
   }
 });
 
-test('structural requests use an exact diff and approved change types', () => {
+test('structural requests use contextual actions and retain an exact hidden diff', () => {
   for (const dashboard of dashboards) {
     assert.match(dashboard, /id="executiveChangeRequestOverlay"[^>]*role="dialog"/);
-    for (const type of ['add', 'rename', 'move-section', 'move-quarter', 'reorder', 'delete']) {
-      assert.match(dashboard, new RegExp(`value="${type}"`));
-    }
-    assert.match(dashboard, /id="executiveChangeBefore"/);
-    assert.match(dashboard, /id="executiveChangeAfter"/);
-    assert.match(dashboard, /id="executiveChangeReason"/);
+    assert.match(dashboard, /\+ Add milestone/);
+    assert.match(dashboard, /id="executiveStructuralActions"/);
+    assert.match(dashboard, /id="executiveStructuralTitle"/);
+    assert.match(dashboard, /id="executiveStructuralSection"/);
+    assert.match(dashboard, /id="executiveStructuralQuarter"/);
+    assert.match(dashboard, /id="executiveStructuralReason"/);
+    assert.match(dashboard, /id="executiveStructuralSummary"/);
+    assert.doesNotMatch(dashboard, /id="executiveChangeIndex"/);
+    assert.doesNotMatch(dashboard, /id="executiveChangeBefore"/);
+    assert.doesNotMatch(dashboard, /id="executiveChangeAfter"/);
+    assert.match(dashboard, /function openExecutiveStructuralAction\(/);
     assert.match(dashboard, /function buildExecutiveChangePayload\(/);
+    assert.match(dashboard, /expectedVersion:/);
     assert.match(dashboard, /executiveApi\.createRequest/);
     assert.match(dashboard, /executiveApi\.applyDirectChange/);
   }
