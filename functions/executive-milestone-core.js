@@ -1,29 +1,19 @@
 'use strict';
 
+const {
+  canUpdateConfiguredSection,
+  canViewConfiguredSection,
+  defaultTimelineConfig,
+  normalizeTimelineConfig,
+} = require('./executive-timeline-config');
+
 const ROLES = new Set(['admin', 'executive', 'pm', 'engineering', 'sales', 'bd', 'product']);
-const SECTION_IDS = ['ioe-product-portfolio', 'customer-engagements', 'investors-strategy'];
-const QUARTER_KEYS = ['q1', 'q2', 'q3', 'q4'];
+const DEFAULT_CONFIG = defaultTimelineConfig();
+const SECTION_IDS = DEFAULT_CONFIG.sections.map(section => section.sectionId);
+const QUARTER_KEYS = DEFAULT_CONFIG.quarters.map(quarter => quarter.quarterId);
 const CHANGE_TYPES = new Set(['add', 'rename', 'move', 'move-section', 'move-quarter', 'reorder', 'delete']);
 const RAGS = new Set(['green', 'yellow', 'red']);
 const RAG_TO_HEALTH = { green: 'on-track', yellow: 'at-risk', red: 'delayed' };
-const VIEW = {
-  admin: new Set(SECTION_IDS),
-  executive: new Set(SECTION_IDS),
-  pm: new Set(['ioe-product-portfolio']),
-  engineering: new Set(['ioe-product-portfolio']),
-  sales: new Set(SECTION_IDS),
-  bd: new Set(SECTION_IDS),
-  product: new Set(SECTION_IDS),
-};
-const UPDATE = {
-  admin: VIEW.admin,
-  executive: VIEW.executive,
-  pm: new Set(['ioe-product-portfolio']),
-  engineering: new Set(['ioe-product-portfolio']),
-  sales: new Set(['customer-engagements']),
-  bd: new Set(['customer-engagements']),
-  product: new Set(['customer-engagements']),
-};
 
 function fail(message, code = 'failed-precondition') {
   const error = new Error(message);
@@ -50,15 +40,23 @@ function normalizedVersion(value) {
   return Number.isFinite(version) && version >= 0 ? version : 0;
 }
 
-function normalizedQuarter(value) {
+function operationConfig(value) {
+  return normalizeTimelineConfig(value || DEFAULT_CONFIG);
+}
+
+function quarterKeys(config) {
+  return config.quarters.map(quarter => quarter.quarterId);
+}
+
+function normalizedQuarter(config, value) {
   const quarterKey = String(value || '').trim().toLowerCase();
-  if (!QUARTER_KEYS.includes(quarterKey)) fail('A valid quarter is required.', 'invalid-argument');
+  if (!quarterKeys(config).includes(quarterKey)) fail('A configured quarter is required.', 'invalid-argument');
   return quarterKey;
 }
 
-function normalizedSection(value) {
+function normalizedSection(config, value) {
   const sectionId = String(value || '').trim();
-  if (!SECTION_IDS.includes(sectionId)) fail('A valid Executive section is required.', 'invalid-argument');
+  if (!config.sections.some(section => section.sectionId === sectionId)) fail('A configured Executive section is required.', 'invalid-argument');
   return sectionId;
 }
 
@@ -76,17 +74,17 @@ function timelineOf(week) {
   return timeline;
 }
 
-function cellsOf(row) {
+function cellsOf(row, config = DEFAULT_CONFIG) {
   if (Array.isArray(row.cells)) {
-    return Object.fromEntries(QUARTER_KEYS.map((key, index) => [key, Array.isArray(row.cells[index]) ? row.cells[index] : []]));
+    return Object.fromEntries(quarterKeys(config).map((key, index) => [key, Array.isArray(row.cells[index]) ? row.cells[index] : []]));
   }
   return row.cells || {};
 }
 
-function ensureFirestoreSafeCells(row) {
-  if (Array.isArray(row.cells)) row.cells = cellsOf(row);
+function ensureFirestoreSafeCells(row, config = DEFAULT_CONFIG) {
+  if (Array.isArray(row.cells)) row.cells = cellsOf(row, config);
   if (!row.cells || typeof row.cells !== 'object') row.cells = {};
-  for (const key of QUARTER_KEYS) {
+  for (const key of quarterKeys(config)) {
     if (!Array.isArray(row.cells[key])) row.cells[key] = [];
   }
   return row.cells;
@@ -110,12 +108,12 @@ function locationSnapshot(location) {
   };
 }
 
-function canView(role, sectionId) {
-  return VIEW[normalizeRole(role)]?.has(sectionId) === true;
+function canView(config, role, sectionId) {
+  return canViewConfiguredSection(config, normalizeRole(role), sectionId);
 }
 
-function authorizeView(role, sectionId) {
-  if (!canView(role, sectionId)) fail('Role is not authorized to view this Executive section.', 'permission-denied');
+function authorizeView(config, role, sectionId) {
+  if (!canView(config, role, sectionId)) fail('Role is not authorized to view this Executive section.', 'permission-denied');
   return true;
 }
 
@@ -141,18 +139,19 @@ function normalizeItem(item = {}) {
 }
 
 function proposalFor(week, input, role) {
+  const config = operationConfig(input.config);
   const changeType = String(input.changeType || '').trim();
   if (!CHANGE_TYPES.has(changeType)) fail('Unsupported structural change type.', 'invalid-argument');
 
   if (changeType === 'add') {
-    const sectionId = normalizedSection(input.after?.sectionId);
-    const quarterKey = normalizedQuarter(input.after?.quarterKey);
-    authorizeView(role, sectionId);
+    const sectionId = normalizedSection(config, input.after?.sectionId);
+    const quarterKey = normalizedQuarter(config, input.after?.quarterKey);
+    authorizeView(config, role, sectionId);
     const item = normalizeItem(input.after?.item);
     if (!item.id) fail('A stable milestone itemId is required.', 'invalid-argument');
     if (!item.text) fail('Milestone title is required.', 'invalid-argument');
     try {
-      findItemLocation(week, item.id);
+      findItemLocation(week, item.id, config);
       fail('Milestone itemId already exists.', 'already-exists');
     } catch (error) {
       if (error.code !== 'not-found') throw error;
@@ -165,14 +164,14 @@ function proposalFor(week, input, role) {
     item.latestStatusAt = '';
     item.latestStatusBy = '';
     const target = sectionRow(week, sectionId);
-    const cells = cellsOf(target.row);
+    const cells = cellsOf(target.row, config);
     const index = normalizedIndex(input.after?.index, Array.isArray(cells[quarterKey]) ? cells[quarterKey].length : 0);
-    return { changeType, itemId: item.id, targetVersion: 0, before: null, after: { sectionId, quarterKey, index, item } };
+    return { changeType, itemId: item.id, targetVersion: 0, configVersion: config.version, before: null, after: { sectionId, quarterKey, index, item } };
   }
 
   const itemId = String(input.itemId || '').trim();
-  const location = findItemLocation(week, itemId);
-  authorizeView(role, location.sectionId);
+  const location = findItemLocation(week, itemId, config);
+  authorizeView(config, role, location.sectionId);
   const expectedVersion = normalizedVersion(input.expectedVersion);
   if (expectedVersion !== normalizedVersion(location.item.version)) fail('Milestone version conflict.', 'aborted');
 
@@ -187,35 +186,35 @@ function proposalFor(week, input, role) {
     if (!text) fail('Milestone title is required.', 'invalid-argument');
     after.item.text = text;
   } else if (changeType === 'move') {
-    after.sectionId = normalizedSection(input.after?.sectionId);
-    after.quarterKey = normalizedQuarter(input.after?.quarterKey);
-    authorizeView(role, after.sectionId);
+    after.sectionId = normalizedSection(config, input.after?.sectionId);
+    after.quarterKey = normalizedQuarter(config, input.after?.quarterKey);
+    authorizeView(config, role, after.sectionId);
     after.index = normalizedIndex(input.after?.index, Number.MAX_SAFE_INTEGER);
   } else if (changeType === 'move-section') {
-    after.sectionId = normalizedSection(input.after?.sectionId);
-    authorizeView(role, after.sectionId);
+    after.sectionId = normalizedSection(config, input.after?.sectionId);
+    authorizeView(config, role, after.sectionId);
     after.index = normalizedIndex(input.after?.index, Number.MAX_SAFE_INTEGER);
   } else if (changeType === 'move-quarter') {
-    after.quarterKey = normalizedQuarter(input.after?.quarterKey);
+    after.quarterKey = normalizedQuarter(config, input.after?.quarterKey);
     after.index = normalizedIndex(input.after?.index, Number.MAX_SAFE_INTEGER);
   } else if (changeType === 'reorder') {
     after.index = normalizedIndex(input.after?.index, Number.MAX_SAFE_INTEGER);
   }
-  return { changeType, itemId, targetVersion: expectedVersion, before, after };
+  return { changeType, itemId, targetVersion: expectedVersion, configVersion: config.version, before, after };
 }
 
-function applyProposal(week, proposal) {
+function applyProposal(week, proposal, config = DEFAULT_CONFIG) {
   const nextWeek = cloneJson(week);
 
   if (proposal.changeType === 'add') {
     try {
-      findItemLocation(nextWeek, proposal.itemId);
+      findItemLocation(nextWeek, proposal.itemId, config);
       fail('Milestone itemId already exists.', 'already-exists');
     } catch (error) {
       if (error.code !== 'not-found') throw error;
     }
     const destination = sectionRow(nextWeek, proposal.after.sectionId).row;
-    const destinationCells = ensureFirestoreSafeCells(destination);
+    const destinationCells = ensureFirestoreSafeCells(destination, config);
     const item = normalizeItem(proposal.after.item);
     item.version = 1;
     const index = normalizedIndex(proposal.after.index, destinationCells[proposal.after.quarterKey].length);
@@ -223,12 +222,12 @@ function applyProposal(week, proposal) {
     return { week: nextWeek, item, before: null, after: { ...proposal.after, index, item: cloneJson(item) } };
   }
 
-  const current = findItemLocation(nextWeek, proposal.itemId);
+  const current = findItemLocation(nextWeek, proposal.itemId, config);
   if (normalizedVersion(current.item.version) !== normalizedVersion(proposal.targetVersion)) {
     fail('Milestone version conflict.', 'aborted');
   }
   const before = locationSnapshot(current);
-  const sourceCells = ensureFirestoreSafeCells(current.row);
+  const sourceCells = ensureFirestoreSafeCells(current.row, config);
   const [removed] = sourceCells[current.quarterKey].splice(current.itemIndex, 1);
 
   if (proposal.changeType === 'delete') {
@@ -243,7 +242,7 @@ function applyProposal(week, proposal) {
   const destinationSection = proposal.changeType === 'move' || proposal.changeType === 'move-section' ? proposal.after.sectionId : current.sectionId;
   const destinationQuarter = proposal.changeType === 'move' || proposal.changeType === 'move-quarter' ? proposal.after.quarterKey : current.quarterKey;
   const destination = sectionRow(nextWeek, destinationSection).row;
-  const destinationCells = ensureFirestoreSafeCells(destination);
+  const destinationCells = ensureFirestoreSafeCells(destination, config);
   const destinationList = destinationCells[destinationQuarter];
   const requestedIndex = proposal.changeType === 'rename'
     ? current.itemIndex
@@ -262,22 +261,22 @@ function normalizeRole(value, { allowVipBridge = false } = {}) {
   return ROLES.has(role) ? role : '';
 }
 
-function authorizeUpdate(role, sectionId) {
+function authorizeUpdate(role, sectionId, config = DEFAULT_CONFIG) {
   const normalized = normalizeRole(role);
-  if (!UPDATE[normalized]?.has(String(sectionId || ''))) {
+  if (!canUpdateConfiguredSection(config, normalized, sectionId)) {
     fail('Role is not authorized to update this Executive section.', 'permission-denied');
   }
   return true;
 }
 
-function findItemLocation(week, itemId) {
+function findItemLocation(week, itemId, config = DEFAULT_CONFIG) {
   const targetId = String(itemId || '').trim();
   if (!targetId) fail('A milestone itemId is required.', 'invalid-argument');
   const rows = timelineOf(week).rows;
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
     const row = rows[rowIndex];
-    const cells = cellsOf(row);
-    for (const quarterKey of QUARTER_KEYS) {
+    const cells = cellsOf(row, config);
+    for (const quarterKey of quarterKeys(config)) {
       const items = Array.isArray(cells[quarterKey]) ? cells[quarterKey] : [];
       const itemIndex = items.findIndex((item, index) => {
         const text = typeof item === 'string' ? item : item?.text || item?.label || '';
@@ -307,9 +306,10 @@ function findItemLocation(week, itemId) {
 }
 
 function applyItemUpdate(week, input = {}) {
+  const config = operationConfig(input.config);
   const role = normalizeRole(input.role);
-  const location = findItemLocation(week, input.itemId);
-  authorizeUpdate(role, location.sectionId);
+  const location = findItemLocation(week, input.itemId, config);
+  authorizeUpdate(role, location.sectionId, config);
   const expectedVersion = normalizedVersion(input.expectedVersion);
   const currentVersion = normalizedVersion(location.item.version);
   if (expectedVersion !== currentVersion) fail('Milestone version conflict.', 'aborted');
@@ -326,7 +326,7 @@ function applyItemUpdate(week, input = {}) {
   const now = String(input.now || new Date().toISOString());
   const actorEmail = String(input.actorEmail || '').trim().toLowerCase();
   const nextWeek = cloneJson(week);
-  const nextLocation = findItemLocation(nextWeek, input.itemId);
+  const nextLocation = findItemLocation(nextWeek, input.itemId, config);
   const item = normalizeItem(nextLocation.item);
   if (!item.id) item.id = nextLocation.resolvedItemId;
   item.version = currentVersion + 1;
@@ -336,7 +336,7 @@ function applyItemUpdate(week, input = {}) {
   item.latestStatusText = statusText;
   item.latestStatusAt = now;
   item.latestStatusBy = actorEmail;
-  ensureFirestoreSafeCells(nextLocation.row)[nextLocation.quarterKey][nextLocation.itemIndex] = item;
+  ensureFirestoreSafeCells(nextLocation.row, config)[nextLocation.quarterKey][nextLocation.itemIndex] = item;
 
   return {
     week: nextWeek,
@@ -371,6 +371,7 @@ function createChangeRequest(week, input = {}) {
     ...proposal,
     sourceSectionId: proposal.before?.sectionId || '',
     targetSectionId: proposal.after?.sectionId || proposal.before?.sectionId || '',
+    configVersion: proposal.configVersion,
     reason,
     requesterEmail: String(input.requesterEmail || '').trim().toLowerCase(),
     requesterRole: role,
@@ -384,6 +385,7 @@ function createChangeRequest(week, input = {}) {
 }
 
 function applyApprovedRequest(week, request = {}, decision = {}) {
+  const config = operationConfig(decision.config);
   const role = normalizeRole(decision.role);
   if (role !== 'executive') fail('Role is not authorized to approve Executive requests.', 'permission-denied');
   if (request.state === 'applied') {
@@ -394,7 +396,7 @@ function applyApprovedRequest(week, request = {}, decision = {}) {
   const nextRequest = cloneJson(request);
   const now = String(decision.now || new Date().toISOString());
   try {
-    const applied = applyProposal(week, request);
+    const applied = applyProposal(week, request, config);
     nextRequest.state = 'applied';
     nextRequest.updatedAt = now;
     nextRequest.decidedAt = now;
@@ -433,6 +435,7 @@ function applyApprovedRequest(week, request = {}, decision = {}) {
 }
 
 function applyDirectStructureChange(week, input = {}) {
+  const config = operationConfig(input.config);
   const role = normalizeRole(input.role);
   if (!['admin', 'executive'].includes(role)) {
     fail('Role is not authorized to change Executive structure directly.', 'permission-denied');
@@ -440,7 +443,7 @@ function applyDirectStructureChange(week, input = {}) {
   const reason = String(input.reason || '').trim();
   if (!reason) fail('A direct-change reason is required.', 'invalid-argument');
   const proposal = proposalFor(week, { ...input, reason }, role);
-  const applied = applyProposal(week, proposal);
+  const applied = applyProposal(week, proposal, config);
   const now = String(input.now || new Date().toISOString());
   return {
     week: applied.week,

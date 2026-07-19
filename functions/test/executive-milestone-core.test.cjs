@@ -69,6 +69,21 @@ test('core recognizes configured IDs outside the legacy fixed list', () => {
   assert.equal(canViewConfiguredSection(config, 'sales', 'commercial'), true);
 });
 
+test('cross-grid move rejects a configured destination outside actor policy', () => {
+  const config = normalizeTimelineConfig({
+    quarters: [{ quarterId: 'q1', label: 'Q1' }, { quarterId: 'q2', label: 'Q2' }, { quarterId: 'q3', label: 'Q3' }, { quarterId: 'q4', label: 'Q4' }],
+    sections: [
+      { sectionId: 'ioe-product-portfolio', label: 'Product', viewRoles: ['admin', 'executive'], updateRoles: ['admin', 'executive'] },
+      { sectionId: 'customer-engagements', label: 'Customer', viewRoles: ['admin', 'executive'], updateRoles: ['admin', 'executive'] },
+      { sectionId: 'investors-strategy', label: 'Strategy', viewRoles: ['admin', 'executive', 'sales'], updateRoles: ['admin', 'executive'] },
+    ],
+  });
+  assert.throws(() => createChangeRequest(fixtureWeek(), {
+    role: 'sales', itemId: 'exec-3', expectedVersion: 4, changeType: 'move',
+    after: { sectionId: 'customer-engagements', quarterKey: 'q4', index: 0 }, reason: 'Move this to the restricted customer workstream.', config,
+  }), /not authorized/i);
+});
+
 test('enforces every approved update permission', () => {
   const allowed = new Set([
     'admin:ioe-product-portfolio', 'admin:customer-engagements', 'admin:investors-strategy',

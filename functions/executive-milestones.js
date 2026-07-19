@@ -9,6 +9,7 @@ const {
   createChangeRequest,
   normalizeRole,
 } = require('./executive-milestone-core');
+const { defaultTimelineConfig, normalizeTimelineConfig } = require('./executive-timeline-config');
 
 const db = getFirestore();
 const CALLABLE_OPTIONS = { region: 'us-central1', cors: true };
@@ -47,6 +48,31 @@ async function readWeek(transaction, weekRef) {
     throw new HttpsError('failed-precondition', 'Released reporting weeks cannot be changed.');
   }
   return { ...snapshot.data(), weekId: snapshot.id };
+}
+
+function executiveTimelineConfigRef() {
+  return db.collection('executiveMilestoneConfig').doc('timeline');
+}
+
+async function readExecutiveTimelineConfig(transaction) {
+  const snapshot = await transaction.get(executiveTimelineConfigRef());
+  return normalizeTimelineConfig(snapshot.exists ? snapshot.data() : defaultTimelineConfig());
+}
+
+function configuredLabel(config, collection, id) {
+  const key = collection === 'sections' ? 'sectionId' : 'quarterId';
+  return config[collection].find(item => item[key] === String(id || ''))?.label || String(id || '');
+}
+
+function withConfigMetadata(record, config) {
+  return {
+    ...record,
+    configVersion: config.version,
+    sourceSectionLabel: configuredLabel(config, 'sections', record.sourceSectionId || record.sectionId || record.before?.sectionId),
+    sourceQuarterLabel: configuredLabel(config, 'quarters', record.before?.quarterKey || record.quarterKey),
+    targetSectionLabel: configuredLabel(config, 'sections', record.targetSectionId || record.after?.sectionId || record.sectionId),
+    targetQuarterLabel: configuredLabel(config, 'quarters', record.after?.quarterKey || record.quarterKey),
+  };
 }
 
 function updateTimeline(transaction, weekRef, week, actorEmail) {
@@ -97,16 +123,18 @@ const addExecutiveMilestoneUpdate = onCall(CALLABLE_OPTIONS, async request => {
     const updateRef = db.collection('executiveMilestoneUpdates').doc();
     const result = await db.runTransaction(async transaction => {
       const actor = await getActor(transaction, request);
+      const config = await readExecutiveTimelineConfig(transaction);
       const week = await readWeek(transaction, weekRef);
       const applied = applyItemUpdate(week, {
         ...request.data,
         weekId,
         role: actor.role,
         actorEmail: actor.email,
+        config,
         now: new Date().toISOString(),
       });
       updateTimeline(transaction, weekRef, applied.week, actor.email);
-      transaction.create(updateRef, { ...applied.updateRecord, updateId: updateRef.id });
+      transaction.create(updateRef, { ...withConfigMetadata(applied.updateRecord, config), updateId: updateRef.id });
       return applied;
     });
     return { ok: true, weekId, itemId: result.item.id, version: result.item.version };
@@ -122,6 +150,7 @@ const createExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async req
     const requestRef = db.collection('executiveMilestoneChangeRequests').doc();
     const changeRequest = await db.runTransaction(async transaction => {
       const actor = await getActor(transaction, request);
+      const config = await readExecutiveTimelineConfig(transaction);
       const week = await readWeek(transaction, weekRef);
       const created = createChangeRequest(week, {
         ...request.data,
@@ -129,9 +158,10 @@ const createExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async req
         weekId,
         role: actor.role,
         requesterEmail: actor.email,
+        config,
         now: new Date().toISOString(),
       });
-      transaction.create(requestRef, created);
+      transaction.create(requestRef, withConfigMetadata(created, config));
       return created;
     });
     return { ok: true, weekId, itemId: changeRequest.itemId, requestId: requestRef.id };
@@ -155,6 +185,7 @@ const decideExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async req
       const requestSnapshot = await transaction.get(requestRef);
       if (!requestSnapshot.exists) throw new HttpsError('not-found', 'Change request was not found.');
       const changeRequest = requestSnapshot.data();
+      const config = await readExecutiveTimelineConfig(transaction);
       const now = new Date().toISOString();
 
       if (decision === 'reject') {
@@ -178,11 +209,12 @@ const decideExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async req
         role: actor.role,
         actorEmail: actor.email,
         decisionNote: request.data?.decisionNote,
+        config,
         now,
       });
       if (applied.request.state === 'applied' && !applied.alreadyApplied) updateTimeline(transaction, weekRef, applied.week, actor.email);
       if (!applied.alreadyApplied) transaction.update(requestRef, applied.request);
-      if (applied.audit) transaction.create(auditRef, { ...applied.audit, auditId: auditRef.id });
+      if (applied.audit) transaction.create(auditRef, { ...withConfigMetadata(applied.audit, config), auditId: auditRef.id });
       return applied;
     });
     return {
@@ -205,16 +237,18 @@ const applyDirectExecutiveMilestoneChange = onCall(CALLABLE_OPTIONS, async reque
     const auditRef = db.collection('executiveMilestoneAudit').doc();
     const result = await db.runTransaction(async transaction => {
       const actor = await getActor(transaction, request);
+      const config = await readExecutiveTimelineConfig(transaction);
       const week = await readWeek(transaction, weekRef);
       const applied = applyDirectStructureChange(week, {
         ...request.data,
         weekId,
         role: actor.role,
         actorEmail: actor.email,
+        config,
         now: new Date().toISOString(),
       });
       updateTimeline(transaction, weekRef, applied.week, actor.email);
-      transaction.create(auditRef, { ...applied.audit, auditId: auditRef.id });
+      transaction.create(auditRef, { ...withConfigMetadata(applied.audit, config), auditId: auditRef.id });
       return applied;
     });
     return { ok: true, weekId, itemId: result.audit.itemId, version: result.item?.version ?? null };

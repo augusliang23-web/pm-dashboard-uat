@@ -44,6 +44,14 @@ test('keeps weekly snapshots and append-only records in atomic transactions', ()
   assert.match(source, /Released reporting weeks cannot be changed/);
 });
 
+test('reloads live timeline configuration for every Executive mutation', () => {
+  const source = read('executive-milestones.js');
+  assert.match(source, /collection\(['"]executiveMilestoneConfig['"]\)\.doc\(['"]timeline['"]\)/);
+  assert.match(source, /normalizeTimelineConfig/);
+  assert.match(source, /configVersion/);
+  assert.match(source, /config,\s*$/m);
+});
+
 test('exports every callable beside presence aggregation', () => {
   const source = read('index.js');
   assert.match(source, /aggregatePresenceSessions/);
