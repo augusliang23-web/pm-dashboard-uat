@@ -13,6 +13,11 @@ import {
   normalizeExecutiveRole,
   validateExecutiveItemUpdate,
 } from '../js/executive-governance.mjs';
+import {
+  canUpdateConfiguredSection,
+  canViewConfiguredSection,
+  normalizeExecutiveTimelineConfig,
+} from '../js/executive-timeline-config.mjs';
 
 test('uses the approved roles and fixed Executive sections', () => {
   assert.deepEqual(EXECUTIVE_SECTIONS.map(item => [item.sectionId, item.label]), [
@@ -27,6 +32,18 @@ test('uses the approved roles and fixed Executive sections', () => {
   assert.equal(normalizeExecutiveRole('executive'), 'executive');
   assert.equal(normalizeExecutiveRole('vip', { allowVipBridge: true }), 'executive');
   assert.equal(normalizeExecutiveRole('vip'), '');
+});
+
+test('configured labels do not alter ID-based access', () => {
+  const config = normalizeExecutiveTimelineConfig({
+    quarters: [{ quarterId: 'launch', label: 'Launch' }],
+    sections: [{ sectionId: 'commercial', label: 'Customer Success', viewRoles: ['sales'], updateRoles: ['bd'] }],
+  });
+  assert.equal(canViewConfiguredSection(config, 'sales', 'commercial'), true);
+  assert.equal(canUpdateConfiguredSection(config, 'bd', 'commercial'), true);
+  assert.equal(canViewConfiguredSection(config, 'pm', 'commercial'), false);
+  assert.equal(config.sections[0].label, 'Customer Success');
+  assert.equal(config.quarters[0].label, 'Launch');
 });
 
 test('derives a stable legacy item id from its fixed location and text', () => {

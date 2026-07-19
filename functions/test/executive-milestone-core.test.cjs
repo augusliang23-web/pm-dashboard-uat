@@ -11,6 +11,10 @@ const {
   findItemLocation,
   normalizeRole,
 } = require('../executive-milestone-core.js');
+const {
+  canViewConfiguredSection,
+  normalizeTimelineConfig,
+} = require('../executive-timeline-config.js');
 
 function fixtureWeek() {
   return {
@@ -55,6 +59,14 @@ test('normalizes approved roles and rejects retired or unknown roles', () => {
   assert.equal(normalizeRole('vip'), '');
   assert.equal(normalizeRole('business'), '');
   assert.equal(normalizeRole('unknown'), '');
+});
+
+test('core recognizes configured IDs outside the legacy fixed list', () => {
+  const config = normalizeTimelineConfig({
+    quarters: [{ quarterId: 'launch', label: 'Launch' }],
+    sections: [{ sectionId: 'commercial', label: 'Customer Success', viewRoles: ['sales'], updateRoles: ['sales'] }],
+  });
+  assert.equal(canViewConfiguredSection(config, 'sales', 'commercial'), true);
 });
 
 test('enforces every approved update permission', () => {
