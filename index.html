@@ -2696,6 +2696,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 <script type="module">
 import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { EXECUTIVE_SECTIONS, calculateVisibleExecutiveRag, canChangeExecutiveStructure, canUpdateExecutiveSection, canViewExecutiveSection as canViewExecutiveSectionByRole, createExecutiveLegacyItemId, getExecutiveUpdateFreshness, normalizeExecutiveRole, validateExecutiveItemUpdate } from "./js/executive-governance.mjs";
+import { DEFAULT_EXECUTIVE_TIMELINE_CONFIG, canUpdateConfiguredSection, canViewConfiguredSection, configuredQuarterLabel, configuredSectionLabel, normalizeExecutiveTimelineConfig } from "./js/executive-timeline-config.mjs";
 import { createExecutiveApi } from "./js/executive-api.mjs";
 import { applyListCommand, getSelectionListType, handleListEnter, handleListPaste, normalizeListText, renderListHtml } from "./js/list-editor.mjs";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
@@ -2732,6 +2733,8 @@ let executiveChangeSession = null;
 let executiveApprovalInboxUnsub = null;
 let executiveApprovalDecisionInFlight = false;
 let executiveRagOverrideSession = null;
+let executiveTimelineConfig = DEFAULT_EXECUTIVE_TIMELINE_CONFIG;
+let executiveTimelineConfigUnsub = null;
 let authSessionGeneration = 0;
 let isAdminExecutivePreview = false;
 let currentPMFilter = 'all';
@@ -4391,6 +4394,16 @@ function initData(authGeneration, authUser) {
     ownerEmail,
   );
 
+  if (executiveTimelineConfigUnsub) executiveTimelineConfigUnsub();
+  executiveTimelineConfigUnsub = onSnapshot(doc(db, 'executiveMilestoneConfig', 'timeline'), snapshot => {
+    if (!isCurrentDataSession()) return;
+    executiveTimelineConfig = normalizeExecutiveTimelineConfig(snapshot.exists() ? snapshot.data() : {});
+    window.render();
+  }, () => {
+    if (!isCurrentDataSession()) return;
+    executiveTimelineConfig = DEFAULT_EXECUTIVE_TIMELINE_CONFIG;
+  });
+
   weeksUnsub = onSnapshot(weeksQuery, snap => {
     if (!isCurrentDataSession()) return;
     let fetchedWeeks = snap.docs.map(d => {
@@ -5325,18 +5338,19 @@ function normalizeExecutiveAudience(value, fallback = 'leadership-only') {
 }
 
 function canViewExecutiveSection(row = {}, role = currentRole) {
-  return canViewExecutiveSectionByRole(role, row.sectionId);
+  return canViewConfiguredSection(executiveTimelineConfig, role, row.sectionId);
 }
 
 function normalizeExecutiveMilestoneTimeline(raw = {}) {
   const source = raw && raw.rows ? raw : DCDC_EXECUTIVE_MILESTONE_TIMELINE;
   const quarters = (source.quarters || ['Q1', 'Q2', 'Q3', 'Q4']).slice(0, 4);
   const rows = (source.rows || []).map((row, rowIndex) => {
-    const section = defaultExecutiveSectionFor(row, rowIndex);
+    const legacySection = defaultExecutiveSectionFor(row, rowIndex);
+    const section = executiveTimelineConfig.sections.find(candidate => candidate.sectionId === legacySection.sectionId) || legacySection;
     return {
     sectionId: section.sectionId,
     audience: section.audience,
-    label: section.label,
+    label: configuredSectionLabel(executiveTimelineConfig, section.sectionId),
     cells: Array.from({ length: 4 }, (_, index) => {
       const cell = getExecutiveTimelineCell(row.cells, index);
       const items = Array.isArray(cell) ? cell : textLines(cell);
@@ -5358,7 +5372,7 @@ function normalizeExecutiveMilestoneTimeline(raw = {}) {
   });
   return {
     title: String(source.title || 'Selected 2026 DCDC Milestone Timeline'),
-    quarters,
+    quarters: executiveTimelineConfig.quarters.map(quarter => configuredQuarterLabel(executiveTimelineConfig, quarter.quarterId)),
     rows: rows.length ? rows : DCDC_EXECUTIVE_MILESTONE_TIMELINE.rows,
     phases: phases.some(Boolean) ? phases : DCDC_EXECUTIVE_MILESTONE_TIMELINE.phases,
     categoryOverrides,
@@ -6103,7 +6117,7 @@ function calculateExecutiveQuarterRag(timeline, catalog, quarterIndex, rows = ti
     }))),
     currentRole,
   ) || 'green';
-  const canViewAllSections = EXECUTIVE_SECTIONS.every(section => canViewExecutiveSectionByRole(currentRole, section.sectionId));
+  const canViewAllSections = executiveTimelineConfig.sections.every(section => canViewConfiguredSection(executiveTimelineConfig, currentRole, section.sectionId));
   const leadershipOverride = timeline.ragOverrides?.[`quarter:${quarterKey}`]?.replacementValue;
   return canViewAllSections && leadershipOverride ? leadershipOverride : calculated;
 }
@@ -6127,7 +6141,7 @@ function renderExecutiveCompactItem(source, row) {
   const freshness = getExecutiveUpdateFreshness(item.latestStatusAt);
   const updateRecord = executiveUpdateRecordLabel(freshness, item.latestStatusAt);
   const updateRecordHelp = 'This indicates the freshness of the leadership status update only. It does not indicate milestone delay or change the RAG status.';
-  const canUpdate = canUpdateExecutiveSection(currentRole, row.sectionId);
+  const canUpdate = canUpdateConfiguredSection(executiveTimelineConfig, currentRole, row.sectionId);
   return `<button type="button" class="executive-compact-item ${rag}${canUpdate ? '' : ' read-only'}" data-executive-item-id="${escHtml(item.id)}" data-executive-can-update="${canUpdate}" aria-label="${escHtml(`${item.text}, ${executiveRagLabel(rag)}`)}">
     <span class="executive-compact-rag ${rag}" aria-hidden="true"></span>
     <span class="executive-compact-body">
@@ -6158,7 +6172,7 @@ function renderExecutiveCategorySummaries(timeline, catalog, rows = timeline.row
 function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
   const timeline = normalizeExecutiveMilestoneTimeline(layer.executiveMilestoneTimeline);
   const visibleRows = (timeline.rows || []).filter(row => canViewExecutiveSection(row));
-  const quarters = timeline.quarters || ['Q1', 'Q2', 'Q3', 'Q4'];
+  const quarters = executiveTimelineConfig.quarters;
   const catalog = buildExecutiveEvidenceCatalog(projs);
   const reportingLabel = allWeeks[currentIdx]?.weekLabel || getSelectedReportingDate();
   const sectionRags = new Map(visibleRows.map(row => [row.sectionId, calculateExecutiveSectionRag(timeline, row)]));
@@ -6177,10 +6191,10 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
       <div class="dcdc-title">${escHtml(timeline.title || `Selected ${year} DCDC Milestone Timeline`)}</div>
       <div class="dcdc-grid">
         <div class="dcdc-cell dcdc-corner"></div>
-        ${quarters.map((q, index) => `<div class="dcdc-cell dcdc-quarter"><div class="dcdc-quarter-content"><span>${escHtml(q)}</span>${canChangeStructure ? `<button type="button" class="executive-summary-rag-control" data-executive-rag-override="quarter" data-target-id="q${index + 1}" onclick="openExecutiveRagOverride('quarter','q${index + 1}')"><span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span></button>` : `<span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span>`}</div></div>`).join('')}
+        ${quarters.map((quarter, index) => `<div class="dcdc-cell dcdc-quarter"><div class="dcdc-quarter-content"><span>${escHtml(quarter.label)}</span>${canChangeStructure ? `<button type="button" class="executive-summary-rag-control" data-executive-rag-override="quarter" data-target-id="${escHtml(quarter.quarterId)}" onclick="openExecutiveRagOverride('quarter','${escHtml(quarter.quarterId)}')"><span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span></button>` : `<span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span>`}</div></div>`).join('')}
         ${visibleRows.map(row => `
           <div class="dcdc-cell dcdc-row-label"><span>${escHtml(row.label)}</span>${canChangeStructure ? `<button type="button" class="executive-summary-rag-control" data-executive-rag-override="section" data-target-id="${escHtml(row.sectionId)}" onclick="openExecutiveRagOverride('section','${escHtml(row.sectionId)}')"><span class="dcdc-section-rag ${sectionRags.get(row.sectionId)}">${escHtml(executiveRagLabel(sectionRags.get(row.sectionId)))}</span></button>` : `<span class="dcdc-section-rag ${sectionRags.get(row.sectionId)}">${escHtml(executiveRagLabel(sectionRags.get(row.sectionId)))}</span>`}</div>
-          ${(row.cells || []).map((items, quarterIndex) => `<div class="dcdc-cell"><div class="executive-compact-list">${(items || []).map(item => renderExecutiveCompactItem(item, row)).join('')}${!isWeekReleased(allWeeks[currentIdx]) ? `<button type="button" class="btn btn-ghost executive-inline-add" onclick="openExecutiveStructuralAction({ action: 'add', sectionId: '${escHtml(row.sectionId)}', quarterKey: 'q${quarterIndex + 1}' })">+ Add milestone</button>` : ''}</div></div>`).join('')}
+          ${(row.cells || []).map((items, quarterIndex) => `<div class="dcdc-cell"><div class="executive-compact-list">${(items || []).map(item => renderExecutiveCompactItem(item, row)).join('')}${!isWeekReleased(allWeeks[currentIdx]) ? `<button type="button" class="btn btn-ghost executive-inline-add" onclick="openExecutiveStructuralAction({ action: 'add', sectionId: '${escHtml(row.sectionId)}', quarterKey: '${escHtml(quarters[quarterIndex]?.quarterId || '')}' })">+ Add milestone</button>` : ''}</div></div>`).join('')}
         `).join('')}
       </div>
       <div class="dcdc-phase-row">
@@ -6204,9 +6218,9 @@ function executiveWeekDocumentId(week = allWeeks[currentIdx]) {
 function findExecutiveTimelineItem(itemId) {
   const timeline = getStrategyLayer().executiveMilestoneTimeline;
   for (const row of timeline.rows || []) {
-    for (let quarterIndex = 0; quarterIndex < 4; quarterIndex += 1) {
+    for (let quarterIndex = 0; quarterIndex < executiveTimelineConfig.quarters.length; quarterIndex += 1) {
       const item = (row.cells?.[quarterIndex] || []).find(candidate => candidate.id === itemId);
-      if (item) return { timeline, row, quarterIndex, quarterKey: 'q' + (quarterIndex + 1), item };
+      if (item) return { timeline, row, quarterIndex, quarterKey: executiveTimelineConfig.quarters[quarterIndex]?.quarterId || `q${quarterIndex + 1}`, item };
     }
   }
   return null;
@@ -6285,7 +6299,7 @@ window.openExecutiveItemDrawer = itemId => {
   if (!location || !canViewExecutiveSection(location.row)) return;
   if (executiveUpdateHistoryUnsub) executiveUpdateHistoryUnsub();
   const week = allWeeks[currentIdx];
-  const canEdit = canUpdateExecutiveSection(currentRole, location.row.sectionId) && !isWeekReleased(week);
+  const canEdit = canUpdateConfiguredSection(executiveTimelineConfig, currentRole, location.row.sectionId) && !isWeekReleased(week);
   executiveUpdateSession = {
     authUid: currentUser?.uid || '',
     authEmail: getEmailKey(currentUser),
@@ -6308,6 +6322,7 @@ window.openExecutiveItemDrawer = itemId => {
     where('sectionId', '==', executiveUpdateSession.sectionId),
     orderBy('createdAt', 'desc'),
   );
+
   const session = executiveUpdateSession;
   executiveUpdateHistoryUnsub = onSnapshot(historyQuery, snapshot => {
     if (!isExecutiveUpdateSessionCurrent(session, { requireVersion: false })) return;
@@ -6399,8 +6414,7 @@ function executiveStructuralActionLabel(action) {
 }
 
 function executiveStructuralLocationLabel(sectionId, quarterKey) {
-  const section = EXECUTIVE_SECTIONS.find(candidate => candidate.sectionId === sectionId);
-  return `${section?.label || sectionId} · ${String(quarterKey || '').toUpperCase()}`;
+  return `${configuredSectionLabel(executiveTimelineConfig, sectionId)} · ${configuredQuarterLabel(executiveTimelineConfig, quarterKey)}`;
 }
 
 function buildExecutiveChangePayload() {
@@ -6457,7 +6471,7 @@ function openExecutiveStructuralAction({ action = 'add', itemId = '', sectionId 
   if (isWeekReleased(allWeeks[currentIdx])) return;
   const location = itemId ? findExecutiveTimelineItem(String(itemId)) : null;
   if (!['add', 'rename', 'move', 'delete'].includes(action) || (itemId && (!location || !canViewExecutiveSection(location.row)))) return;
-  const visibleSections = EXECUTIVE_SECTIONS.filter(section => canViewExecutiveSectionByRole(currentRole, section.sectionId));
+  const visibleSections = executiveTimelineConfig.sections.filter(section => canViewConfiguredSection(executiveTimelineConfig, currentRole, section.sectionId));
   if (!visibleSections.length) return;
   const before = executiveLocationSnapshot(location);
   const selectedSectionId = visibleSections.some(section => section.sectionId === sectionId) ? sectionId : before?.sectionId || visibleSections[0].sectionId;
@@ -6740,10 +6754,7 @@ function renderQuarterlyBoard(projs, layer = getStrategyLayer(), activeTrack = '
         <div class="exec-eyebrow">Portfolio Roadmap</div>
         <div class="exec-decision-title">${executive ? `${year} IoE Executive Roadmap` : `${year} Project Milestone Roadmap`}</div>
       </div>
-      <div class="portfolio-roadmap-actions">
-        ${renderRoadmapYearSelector(projs, layer)}
-        ${executive && canManageStrategy() ? `<button class="btn btn-primary no-print" onclick="openExecutiveTimelineEditor()">Edit Quarterly Milestones</button>` : ''}
-      </div>
+      <div class="portfolio-roadmap-actions">${renderRoadmapYearSelector(projs, layer)}</div>
     </div>
     <div class="portfolio-roadmap-tabs no-print" role="tablist" aria-label="Roadmap view">
       <button type="button" role="tab" aria-selected="${executive}" class="${executive ? 'active' : ''}" onclick="setPortfolioRoadmapView('executive')">Executive Outcomes</button>

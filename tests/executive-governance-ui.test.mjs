@@ -7,14 +7,23 @@ const dashboards = await Promise.all([
   readFile(new URL('../team-2/index.html', import.meta.url), 'utf8'),
 ]);
 
-test('both dashboards use the fixed Executive sections and governance helpers', () => {
+test('both dashboards retain defaults while using configuration-driven Executive governance helpers', () => {
   for (const dashboard of dashboards) {
     for (const label of ['IoE Product Portfolio', 'Customer Engagements', 'Investors & Strategy']) {
       assert.match(dashboard, new RegExp(label.replace('&', '&(?:amp;)?')));
     }
-    assert.match(dashboard, /canViewExecutiveSectionByRole/);
-    assert.match(dashboard, /canUpdateExecutiveSection/);
+    assert.match(dashboard, /canViewConfiguredSection/);
+    assert.match(dashboard, /canUpdateConfiguredSection/);
     assert.match(dashboard, /calculateVisibleExecutiveRag/);
+  }
+});
+
+test('both dashboards load configurable Executive timeline axes and remove the old editor entry point', () => {
+  for (const dashboard of dashboards) {
+    assert.match(dashboard, /executive-timeline-config\.mjs/);
+    assert.match(dashboard, /executiveMilestoneConfig/);
+    assert.match(dashboard, /DEFAULT_EXECUTIVE_TIMELINE_CONFIG/);
+    assert.doesNotMatch(dashboard, /Edit Quarterly Milestones/);
   }
 });
 
@@ -77,7 +86,7 @@ test('drawer guards auth identity and renders append-only history newest first',
     }
     assert.match(dashboard, /collection\(db, 'executiveMilestoneUpdates'\)/);
     assert.match(dashboard, /orderBy\('createdAt', 'desc'\)/);
-    assert.match(dashboard, /canUpdateExecutiveSection\(currentRole/);
+    assert.match(dashboard, /canUpdateConfiguredSection\(executiveTimelineConfig, currentRole/);
     assert.match(dashboard, /executive-drawer-read-only/);
     assert.match(dashboard, /@media \(max-width: 760px\)/);
     assert.match(dashboard, /await executiveApi\.addUpdate\([\s\S]*?isExecutiveUpdateSessionCurrent\(session, \{ requireVersion: false \}\)/);
@@ -128,7 +137,7 @@ test('Admin and Executive Owner can set or remove audited summary RAG overrides'
     assert.match(dashboard, /id="executiveRagOverrideReason"/);
     assert.match(dashboard, /executiveApi\.setRagOverride/);
     assert.match(dashboard, /Remove override/);
-    assert.match(dashboard, /const canViewAllSections = EXECUTIVE_SECTIONS\.every\([\s\S]{0,240}?leadershipOverride/);
+    assert.match(dashboard, /const canViewAllSections = executiveTimelineConfig\.sections\.every\([\s\S]{0,240}?leadershipOverride/);
   }
 });
 
