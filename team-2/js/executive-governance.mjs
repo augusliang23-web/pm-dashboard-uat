@@ -77,11 +77,12 @@ export function getExecutiveUpdateFreshness(lastUpdatedAt, now = Date.now()) {
     ? lastUpdatedAt
     : Date.parse(String(lastUpdatedAt || ''));
   const currentTime = typeof now === 'number' ? now : Date.parse(String(now || ''));
-  if (!Number.isFinite(updatedAt) || !Number.isFinite(currentTime)) return 'overdue';
+  if (!Number.isFinite(updatedAt)) return 'missing';
+  if (!Number.isFinite(currentTime)) return 'current';
 
   const elapsedDays = Math.max(0, (currentTime - updatedAt) / DAY_MS);
-  if (elapsedDays > 45) return 'overdue';
-  if (elapsedDays > 31) return 'due';
+  if (elapsedDays > 45) return 'please-refresh';
+  if (elapsedDays > 31) return 'refresh-requested';
   return 'current';
 }
 

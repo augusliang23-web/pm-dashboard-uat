@@ -61,12 +61,12 @@ test('calculates RAG from visible items only', () => {
   assert.equal(calculateVisibleExecutiveRag(items, 'unknown-role'), null);
 });
 
-test('marks updates due after 31 days and overdue after 45 days', () => {
+test('classifies leadership update records without task-status language', () => {
   const now = Date.parse('2026-07-18T00:00:00Z');
   assert.equal(getExecutiveUpdateFreshness('2026-06-17T00:00:00Z', now), 'current');
-  assert.equal(getExecutiveUpdateFreshness('2026-06-16T00:00:00Z', now), 'due');
-  assert.equal(getExecutiveUpdateFreshness('2026-06-02T00:00:00Z', now), 'overdue');
-  assert.equal(getExecutiveUpdateFreshness('', now), 'overdue');
+  assert.equal(getExecutiveUpdateFreshness('2026-06-16T00:00:00Z', now), 'refresh-requested');
+  assert.equal(getExecutiveUpdateFreshness('2026-06-02T00:00:00Z', now), 'please-refresh');
+  assert.equal(getExecutiveUpdateFreshness('', now), 'missing');
 });
 
 test('requires an explanation only when RAG changes', () => {
