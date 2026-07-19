@@ -786,6 +786,13 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .executive-pending-count { position:absolute; top:-5px; right:-5px; min-width:17px; height:17px; padding:0 4px; border-radius:9px; background:#C53030; color:#fff; font-size:10px; line-height:17px; text-align:center; }
 .executive-governance-form { display:grid; gap:14px; }
 .executive-governance-form label { display:grid; gap:6px; font-weight:600; }
+.executive-timeline-settings { display:grid; gap:10px; }
+.executive-timeline-section-card { display:grid; gap:10px; padding:12px; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
+.executive-timeline-role-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.executive-timeline-role-group { display:grid; gap:5px; font-size:12px; }
+.executive-timeline-role-options { display:flex; flex-wrap:wrap; gap:6px 10px; }
+.executive-timeline-role-options label { display:flex; align-items:center; gap:4px; font-size:11px; font-weight:600; }
+.executive-timeline-quarter-settings { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
 .executive-structural-actions { display:flex; flex-wrap:wrap; gap:8px; }
 .executive-structural-summary { margin:0; padding:11px 12px; border:1px solid #C8DDEB; border-radius:8px; background:#F1F7FB; color:#44667F; font-size:12px; line-height:1.45; }
 .executive-structural-note { margin:0; color:var(--muted); font-size:10px; line-height:1.4; }
@@ -1988,6 +1995,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 <div class="overlay" id="executiveApprovalInboxOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveApprovalInboxTitle"><div class="modal" style="width:min(860px,94vw);"><div class="modal-hdr"><div><h3 id="executiveApprovalInboxTitle">Executive change inbox</h3><small id="executiveApprovalInboxMode"></small></div><button class="modal-x" onclick="closeModal('executiveApprovalInboxOverlay')" aria-label="Close Executive inbox">×</button></div><div class="modal-body"><div id="executiveApprovalInboxList" class="executive-approval-list">Loading requests…</div></div></div></div>
 <div class="overlay" id="executiveRagOverrideOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveRagOverrideTitle"><div class="modal" style="width:min(540px,92vw);"><div class="modal-hdr"><h3 id="executiveRagOverrideTitle">Summary RAG override</h3><button class="modal-x" onclick="closeModal('executiveRagOverrideOverlay')" aria-label="Close RAG override">×</button></div><div class="modal-body executive-governance-form"><p id="executiveRagOverrideTarget"></p><label>Override RAG<select class="fs" id="executiveRagOverrideValue"><option value="green">Green</option><option value="yellow">Yellow</option><option value="red">Red</option></select></label><label>Audit reason<textarea class="fi" id="executiveRagOverrideReason" rows="3" maxlength="1200"></textarea></label><div id="executiveRagOverrideError" class="resource-validation" role="alert"></div><div class="modal-actions"><button class="btn" id="executiveRemoveRagOverrideBtn" onclick="saveExecutiveRagOverride(true)">Remove override</button><button class="btn btn-primary" onclick="saveExecutiveRagOverride(false)">Save override</button></div></div></div></div>
+
+<div class="overlay" id="executiveTimelineSettingsOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveTimelineSettingsTitle"><div class="modal" style="width:min(840px,94vw);"><div class="modal-hdr"><h3 id="executiveTimelineSettingsTitle">Executive timeline settings</h3><button class="modal-x" onclick="closeModal('executiveTimelineSettingsOverlay')" aria-label="Close timeline settings">×</button></div><div class="modal-body executive-governance-form"><p class="executive-structural-note">Change display labels and access policy. Stable IDs and the sequence of sections and quarters stay protected so historical records remain valid.</p><div id="executiveTimelineSectionSettings" class="executive-timeline-settings"></div><div id="executiveTimelineQuarterSettings" class="executive-timeline-quarter-settings"></div><label>Audit reason<textarea class="fi" id="executiveTimelineSettingsReason" rows="3" maxlength="1200" placeholder="Explain why the timeline settings are changing."></textarea></label><div id="executiveTimelineSettingsError" class="resource-validation" role="alert"></div><div class="modal-actions"><button class="btn" onclick="closeModal('executiveTimelineSettingsOverlay')">Cancel</button><button class="btn btn-primary" onclick="saveExecutiveTimelineSettings()">Save settings</button></div></div></div></div>
 
 <div class="overlay" id="overviewPrintOverlay" role="dialog" aria-modal="true" aria-labelledby="overviewPrintTitle">
   <div class="modal" style="width:min(620px,92vw);">
@@ -4006,6 +4015,11 @@ function quiesceDashboardForAuthTransition() {
     weeksUnsub();
     weeksUnsub = null;
   }
+  if (executiveTimelineConfigUnsub) {
+    executiveTimelineConfigUnsub();
+    executiveTimelineConfigUnsub = null;
+  }
+  executiveTimelineConfig = DEFAULT_EXECUTIVE_TIMELINE_CONFIG;
   stopGanttTemplateConfigSubscription();
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
@@ -4013,7 +4027,7 @@ function quiesceDashboardForAuthTransition() {
   executiveApprovalInboxUnsub = null;
   executiveChangeSession = null;
   executiveRagOverrideSession = null;
-  ['executiveChangeRequestOverlay', 'executiveApprovalInboxOverlay', 'executiveRagOverrideOverlay'].forEach(id => document.getElementById(id)?.classList.remove('open'));
+  ['executiveChangeRequestOverlay', 'executiveApprovalInboxOverlay', 'executiveRagOverrideOverlay', 'executiveTimelineSettingsOverlay'].forEach(id => document.getElementById(id)?.classList.remove('open'));
   currentRole = 'pending';
   isAdminExecutivePreview = false;
   allWeeks = [];
@@ -6020,7 +6034,7 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
         <div class="roadmap-block-title">Executive milestones</div>
         <div class="roadmap-block-note">Leadership-level quarterly timeline, separate from PM project milestone input.</div>
       </div>
-      <div class="executive-approval-actions"><span class="reason-pill">${year}</span></div>
+      <div class="executive-approval-actions">${canChangeStructure ? '<button type="button" class="btn btn-ghost" onclick="openExecutiveTimelineSettings()">Timeline settings</button>' : ''}<span class="reason-pill">${year}</span></div>
     </div>
     <div class="dcdc-timeline">
       <div class="dcdc-title">${escHtml(timeline.title || `Selected ${year} DCDC Milestone Timeline`)}</div>
@@ -6366,6 +6380,29 @@ window.saveExecutiveRagOverride = async remove => {
     await executiveApi.setRagOverride({ weekId: session.weekId, scope: session.scope, targetId: session.targetId, rag: remove ? null : document.getElementById('executiveRagOverrideValue').value, reason });
     closeModal('executiveRagOverrideOverlay'); await refreshExecutiveWeekSnapshot(session.weekId); showSaveToast(remove ? 'RAG override removed.' : 'RAG override saved.');
   } catch (error) { errorBox.className = 'resource-validation error'; errorBox.textContent = error.message || 'Unable to change the RAG override.'; }
+};
+
+const EXECUTIVE_TIMELINE_ROLE_OPTIONS = ['admin', 'executive', 'sales', 'bd', 'product', 'pm', 'engineering'];
+let executiveTimelineSettingsSession = null;
+function renderExecutiveTimelineRoleOptions(sectionId, field, selectedRoles) { return `<div class="executive-timeline-role-options">${EXECUTIVE_TIMELINE_ROLE_OPTIONS.map(role => `<label><input type="checkbox" data-timeline-role="${field}" data-section-id="${escHtml(sectionId)}" value="${role}" ${selectedRoles.includes(role) ? 'checked' : ''}>${escHtml(role)}</label>`).join('')}</div>`; }
+window.openExecutiveTimelineSettings = () => {
+  if (!canChangeExecutiveStructure(currentRole)) return;
+  executiveTimelineSettingsSession = { authUid: currentUser?.uid || '', authEmail: getEmailKey(currentUser), role: currentRole, version: Number(executiveTimelineConfig.version || 1) };
+  document.getElementById('executiveTimelineSectionSettings').innerHTML = executiveTimelineConfig.sections.map(section => `<section class="executive-timeline-section-card"><label>Section name<input class="fi" data-timeline-section-label="${escHtml(section.sectionId)}" maxlength="120" value="${escHtml(section.label)}"></label><div class="executive-timeline-role-grid"><div class="executive-timeline-role-group"><strong>Can view</strong>${renderExecutiveTimelineRoleOptions(section.sectionId, 'viewRoles', section.viewRoles || [])}</div><div class="executive-timeline-role-group"><strong>Can update</strong>${renderExecutiveTimelineRoleOptions(section.sectionId, 'updateRoles', section.updateRoles || [])}</div></div></section>`).join('');
+  document.getElementById('executiveTimelineQuarterSettings').innerHTML = executiveTimelineConfig.quarters.map(quarter => `<label>Quarter name<input class="fi" data-timeline-quarter-label="${escHtml(quarter.quarterId)}" maxlength="40" value="${escHtml(quarter.label)}"></label>`).join('');
+  document.getElementById('executiveTimelineSettingsReason').value = ''; document.getElementById('executiveTimelineSettingsError').textContent = ''; openAccessibleModal(document.getElementById('executiveTimelineSettingsOverlay'));
+};
+function selectedExecutiveTimelineRoles(sectionId, field) { return [...document.querySelectorAll(`input[data-timeline-role="${field}"]`)].filter(input => input.dataset.sectionId === sectionId && input.checked).map(input => input.value); }
+window.saveExecutiveTimelineSettings = async () => {
+  const session = executiveTimelineSettingsSession; const errorBox = document.getElementById('executiveTimelineSettingsError');
+  try {
+    if (!session || session.authUid !== (currentUser?.uid || '') || session.authEmail !== getEmailKey(currentUser) || session.role !== currentRole || !canChangeExecutiveStructure(currentRole)) throw new Error('Your dashboard session changed. Reopen timeline settings.');
+    const reason = document.getElementById('executiveTimelineSettingsReason').value.trim(); if (!reason) throw new Error('Enter an audit reason for these settings.');
+    const sections = executiveTimelineConfig.sections.map(section => ({ sectionId: section.sectionId, label: document.querySelector(`[data-timeline-section-label="${section.sectionId}"]`)?.value.trim() || '', viewRoles: selectedExecutiveTimelineRoles(section.sectionId, 'viewRoles'), updateRoles: selectedExecutiveTimelineRoles(section.sectionId, 'updateRoles') }));
+    const quarters = executiveTimelineConfig.quarters.map(quarter => ({ quarterId: quarter.quarterId, label: document.querySelector(`[data-timeline-quarter-label="${quarter.quarterId}"]`)?.value.trim() || '' }));
+    if (sections.some(section => !section.label) || quarters.some(quarter => !quarter.label)) throw new Error('Every section and quarter needs a display name.');
+    await executiveApi.saveTimelineConfig({ expectedVersion: session.version, reason, config: { sections, quarters } }); closeModal('executiveTimelineSettingsOverlay'); showSaveToast('Executive timeline settings saved.');
+  } catch (error) { errorBox.className = 'resource-validation error'; errorBox.textContent = error.message || 'Unable to save timeline settings.'; }
 };
 
 function renderProjectQuarterItems(items) {
@@ -8473,6 +8510,7 @@ window.closeModal = id => {
   if (id === 'executiveApprovalInboxOverlay') executiveApprovalInboxUnsub = null;
   if (id === 'executiveChangeRequestOverlay') executiveChangeSession = null;
   if (id === 'executiveRagOverrideOverlay') executiveRagOverrideSession = null;
+  if (id === 'executiveTimelineSettingsOverlay') executiveTimelineSettingsSession = null;
   if (id === 'projEditOverlay' && projectMutationInFlight) return;
   if (id === 'ganttTemplateOverlay' && ganttTemplateSaveInFlight) return;
   const modal = document.getElementById(id);

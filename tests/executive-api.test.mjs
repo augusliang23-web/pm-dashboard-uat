@@ -23,6 +23,7 @@ test('maps each browser method to the approved callable and exact payload', asyn
     ['decideRequest', 'decideExecutiveMilestoneChangeRequest', { requestId: 'r1', decision: 'approve' }],
     ['applyDirectChange', 'applyDirectExecutiveMilestoneChange', { weekId: 'w1', reason: 'Admin correction' }],
     ['setRagOverride', 'setExecutiveRagOverride', { weekId: 'w1', scope: 'quarter', targetId: 'q1' }],
+    ['saveTimelineConfig', 'saveExecutiveMilestoneTimelineConfig', { expectedVersion: 1, reason: 'Rename Q1', config: { sections: [], quarters: [] } }],
   ];
   for (const [method, name, payload] of payloads) {
     assert.deepEqual(await api[method](payload), { ok: true, name });

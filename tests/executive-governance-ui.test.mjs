@@ -27,6 +27,18 @@ test('both dashboards load configurable Executive timeline axes and remove the o
   }
 });
 
+test('Admin and Executive Owner can manage configurable labels and role policy from the timeline', () => {
+  for (const dashboard of dashboards) {
+    assert.match(dashboard, /Timeline settings/);
+    assert.match(dashboard, /id="executiveTimelineSettingsOverlay"/);
+    assert.match(dashboard, /window\.openExecutiveTimelineSettings =/);
+    assert.match(dashboard, /executiveApi\.saveTimelineConfig/);
+    assert.match(dashboard, /expectedVersion/);
+    assert.match(dashboard, /viewRoles/);
+    assert.match(dashboard, /updateRoles/);
+  }
+});
+
 test('compact roadmap items separate RAG from neutral update-record metadata', () => {
   for (const dashboard of dashboards) {
     assert.match(dashboard, /data-executive-item-id=/);
