@@ -774,9 +774,14 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .dcdc-section-rag.red { background:var(--rdim); color:#A84F4F; }
 .dcdc-section-rag.red::before { background:var(--red); }
 .executive-compact-list { display:grid; gap:7px; }
-.executive-compact-item { display:grid; grid-template-columns:9px minmax(0,1fr); align-items:start; gap:7px; width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text); text-align:left; cursor:pointer; }
-.executive-compact-item:hover, .executive-compact-item:focus-visible { border-color:var(--border2); background:var(--s2); outline:none; box-shadow:0 0 0 2px rgba(120,179,149,.15); }
-.executive-compact-item.read-only { cursor:default; }
+.executive-compact-item { display:grid; grid-template-columns:22px minmax(0,1fr); align-items:start; gap:5px; width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text); }
+.executive-compact-open { display:grid; grid-template-columns:9px minmax(0,1fr); align-items:start; gap:7px; min-width:0; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; font:inherit; }
+.executive-compact-item:hover, .executive-compact-item:focus-within { border-color:var(--border2); background:var(--s2); box-shadow:0 0 0 2px rgba(120,179,149,.15); }
+.executive-compact-open:focus-visible, .executive-milestone-drag-handle:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.executive-compact-item.read-only { opacity:.88; }
+.executive-milestone-drag-handle { width:22px; min-height:32px; padding:0; border:0; border-radius:5px; background:transparent; color:var(--muted); cursor:grab; font-size:16px; line-height:1; }
+.executive-milestone-drag-handle:active { cursor:grabbing; }
+.dcdc-cell.executive-drop-target { background:#EEF8F2; box-shadow:inset 0 0 0 2px var(--accent); }
 .executive-summary-rag-control { display:inline-flex; align-items:center; gap:5px; border:0; background:transparent; padding:0; color:inherit; font:inherit; cursor:pointer; }
 .executive-pending-count { position:absolute; top:-5px; right:-5px; min-width:17px; height:17px; padding:0 4px; border-radius:9px; background:#C53030; color:#fff; font-size:10px; line-height:17px; text-align:center; }
 .executive-governance-form { display:grid; gap:14px; }
@@ -1947,7 +1952,6 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <div class="executive-drawer-section-head"><h3>Milestone structure</h3><span>Requires approval unless you are Admin or Executive Owner</span></div>
         <div class="executive-drawer-structural-actions">
           <button type="button" class="btn" id="executiveRenameChangeBtn" onclick="openExecutiveStructuralActionFromDrawer('rename')">Rename</button>
-          <button type="button" class="btn" id="executiveMoveChangeBtn" onclick="openExecutiveStructuralActionFromDrawer('move')">Move to</button>
           <button type="button" class="btn btn-danger" id="executiveDeleteChangeBtn" onclick="openExecutiveStructuralActionFromDrawer('delete')">Delete milestone</button>
         </div>
       </section>
@@ -5969,15 +5973,19 @@ function renderExecutiveCompactItem(source, row) {
   const updateRecord = executiveUpdateRecordLabel(freshness, item.latestStatusAt);
   const updateRecordHelp = 'This indicates the freshness of the leadership status update only. It does not indicate milestone delay or change the RAG status.';
   const canUpdate = canUpdateConfiguredSection(executiveTimelineConfig, currentRole, row.sectionId);
-  return `<button type="button" class="executive-compact-item ${rag}${canUpdate ? '' : ' read-only'}" data-executive-item-id="${escHtml(item.id)}" data-executive-can-update="${canUpdate}" aria-label="${escHtml(`${item.text}, ${executiveRagLabel(rag)}`)}">
-    <span class="executive-compact-rag ${rag}" aria-hidden="true"></span>
-    <span class="executive-compact-body">
-      <span class="executive-compact-title">${escHtml(item.text || '-')}</span>
-      <span class="executive-compact-update">${escHtml(item.latestStatusText || 'No status update recorded.')}</span>
-      <span class="executive-update-record" title="${escHtml(updateRecordHelp)}">◷ ${escHtml(updateRecord)}</span>
-      <span class="executive-compact-meta">${escHtml(item.latestStatusBy ? `Updated by ${item.latestStatusBy}` : 'No update owner recorded')}</span>
-    </span>
-  </button>`;
+  const canDrag = !isWeekReleased(allWeeks[currentIdx]);
+  return `<article class="executive-compact-item ${rag}${canUpdate ? '' : ' read-only'}">
+    ${canDrag ? `<button type="button" class="executive-milestone-drag-handle" draggable="true" data-executive-drag-item-id="${escHtml(item.id)}" aria-label="Drag ${escHtml(item.text || 'milestone')} to another quarter or section">☰</button>` : '<span></span>'}
+    <button type="button" class="executive-compact-open" data-executive-item-id="${escHtml(item.id)}" data-executive-can-update="${canUpdate}" aria-label="${escHtml(`${item.text}, ${executiveRagLabel(rag)}`)}">
+      <span class="executive-compact-rag ${rag}" aria-hidden="true"></span>
+      <span class="executive-compact-body">
+        <span class="executive-compact-title">${escHtml(item.text || '-')}</span>
+        <span class="executive-compact-update">${escHtml(item.latestStatusText || 'No status update recorded.')}</span>
+        <span class="executive-update-record" title="${escHtml(updateRecordHelp)}">◷ ${escHtml(updateRecord)}</span>
+        <span class="executive-compact-meta">${escHtml(item.latestStatusBy ? `Updated by ${item.latestStatusBy}` : 'No update owner recorded')}</span>
+      </span>
+    </button>
+  </article>`;
 }
 
 function renderExecutiveCategorySummaries(timeline, catalog, rows = timeline.rows || []) {
@@ -6021,7 +6029,7 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
         ${quarters.map((quarter, index) => `<div class="dcdc-cell dcdc-quarter"><div class="dcdc-quarter-content"><span>${escHtml(quarter.label)}</span>${canChangeStructure ? `<button type="button" class="executive-summary-rag-control" data-executive-rag-override="quarter" data-target-id="${escHtml(quarter.quarterId)}" onclick="openExecutiveRagOverride('quarter','${escHtml(quarter.quarterId)}')"><span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span></button>` : `<span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span>`}</div></div>`).join('')}
         ${visibleRows.map(row => `
           <div class="dcdc-cell dcdc-row-label"><span>${escHtml(row.label)}</span>${canChangeStructure ? `<button type="button" class="executive-summary-rag-control" data-executive-rag-override="section" data-target-id="${escHtml(row.sectionId)}" onclick="openExecutiveRagOverride('section','${escHtml(row.sectionId)}')"><span class="dcdc-section-rag ${sectionRags.get(row.sectionId)}">${escHtml(executiveRagLabel(sectionRags.get(row.sectionId)))}</span></button>` : `<span class="dcdc-section-rag ${sectionRags.get(row.sectionId)}">${escHtml(executiveRagLabel(sectionRags.get(row.sectionId)))}</span>`}</div>
-          ${(row.cells || []).map((items, quarterIndex) => `<div class="dcdc-cell"><div class="executive-compact-list">${(items || []).map(item => renderExecutiveCompactItem(item, row)).join('')}${!isWeekReleased(allWeeks[currentIdx]) ? `<button type="button" class="btn btn-ghost executive-inline-add" onclick="openExecutiveStructuralAction({ action: 'add', sectionId: '${escHtml(row.sectionId)}', quarterKey: '${escHtml(quarters[quarterIndex]?.quarterId || '')}' })">+ Add milestone</button>` : ''}</div></div>`).join('')}
+          ${(row.cells || []).map((items, quarterIndex) => `<div class="dcdc-cell" data-executive-drop-section="${escHtml(row.sectionId)}" data-executive-drop-quarter="${escHtml(quarters[quarterIndex]?.quarterId || '')}"><div class="executive-compact-list">${(items || []).map(item => renderExecutiveCompactItem(item, row)).join('')}${!isWeekReleased(allWeeks[currentIdx]) ? `<button type="button" class="btn btn-ghost executive-inline-add" onclick="openExecutiveStructuralAction({ action: 'add', sectionId: '${escHtml(row.sectionId)}', quarterKey: '${escHtml(quarters[quarterIndex]?.quarterId || '')}' })">+ Add milestone</button>` : ''}</div></div>`).join('')}
         `).join('')}
       </div>
       <div class="dcdc-phase-row">
@@ -6037,6 +6045,28 @@ document.addEventListener('click', event => {
   if (!button) return;
   window.openExecutiveItemDrawer?.(button.dataset.executiveItemId);
 });
+
+let executiveDragSession = null;
+function clearExecutiveDragTarget() { document.querySelectorAll('.executive-drop-target').forEach(cell => cell.classList.remove('executive-drop-target')); }
+function executiveDropIndex(cell, clientY) { const cards = [...cell.querySelectorAll('.executive-compact-item')]; const targetIndex = cards.findIndex(card => clientY < card.getBoundingClientRect().top + (card.getBoundingClientRect().height / 2)); return targetIndex < 0 ? cards.length : targetIndex; }
+document.addEventListener('dragstart', event => {
+  const handle = event.target.closest?.('[data-executive-drag-item-id]'); if (!handle || isWeekReleased(allWeeks[currentIdx])) return;
+  const location = findExecutiveTimelineItem(handle.dataset.executiveDragItemId); if (!location || !canViewExecutiveSection(location.row)) return;
+  executiveDragSession = { itemId: location.item.id, sourceSectionId: location.row.sectionId, sourceQuarterKey: location.quarterKey, sourceIndex: location.row.cells[location.quarterIndex].findIndex(item => item.id === location.item.id) };
+  event.dataTransfer?.setData('text/plain', location.item.id); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+});
+document.addEventListener('dragover', event => {
+  if (!executiveDragSession) return; const cell = event.target.closest?.('[data-executive-drop-section][data-executive-drop-quarter]'); if (!cell) return;
+  event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'; clearExecutiveDragTarget(); cell.classList.add('executive-drop-target');
+});
+document.addEventListener('drop', event => {
+  if (!executiveDragSession) return; const cell = event.target.closest?.('[data-executive-drop-section][data-executive-drop-quarter]'); if (!cell) return;
+  event.preventDefault(); const { itemId, sourceSectionId, sourceQuarterKey, sourceIndex } = executiveDragSession; const sectionId = cell.dataset.executiveDropSection; const quarterKey = cell.dataset.executiveDropQuarter;
+  let targetIndex = executiveDropIndex(cell, event.clientY); if (sectionId === sourceSectionId && quarterKey === sourceQuarterKey && sourceIndex < targetIndex) targetIndex -= 1;
+  clearExecutiveDragTarget(); executiveDragSession = null; if (sectionId === sourceSectionId && quarterKey === sourceQuarterKey && sourceIndex === targetIndex) return;
+  openExecutiveStructuralAction({ action: 'move', itemId, sectionId, quarterKey, targetIndex });
+});
+document.addEventListener('dragend', () => { executiveDragSession = null; clearExecutiveDragTarget(); });
 
 function executiveWeekDocumentId(week = allWeeks[currentIdx]) {
   return String(week?.__documentId || week?.weekLabel || '').trim().replace(/\s+/g, '-');
@@ -6229,7 +6259,7 @@ function executiveStructuralActionLabel(action) { return ({ add: 'Add milestone'
 function executiveStructuralLocationLabel(sectionId, quarterKey) { return `${configuredSectionLabel(executiveTimelineConfig, sectionId)} · ${configuredQuarterLabel(executiveTimelineConfig, quarterKey)}`; }
 function buildExecutiveChangePayload() {
   if (!isExecutiveChangeSessionCurrent()) throw new Error('Your dashboard session changed. Reopen the request.');
-  const { action, before, newItemId } = executiveChangeSession;
+  const { action, before, newItemId, targetIndex } = executiveChangeSession;
   const title = document.getElementById('executiveChangeTitle').value.trim(); const sectionId = document.getElementById('executiveChangeSection').value; const quarterKey = document.getElementById('executiveChangeQuarter').value; const reason = document.getElementById('executiveChangeReason').value.trim();
   if (!reason) throw new Error('Enter the reason for this structural change.');
   let after = before ? structuredClone(before) : null;
@@ -6237,7 +6267,7 @@ function buildExecutiveChangePayload() {
   else if (!before) throw new Error('The selected milestone no longer exists.');
   else if (action === 'delete') after = null;
   else if (action === 'rename') { if (!title) throw new Error('Enter a milestone title.'); after.item.text = title; }
-  else if (action === 'move') { after.sectionId = sectionId; after.quarterKey = quarterKey; after.index = Number.MAX_SAFE_INTEGER; }
+  else if (action === 'move') { after.sectionId = sectionId; after.quarterKey = quarterKey; after.index = Number.isInteger(targetIndex) ? targetIndex : Number.MAX_SAFE_INTEGER; }
   return { weekId: executiveChangeSession.weekId, itemId: before?.item?.id || newItemId, expectedVersion: Number(before?.item?.version || 0), changeType: action, before, after, reason };
 }
 function renderExecutiveStructuralSummary() {
@@ -6250,13 +6280,13 @@ function renderExecutiveStructuralSummary() {
   if (action === 'delete') summary.textContent = `Delete “${before?.item?.text || 'this milestone'}”. This action requires a recorded reason.`;
 }
 window.renderExecutiveStructuralSummary = renderExecutiveStructuralSummary;
-function openExecutiveStructuralAction({ action = 'add', itemId = '', sectionId = '', quarterKey = '' } = {}) {
+function openExecutiveStructuralAction({ action = 'add', itemId = '', sectionId = '', quarterKey = '', targetIndex } = {}) {
   if (isWeekReleased(allWeeks[currentIdx])) return;
   const location = itemId ? findExecutiveTimelineItem(String(itemId)) : null;
   if (!['add', 'rename', 'move', 'delete'].includes(action) || (itemId && (!location || !canViewExecutiveSection(location.row)))) return;
   const visibleSections = executiveTimelineConfig.sections.filter(section => canViewConfiguredSection(executiveTimelineConfig, currentRole, section.sectionId)); if (!visibleSections.length) return;
   const before = executiveLocationSnapshot(location); const selectedSectionId = visibleSections.some(section => section.sectionId === sectionId) ? sectionId : before?.sectionId || visibleSections[0].sectionId;
-  executiveChangeSession = { authUid: currentUser?.uid || '', authEmail: getEmailKey(currentUser), role: currentRole, weekId: executiveWeekDocumentId(), action, before, newItemId: `exec-${crypto.randomUUID?.() || Date.now().toString(36)}` };
+  executiveChangeSession = { authUid: currentUser?.uid || '', authEmail: getEmailKey(currentUser), role: currentRole, weekId: executiveWeekDocumentId(), action, before, targetIndex: Number.isInteger(targetIndex) ? targetIndex : Number.MAX_SAFE_INTEGER, newItemId: `exec-${crypto.randomUUID?.() || Date.now().toString(36)}` };
   document.getElementById('executiveChangeRequestTitle').textContent = executiveStructuralActionLabel(action); document.getElementById('executiveStructuralActions').innerHTML = `<span class="reason-pill">${escHtml(executiveStructuralActionLabel(action))}</span>`; document.getElementById('executiveChangeTitle').value = action === 'rename' ? before?.item?.text || '' : '';
   document.getElementById('executiveChangeSection').innerHTML = visibleSections.map(section => `<option value="${escHtml(section.sectionId)}">${escHtml(section.label)}</option>`).join(''); document.getElementById('executiveChangeSection').value = selectedSectionId; document.getElementById('executiveChangeQuarter').value = quarterKey || before?.quarterKey || 'q1';
   document.getElementById('executiveStructuralTitle').hidden = !['add', 'rename'].includes(action); document.getElementById('executiveStructuralSection').hidden = !['add', 'move'].includes(action); document.getElementById('executiveStructuralQuarter').hidden = !['add', 'move'].includes(action); document.getElementById('executiveStructuralMoveNote').hidden = action !== 'move'; document.getElementById('executiveChangeReason').value = ''; document.getElementById('executiveChangeError').textContent = '';

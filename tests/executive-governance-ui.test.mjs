@@ -69,7 +69,7 @@ test('focused drawer supports permission-aware RAG and monthly updates', () => {
     assert.match(dashboard, /id="executiveStatusUpdate"/);
     assert.match(dashboard, /id="executiveUpdateHistory"/);
     assert.match(dashboard, /Rename/);
-    assert.match(dashboard, /Move to/);
+    assert.doesNotMatch(dashboard, /Move to/);
     assert.match(dashboard, /Delete milestone/);
     assert.match(dashboard, /function renderExecutiveItemDrawer\(/);
     assert.match(dashboard, /window\.openExecutiveItemDrawer =/);
@@ -111,6 +111,21 @@ test('structural requests use contextual actions and retain an exact hidden diff
     assert.match(dashboard, /expectedVersion:/);
     assert.match(dashboard, /executiveApi\.createRequest/);
     assert.match(dashboard, /executiveApi\.applyDirectChange/);
+  }
+});
+
+test('Executive milestones use a dedicated drag handle and confirm cross-grid moves before saving', () => {
+  for (const dashboard of dashboards) {
+    assert.match(dashboard, /data-executive-drag-item-id=/);
+    assert.match(dashboard, /draggable="true"/);
+    assert.match(dashboard, /data-executive-drop-section=/);
+    assert.match(dashboard, /data-executive-drop-quarter=/);
+    assert.match(dashboard, /document\.addEventListener\('dragstart'/);
+    assert.match(dashboard, /document\.addEventListener\('dragover'/);
+    assert.match(dashboard, /document\.addEventListener\('drop'/);
+    assert.match(dashboard, /targetIndex/);
+    assert.match(dashboard, /openExecutiveStructuralAction\(\{ action: 'move'/);
+    assert.doesNotMatch(dashboard, /id="executiveMoveChangeBtn"/);
   }
 });
 
