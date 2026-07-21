@@ -11,7 +11,9 @@ Make every Dashboard editing surface follow one predictable interaction model wh
 - An approval comment is optional.
 - A rejection comment is mandatory.
 - The decision comment is saved with the request and its audit record.
-- The rules apply to editing dialogs throughout the Dashboard, including the root and Team 2 pages.
+- The rules apply to editing dialogs throughout the main Dashboard only.
+- v2.1 remains the sole production version and v2.2T remains the sole test version.
+- The legacy `team-2` page is outside this work and will not be modified or tested.
 
 ## Executive Approval Experience
 
@@ -53,7 +55,7 @@ Nested dialogs retain their parent dialog state. Closing a child confirmation or
 
 ## Implementation Boundary
 
-The close controller is added to both `index.html` and `team-2/index.html` using the existing modal infrastructure. Existing editor-specific cleanup remains in `closeModal`; the new guard runs before cleanup and delegates to the existing close path only after closing is allowed.
+The close controller is added only to the main `index.html` using the existing modal infrastructure. Existing editor-specific cleanup remains in `closeModal`; the new guard runs before cleanup and delegates to the existing close path only after closing is allowed.
 
 Editor identification is explicit through an editing-overlay attribute rather than inferred from visual class names. This prevents notifications and read-only dialogs from receiving unnecessary warnings and gives future editors a clear opt-in convention.
 
@@ -68,7 +70,7 @@ Editor identification is explicit through an editing-overlay attribute rather th
 
 ## Verification
 
-Automated tests cover both Dashboard copies and verify:
+Automated tests cover the main v2.2T Dashboard and verify:
 
 - Admin never receives approval controls while Executive does.
 - approval comments are optional and rejection comments are required;
