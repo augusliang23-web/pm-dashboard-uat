@@ -816,6 +816,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .executive-pending-count { position:absolute; top:-5px; right:-5px; min-width:17px; height:17px; padding:0 4px; border-radius:9px; background:#C53030; color:#fff; font-size:10px; line-height:17px; text-align:center; }
 .executive-governance-form { display:grid; gap:14px; }
 .executive-governance-form label { display:grid; gap:6px; font-weight:600; }
+#executiveChangeRequestOverlay [hidden] { display:none !important; }
+.resource-validation.success { color:#37775A; background:var(--gdim); border:1px solid rgba(136,201,172,.55); }
 .executive-timeline-settings { display:grid; gap:10px; }
 .executive-timeline-section-card { display:grid; gap:10px; padding:12px; border:1px solid var(--border); border-radius:8px; background:var(--s2); }
 .executive-timeline-role-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
@@ -2030,11 +2032,11 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <label id="executiveStructuralSection">Section<select class="fs" id="executiveChangeSection" onchange="renderExecutiveStructuralSummary()"></select></label>
         <label id="executiveStructuralQuarter">Quarter<select class="fs" id="executiveChangeQuarter" onchange="renderExecutiveStructuralSummary()"><option value="q1">Q1</option><option value="q2">Q2</option><option value="q3">Q3</option><option value="q4">Q4</option></select></label>
       </div>
-      <p class="executive-structural-note" id="executiveStructuralMoveNote" hidden>Choose the destination section and quarter. The milestone is placed at the end of that list.</p>
+      <p class="executive-structural-note" id="executiveStructuralMoveContext" hidden></p>
       <label id="executiveStructuralReason">Reason<textarea class="fi" id="executiveChangeReason" rows="3" maxlength="1200" placeholder="Explain why this structural change is needed."></textarea></label>
       <p class="executive-structural-summary" id="executiveStructuralSummary">Choose the requested change.</p>
       <div id="executiveChangeError" class="resource-validation" role="alert" aria-live="assertive"></div>
-      <div class="modal-actions"><button class="btn" onclick="closeModal('executiveChangeRequestOverlay')">Cancel</button><button class="btn" id="executiveSubmitChangeBtn" onclick="submitExecutiveChangeRequest(false)">Submit for approval</button><button class="btn btn-primary" id="executiveDirectChangeBtn" onclick="submitExecutiveChangeRequest(true)">Apply direct change</button></div>
+      <div class="modal-actions"><button class="btn-ghost" id="executiveChangeCancelBtn" onclick="closeModal('executiveChangeRequestOverlay')">Cancel</button><button class="btn-primary" id="executiveViewMyRequestsBtn" hidden onclick="openExecutiveMyRequests()">My change requests</button><button class="btn-primary" id="executiveSubmitChangeBtn" onclick="submitExecutiveChangeRequest(false)">Submit for approval</button><button class="btn-primary" id="executiveDirectChangeBtn" onclick="submitExecutiveChangeRequest(true)">Apply direct change</button></div>
     </div>
   </div>
 </div>
@@ -2171,7 +2173,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <button class="btn-icon admin-only" id="executivePreviewBtn" style="display:none;" onclick="toggleExecutivePreview()" title="Preview as Executive Owner" aria-label="Preview as Executive Owner">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
-      <button class="btn-icon" id="executiveApprovalInboxBtn" style="display:none; position:relative;" onclick="openExecutiveApprovalInbox()" title="Executive change inbox" aria-label="Executive change inbox">✓<span id="executivePendingCount" class="executive-pending-count">0</span></button>
+      <button class="btn-icon" id="executiveApprovalInboxBtn" style="display:none; position:relative;" onclick="openExecutiveApprovalInbox()" title="Change notifications" aria-label="Change notifications"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span id="executivePendingCount" class="executive-pending-count">0</span></button>
       <button class="btn-icon executive-hidden" onclick="toggleOverview()" id="btnOverview" title="Toggle Overview Mode">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
       </button>
@@ -6212,6 +6214,7 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
   const sectionRags = new Map(visibleRows.map(row => [row.sectionId, calculateExecutiveSectionRag(timeline, row)]));
   const quarterRags = quarters.map((quarter, index) => calculateExecutiveQuarterRag(timeline, catalog, index, visibleRows));
   const canChangeStructure = canChangeExecutiveStructure(currentRole) && !isWeekReleased(allWeeks[currentIdx]);
+  const canManageOwnRequests = ['pm', 'sales'].includes(currentRole);
   if (!visibleRows.length) return '';
   return `<section class="roadmap-block executive-milestone-block">
     <div class="roadmap-block-head">
@@ -6219,7 +6222,7 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
         <div class="roadmap-block-title">Executive milestones</div>
         <div class="roadmap-block-note">Leadership-level quarterly timeline, separate from PM project milestone input.</div>
       </div>
-      <div class="executive-approval-actions">${canChangeStructure ? '<button type="button" class="btn btn-ghost" onclick="openExecutiveTimelineSettings()">Timeline settings</button>' : ''}<span class="reason-pill">${year}</span></div>
+      <div class="executive-approval-actions">${canManageOwnRequests ? '<button type="button" class="btn-ghost" onclick="openExecutiveMyRequests()">My change requests</button>' : ''}${canChangeStructure ? '<button type="button" class="btn-ghost" onclick="openExecutiveTimelineSettings()">Timeline settings</button>' : ''}<span class="reason-pill">${year}</span></div>
     </div>
     <div class="dcdc-timeline">
       <div class="dcdc-title">${escHtml(timeline.title || `Selected ${year} DCDC Milestone Timeline`)}</div>
@@ -6518,7 +6521,7 @@ function renderExecutiveStructuralSummary() {
   if (!summary) return;
   if (action === 'add') summary.textContent = `Add “${title || 'Untitled milestone'}” to ${executiveStructuralLocationLabel(sectionId, quarterKey)}.`;
   if (action === 'rename') summary.textContent = `Rename “${before?.item?.text || 'this milestone'}” to “${title || 'Untitled milestone'}”.`;
-  if (action === 'move') summary.textContent = `Move “${before?.item?.text || 'this milestone'}” to ${executiveStructuralLocationLabel(sectionId, quarterKey)}.`;
+  if (action === 'move') summary.textContent = `Move “${before?.item?.text || 'this milestone'}” from ${executiveStructuralLocationLabel(before?.sectionId, before?.quarterKey)} to ${executiveStructuralLocationLabel(sectionId, quarterKey)}.`;
   if (action === 'delete') summary.textContent = `Delete “${before?.item?.text || 'this milestone'}”. This action requires a recorded reason.`;
 }
 window.renderExecutiveStructuralSummary = renderExecutiveStructuralSummary;
@@ -6543,15 +6546,20 @@ function openExecutiveStructuralAction({ action = 'add', itemId = '', sectionId 
   document.getElementById('executiveChangeSection').innerHTML = visibleSections.map(section => `<option value="${escHtml(section.sectionId)}">${escHtml(section.label)}</option>`).join('');
   document.getElementById('executiveChangeSection').value = selectedSectionId;
   document.getElementById('executiveChangeQuarter').value = quarterKey || before?.quarterKey || 'q1';
-  document.getElementById('executiveStructuralTitle').hidden = !['add', 'rename'].includes(action);
-  document.getElementById('executiveStructuralSection').hidden = !['add', 'move'].includes(action);
-  document.getElementById('executiveStructuralQuarter').hidden = !['add', 'move'].includes(action);
-  document.getElementById('executiveStructuralMoveNote').hidden = action !== 'move';
+  const isMove = action === 'move';
+  document.getElementById('executiveStructuralTitle').hidden = isMove || action === 'delete';
+  document.getElementById('executiveStructuralSection').hidden = isMove || !['add'].includes(action);
+  document.getElementById('executiveStructuralQuarter').hidden = isMove || !['add'].includes(action);
+  const moveContext = document.getElementById('executiveStructuralMoveContext');
+  moveContext.hidden = !isMove;
+  moveContext.textContent = isMove ? `Move “${before?.item?.text || 'this milestone'}” from ${executiveStructuralLocationLabel(before?.sectionId, before?.quarterKey)} to ${executiveStructuralLocationLabel(selectedSectionId, quarterKey || before?.quarterKey || 'q1')}.` : '';
   document.getElementById('executiveChangeReason').value = '';
+  document.getElementById('executiveChangeError').className = 'resource-validation';
   document.getElementById('executiveChangeError').textContent = '';
   const direct = canChangeExecutiveStructure(currentRole);
   document.getElementById('executiveSubmitChangeBtn').hidden = direct;
   document.getElementById('executiveDirectChangeBtn').hidden = !direct;
+  document.getElementById('executiveViewMyRequestsBtn').hidden = true;
   renderExecutiveStructuralSummary();
   openAccessibleModal(document.getElementById('executiveChangeRequestOverlay'));
 }
@@ -6565,28 +6573,65 @@ window.openExecutiveChangeRequest = itemId => openExecutiveStructuralAction({ ac
 
 window.submitExecutiveChangeRequest = async direct => {
   const errorBox = document.getElementById('executiveChangeError');
+  const submitButton = document.getElementById(direct ? 'executiveDirectChangeBtn' : 'executiveSubmitChangeBtn');
+  if (submitButton.disabled) return;
+  let keepConfirmationOpen = false;
+  const originalLabel = submitButton.textContent;
+  submitButton.disabled = true;
+  submitButton.textContent = direct ? 'Applying…' : 'Submitting…';
   try {
     const payload = buildExecutiveChangePayload();
     if (direct && !canChangeExecutiveStructure(currentRole)) throw new Error('Direct changes require Admin or Executive Owner access.');
-    if (direct) await executiveApi.applyDirectChange(payload);
-    else await executiveApi.createRequest(payload);
-    closeModal('executiveChangeRequestOverlay');
-    if (direct) await refreshExecutiveWeekSnapshot(payload.weekId);
-    await refreshExecutivePendingCount();
-    showSaveToast(direct ? 'Executive milestone changed.' : 'Change request submitted.');
+    if (direct) {
+      await executiveApi.applyDirectChange(payload);
+      closeModal('executiveChangeRequestOverlay');
+      await refreshExecutiveWeekSnapshot(payload.weekId);
+      await refreshExecutivePendingCount();
+      showSaveToast('Executive milestone changed.');
+      return;
+    }
+    await executiveApi.createRequest(payload);
+    keepConfirmationOpen = true;
+    errorBox.className = 'resource-validation success';
+    errorBox.textContent = 'Change request submitted successfully. It remains pending until the Executive Owner decides.';
+    submitButton.textContent = 'Submitted';
+    document.getElementById('executiveViewMyRequestsBtn').hidden = !['pm', 'sales'].includes(currentRole);
   } catch (error) {
     errorBox.className = 'resource-validation error';
     errorBox.textContent = error.message || 'Unable to submit the change.';
+  } finally {
+    if (!keepConfirmationOpen) {
+      submitButton.disabled = false;
+      submitButton.textContent = originalLabel;
+    }
   }
 };
 
+function canOpenExecutiveChangeInbox() {
+  return Boolean(getEmailKey(currentUser)) && (isExecutiveChangeReviewer() || ['pm', 'sales'].includes(currentRole));
+}
+
+function isExecutiveChangeReviewer() {
+  return ['admin', 'executive'].includes(currentRole);
+}
+
+function executiveInboxCopy() {
+  if (currentRole === 'executive') return { title: 'Approval requests', mode: 'Pending requests requiring Executive Owner decision.' };
+  if (currentRole === 'admin') return { title: 'Change notifications', mode: 'Admin audit-only — Executive Owner makes approval decisions.' };
+  return { title: 'My change requests', mode: 'Pending requests can be withdrawn until the Executive Owner makes a decision.' };
+}
+
 async function refreshExecutivePendingCount() {
   const badge = document.getElementById('executivePendingCount');
-  if (!badge || !['admin', 'executive'].includes(currentRole)) return;
+  if (!badge || !isExecutiveChangeReviewer()) return;
   try {
-    const snapshot = await getDocs(query(collection(db, 'executiveMilestoneChangeRequests'), where('state', '==', 'pending')));
-    badge.textContent = String(snapshot.size);
-    badge.hidden = snapshot.empty;
+    const source = isExecutiveChangeReviewer()
+      ? query(collection(db, 'executiveMilestoneChangeRequests'), where('state', '==', 'pending'))
+      : query(collection(db, 'executiveMilestoneChangeRequests'), where('requesterEmail', '==', getEmailKey(currentUser)));
+    const snapshot = await getDocs(source);
+    const pending = isExecutiveChangeReviewer() ? snapshot.size : snapshot.docs.filter(entry => entry.data().state === 'pending').length;
+    badge.textContent = String(pending);
+    badge.hidden = pending === 0;
   } catch {
     badge.hidden = true;
   }
@@ -6595,32 +6640,56 @@ async function refreshExecutivePendingCount() {
 function renderExecutiveApprovalInbox(records = []) {
   const list = document.getElementById('executiveApprovalInboxList');
   const visible = records;
-  if (!visible.length) { list.innerHTML = '<div class="executive-history-empty">No change requests to review.</div>'; return; }
+  if (!visible.length) { list.innerHTML = `<div class="executive-history-empty">${currentRole === 'executive' ? 'No change requests to review.' : 'No change requests yet.'}</div>`; return; }
   list.innerHTML = visible.map(record => {
     const isConflict = record.state === 'conflict';
     const canDecide = currentRole === 'executive' && record.state === 'pending' && !executiveApprovalDecisionInFlight;
-    return `<article class="executive-approval-card ${isConflict ? 'conflict' : ''}"><div><strong>${escHtml(record.changeType || 'change')}</strong> · ${escHtml(record.state || 'unknown')} · ${escHtml(record.requesterEmail || '')}</div><div>${escHtml(record.reason || '')}</div><div class="executive-change-diff"><div><small>Before</small><pre>${escHtml(JSON.stringify(record.before, null, 2))}</pre></div><div><small>After</small><pre>${escHtml(JSON.stringify(record.after, null, 2))}</pre></div></div>${isConflict ? `<div class="resource-validation error">${escHtml(record.conflictReason || 'The milestone changed before approval.')}</div>` : ''}${canDecide ? `<div class="executive-approval-actions"><button class="btn" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','reject')">Reject</button><button class="btn btn-primary" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','approve')">Approve</button></div>` : ''}</article>`;
+    const canWithdraw = record.state === 'pending' && record.requesterEmail === getEmailKey(currentUser) && !executiveApprovalDecisionInFlight;
+    return `<article class="executive-approval-card ${isConflict ? 'conflict' : ''}"><div><strong>${escHtml(record.changeType || 'change')}</strong> · ${escHtml(record.state || 'unknown')} · ${escHtml(record.requesterEmail || '')}</div><div>${escHtml(record.reason || '')}</div><div class="executive-change-diff"><div><small>Before</small><pre>${escHtml(JSON.stringify(record.before, null, 2))}</pre></div><div><small>After</small><pre>${escHtml(JSON.stringify(record.after, null, 2))}</pre></div></div>${isConflict ? `<div class="resource-validation error">${escHtml(record.conflictReason || 'The milestone changed before approval.')}</div>` : ''}${canDecide || canWithdraw ? `<div class="executive-approval-actions">${canWithdraw ? `<button class="btn btn-danger" onclick="withdrawExecutiveChangeRequest('${escHtml(record.requestId)}')">Withdraw request</button>` : ''}${canDecide ? `<button class="btn" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','reject')">Reject</button><button class="btn btn-primary" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','approve')">Approve</button>` : ''}</div>` : ''}</article>`;
   }).join('');
 }
 
 window.openExecutiveApprovalInbox = () => {
-  if (!['admin', 'executive'].includes(currentRole)) return;
+  if (!canOpenExecutiveChangeInbox()) return;
   if (executiveApprovalInboxUnsub) executiveApprovalInboxUnsub();
-  document.getElementById('executiveApprovalInboxMode').textContent = currentRole === 'admin' ? 'Admin audit-only — Executive Owner makes approval decisions.' : 'Pending requests requiring Executive Owner decision.';
+  const copy = executiveInboxCopy();
+  document.getElementById('executiveApprovalInboxTitle').textContent = copy.title;
+  document.getElementById('executiveApprovalInboxMode').textContent = copy.mode;
   openAccessibleModal(document.getElementById('executiveApprovalInboxOverlay'));
-  const inboxSource = query(
-    collection(db, 'executiveMilestoneChangeRequests'),
-    orderBy('createdAt', 'desc'),
-    limit(100),
-  );
+  const inboxSource = isExecutiveChangeReviewer()
+    ? query(collection(db, 'executiveMilestoneChangeRequests'), orderBy('createdAt', 'desc'), limit(100))
+    : query(collection(db, 'executiveMilestoneChangeRequests'), where('requesterEmail', '==', getEmailKey(currentUser)));
   executiveApprovalInboxUnsub = onSnapshot(inboxSource, snapshot => {
     const records = snapshot.docs.map(entry => ({ ...entry.data(), requestId: entry.id }));
     records.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
     renderExecutiveApprovalInbox(records);
-    const pending = records.filter(record => record.state === 'pending').length;
+    const pending = isExecutiveChangeReviewer() ? records.filter(record => record.state === 'pending').length : records.filter(record => record.state === 'pending' && record.requesterEmail === getEmailKey(currentUser)).length;
     const badge = document.getElementById('executivePendingCount');
     badge.textContent = String(pending); badge.hidden = pending === 0;
   }, error => { document.getElementById('executiveApprovalInboxList').textContent = error.message || 'Inbox is unavailable.'; });
+};
+
+window.openExecutiveMyRequests = () => {
+  if (!['pm', 'sales'].includes(currentRole)) return;
+  closeModal('executiveChangeRequestOverlay');
+  window.openExecutiveApprovalInbox();
+};
+
+window.withdrawExecutiveChangeRequest = async requestId => {
+  if (executiveApprovalDecisionInFlight || !requestId) return;
+  if (!window.confirm('Withdraw this pending change request?')) return;
+  executiveApprovalDecisionInFlight = true;
+  document.querySelectorAll('#executiveApprovalInboxList button').forEach(button => { button.disabled = true; });
+  try {
+    await executiveApi.withdrawRequest({ requestId });
+    await refreshExecutivePendingCount();
+    showSaveToast('Change request withdrawn.');
+  } catch (error) {
+    showSaveToast(error.message || 'Unable to withdraw the request.');
+  } finally {
+    executiveApprovalDecisionInFlight = false;
+    document.querySelectorAll('#executiveApprovalInboxList button').forEach(button => { button.disabled = false; });
+  }
 };
 
 window.decideExecutiveChangeRequest = async (requestId, decision) => {

@@ -20,6 +20,7 @@ test('maps each browser method to the approved callable and exact payload', asyn
   const payloads = [
     ['addUpdate', 'addExecutiveMilestoneUpdate', { weekId: 'w1', itemId: 'i1' }],
     ['createRequest', 'createExecutiveMilestoneChangeRequest', { weekId: 'w1', changeType: 'rename' }],
+    ['withdrawRequest', 'withdrawExecutiveMilestoneChangeRequest', { requestId: 'r1' }],
     ['decideRequest', 'decideExecutiveMilestoneChangeRequest', { requestId: 'r1', decision: 'approve' }],
     ['applyDirectChange', 'applyDirectExecutiveMilestoneChange', { weekId: 'w1', reason: 'Admin correction' }],
     ['setRagOverride', 'setExecutiveRagOverride', { weekId: 'w1', scope: 'quarter', targetId: 'q1' }],

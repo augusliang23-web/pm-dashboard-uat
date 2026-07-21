@@ -194,6 +194,51 @@ const createExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async req
   }
 });
 
+const withdrawExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async request => {
+  try {
+    const requestId = String(request.data?.requestId || '').trim();
+    if (!requestId || requestId.includes('/')) throw new HttpsError('invalid-argument', 'A valid requestId is required.');
+
+    const requestRef = db.collection('executiveMilestoneChangeRequests').doc(requestId);
+    const auditRef = db.collection('executiveMilestoneAudit').doc();
+    const result = await db.runTransaction(async transaction => {
+      const actor = await getActor(transaction, request);
+      const requestSnapshot = await transaction.get(requestRef);
+      if (!requestSnapshot.exists) throw new HttpsError('not-found', 'Change request was not found.');
+      const changeRequest = requestSnapshot.data();
+      if (changeRequest.requesterEmail !== actor.email) {
+        throw new HttpsError('permission-denied', 'Only the requester can withdraw this change request.');
+      }
+      if (changeRequest.state !== 'pending') {
+        throw new HttpsError('failed-precondition', 'Only pending change requests can be withdrawn.');
+      }
+      const now = new Date().toISOString();
+      const withdrawn = {
+        ...changeRequest,
+        state: 'withdrawn',
+        withdrawnAt: now,
+        withdrawnBy: actor.email,
+        updatedAt: now,
+      };
+      transaction.update(requestRef, withdrawn);
+      transaction.create(auditRef, {
+        auditId: auditRef.id,
+        action: 'withdraw-change-request',
+        requestId,
+        weekId: changeRequest.weekId,
+        itemId: changeRequest.itemId,
+        actorEmail: actor.email,
+        actorRole: actor.role,
+        createdAt: now,
+      });
+      return withdrawn;
+    });
+    return { ok: true, requestId, state: result.state };
+  } catch (error) {
+    throw asHttpsError(error);
+  }
+});
+
 const decideExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async request => {
   try {
     const requestId = String(request.data?.requestId || '').trim();
@@ -381,6 +426,7 @@ const setExecutiveRagOverride = onCall(CALLABLE_OPTIONS, async request => {
 module.exports = {
   addExecutiveMilestoneUpdate,
   createExecutiveMilestoneChangeRequest,
+  withdrawExecutiveMilestoneChangeRequest,
   decideExecutiveMilestoneChangeRequest,
   applyDirectExecutiveMilestoneChange,
   saveExecutiveMilestoneTimelineConfig,

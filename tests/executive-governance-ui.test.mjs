@@ -141,6 +141,21 @@ test('Executive milestones use a dedicated drag handle and confirm cross-grid mo
   }
 });
 
+test('cross-grid moves show read-only context and requesters can withdraw a pending request', () => {
+  for (const dashboard of dashboards) {
+    assert.match(dashboard, /id="executiveStructuralMoveContext"/);
+    assert.match(dashboard, /const isMove = action === 'move'/);
+    assert.match(dashboard, /executiveStructuralTitle'\)\.hidden\s*=\s*isMove/);
+    assert.match(dashboard, /executiveStructuralSection'\)\.hidden\s*=\s*isMove/);
+    assert.match(dashboard, /executiveStructuralQuarter'\)\.hidden\s*=\s*isMove/);
+    assert.match(dashboard, /window\.withdrawExecutiveChangeRequest\s*=/);
+    assert.match(dashboard, /Withdraw request/);
+    assert.match(dashboard, /executiveApi\.withdrawRequest/);
+    assert.match(dashboard, /#executiveChangeRequestOverlay \[hidden\] \{ display:none !important; \}/);
+    assert.match(dashboard, /id="executiveViewMyRequestsBtn"/);
+  }
+});
+
 test('Executive Owner inbox supports approve, reject, conflict, and Admin audit-only review', () => {
   for (const dashboard of dashboards) {
     assert.match(dashboard, /id="executiveApprovalInboxBtn"/);
@@ -154,6 +169,27 @@ test('Executive Owner inbox supports approve, reject, conflict, and Admin audit-
     assert.match(dashboard, /Admin audit-only/);
     assert.match(dashboard, /orderBy\('createdAt', 'desc'\),\s*limit\(100\)/);
     assert.doesNotMatch(dashboard, /executiveApprovalEmail|approvalMailbox|sendApprovalEmail/);
+  }
+});
+
+test('Executive request inbox uses a notification bell with role-accurate labels', () => {
+  for (const dashboard of dashboards) {
+    assert.match(dashboard, /id="executiveApprovalInboxBtn"[\s\S]{0,400}?aria-label="Change notifications"/);
+    assert.match(dashboard, /Approval requests/);
+    assert.match(dashboard, /Admin audit-only/);
+    assert.match(dashboard, /My change requests/);
+    assert.doesNotMatch(dashboard, />✓<span id="executivePendingCount"/);
+    assert.match(dashboard, /function isExecutiveChangeReviewer\(\)\s*\{[\s\S]{0,120}?\['admin', 'executive'\]\.includes\(currentRole\)/);
+    assert.doesNotMatch(dashboard, /currentRole === 'pm'\) document\.getElementById\('executiveApprovalInboxBtn'\)/);
+  }
+});
+
+test('move submission uses standard action buttons and leaves a visible result in the dialog', () => {
+  for (const dashboard of dashboards) {
+    assert.match(dashboard, /class="btn-primary" id="executiveSubmitChangeBtn"/);
+    assert.match(dashboard, /class="btn-ghost" id="executiveChangeCancelBtn"/);
+    assert.match(dashboard, /Change request submitted successfully/);
+    assert.match(dashboard, /Unable to submit the change/);
   }
 });
 

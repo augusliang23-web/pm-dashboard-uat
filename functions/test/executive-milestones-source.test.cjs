@@ -15,9 +15,20 @@ test('defines all Executive milestone callable handlers', () => {
     'applyDirectExecutiveMilestoneChange',
     'setExecutiveRagOverride',
     'saveExecutiveMilestoneTimelineConfig',
+    'withdrawExecutiveMilestoneChangeRequest',
   ]) {
     assert.match(source, new RegExp(`const\\s+${name}\\s*=\\s*onCall`), name);
   }
+});
+
+test('defines and exports a requester-only Executive change withdrawal callable', () => {
+  const source = read('executive-milestones.js');
+  assert.match(source, /const\s+withdrawExecutiveMilestoneChangeRequest\s*=\s*onCall/);
+  assert.match(source, /Only the requester can withdraw this change request/);
+  assert.match(source, /state:\s*'withdrawn'/);
+  assert.match(source, /withdrawnAt:/);
+  assert.match(source, /withdrawnBy:/);
+  assert.match(read('index.js'), /exports\.withdrawExecutiveMilestoneChangeRequest\s*=\s*executiveMilestones\.withdrawExecutiveMilestoneChangeRequest/);
 });
 
 test('authenticates from the token email and reloads the actor role in each transaction', () => {
@@ -71,6 +82,7 @@ test('exports every callable beside presence aggregation', () => {
     'applyDirectExecutiveMilestoneChange',
     'setExecutiveRagOverride',
     'saveExecutiveMilestoneTimelineConfig',
+    'withdrawExecutiveMilestoneChangeRequest',
   ]) {
     assert.match(source, new RegExp(`exports\\.${name}\\s*=\\s*executiveMilestones\\.${name}`), name);
   }
