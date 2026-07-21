@@ -64,6 +64,12 @@ test('reloads live timeline configuration for every Executive mutation', () => {
   assert.match(source, /config,\s*$/m);
 });
 
+test('applies canonical section IDs when evaluating legacy stored RAG rows', () => {
+  const source = read('executive-milestones.js');
+  assert.match(source, /canonicalSectionId/);
+  assert.match(source, /rows\.find\(candidate => canonicalSectionId\(candidate\?\.sectionId\) === canonicalSectionId\(targetId\)\)/);
+});
+
 test('defines a version-checked timeline configuration change with audit', () => {
   const source = read('executive-milestones.js');
   assert.match(source, /saveExecutiveMilestoneTimelineConfig/);

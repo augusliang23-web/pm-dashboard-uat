@@ -6594,11 +6594,14 @@ window.submitExecutiveChangeRequest = async direct => {
     keepConfirmationOpen = true;
     errorBox.className = 'resource-validation success';
     errorBox.textContent = 'Change request submitted successfully. It remains pending until the Executive Owner decides.';
+    showSaveToast('Change request submitted successfully.');
     submitButton.textContent = 'Submitted';
     document.getElementById('executiveViewMyRequestsBtn').hidden = !['pm', 'sales'].includes(currentRole);
   } catch (error) {
+    const message = error.message || 'Unable to submit the change.';
     errorBox.className = 'resource-validation error';
-    errorBox.textContent = error.message || 'Unable to submit the change.';
+    errorBox.textContent = message;
+    showSaveToast(error.message || 'Unable to submit the change.');
   } finally {
     if (!keepConfirmationOpen) {
       submitButton.disabled = false;

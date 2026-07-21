@@ -6,6 +6,7 @@ const {
   applyApprovedRequest,
   applyDirectStructureChange,
   applyItemUpdate,
+  canonicalSectionId,
   createChangeRequest,
   normalizeRole,
 } = require('./executive-milestone-core');
@@ -104,7 +105,7 @@ function calculateOverrideTarget(timeline, scope, targetId, config = defaultTime
   const rows = Array.isArray(timeline?.rows) ? timeline.rows : [];
   if (scope === 'section') {
     if (!config.sections.some(section => section.sectionId === targetId)) throw new HttpsError('not-found', 'Executive section was not found.');
-    const row = rows.find(candidate => candidate?.sectionId === targetId);
+    const row = rows.find(candidate => canonicalSectionId(candidate?.sectionId) === canonicalSectionId(targetId));
     if (!row) throw new HttpsError('not-found', 'Executive section was not found.');
     const cells = Array.isArray(row.cells)
       ? row.cells

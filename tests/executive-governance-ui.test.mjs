@@ -190,6 +190,8 @@ test('move submission uses standard action buttons and leaves a visible result i
     assert.match(dashboard, /class="btn-ghost" id="executiveChangeCancelBtn"/);
     assert.match(dashboard, /Change request submitted successfully/);
     assert.match(dashboard, /Unable to submit the change/);
+    assert.match(dashboard, /showSaveToast\('Change request submitted successfully\.'/);
+    assert.match(dashboard, /showSaveToast\(error\.message \|\| 'Unable to submit the change\.'/);
   }
 });
 

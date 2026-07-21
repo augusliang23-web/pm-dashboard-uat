@@ -14,6 +14,11 @@ const QUARTER_KEYS = DEFAULT_CONFIG.quarters.map(quarter => quarter.quarterId);
 const CHANGE_TYPES = new Set(['add', 'rename', 'move', 'move-section', 'move-quarter', 'reorder', 'delete']);
 const RAGS = new Set(['green', 'yellow', 'red']);
 const RAG_TO_HEALTH = { green: 'on-track', yellow: 'at-risk', red: 'delayed' };
+const LEGACY_SECTION_ID_MIGRATION = {
+  'solution-ecosystem': 'ioe-product-portfolio',
+  'customers-gtm': 'customer-engagements',
+  'investors-others': 'investors-strategy',
+};
 
 function fail(message, code = 'failed-precondition') {
   const error = new Error(message);
@@ -42,6 +47,11 @@ function normalizedVersion(value) {
 
 function operationConfig(value) {
   return normalizeTimelineConfig(value || DEFAULT_CONFIG);
+}
+
+function canonicalSectionId(value) {
+  const sectionId = String(value || '').trim();
+  return LEGACY_SECTION_ID_MIGRATION[sectionId] || sectionId;
 }
 
 function quarterKeys(config) {
@@ -92,7 +102,8 @@ function ensureFirestoreSafeCells(row, config = DEFAULT_CONFIG) {
 
 function sectionRow(week, sectionId) {
   const rows = timelineOf(week).rows;
-  const rowIndex = rows.findIndex(row => row?.sectionId === sectionId);
+  const canonicalId = canonicalSectionId(sectionId);
+  const rowIndex = rows.findIndex(row => canonicalSectionId(row?.sectionId) === canonicalId);
   if (rowIndex < 0) fail('Executive section was not found.', 'not-found');
   return { row: rows[rowIndex], rowIndex };
 }
@@ -291,7 +302,7 @@ function findItemLocation(week, itemId, config = DEFAULT_CONFIG) {
         return {
           row,
           rowIndex,
-          sectionId: String(row.sectionId || ''),
+          sectionId: canonicalSectionId(row.sectionId),
           quarterKey,
           itemIndex,
           item: foundItem,
@@ -467,6 +478,7 @@ function applyDirectStructureChange(week, input = {}) {
 module.exports = {
   SECTION_IDS,
   QUARTER_KEYS,
+  canonicalSectionId,
   normalizeRole,
   createExecutiveLegacyItemId,
   authorizeUpdate,

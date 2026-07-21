@@ -6320,8 +6320,8 @@ window.submitExecutiveChangeRequest = async direct => {
     const payload = buildExecutiveChangePayload();
     if (direct && !canChangeExecutiveStructure(currentRole)) throw new Error('Direct changes require Admin or Executive Owner access.');
     if (direct) { await executiveApi.applyDirectChange(payload); closeModal('executiveChangeRequestOverlay'); await refreshExecutiveWeekSnapshot(payload.weekId); await refreshExecutivePendingCount(); showSaveToast('Executive milestone changed.'); return; }
-    await executiveApi.createRequest(payload); keepConfirmationOpen = true; errorBox.className = 'resource-validation success'; errorBox.textContent = 'Change request submitted successfully. It remains pending until the Executive Owner decides.'; submitButton.textContent = 'Submitted'; document.getElementById('executiveViewMyRequestsBtn').hidden = !['pm', 'sales'].includes(currentRole);
-  } catch (error) { errorBox.className = 'resource-validation error'; errorBox.textContent = error.message || 'Unable to submit the change.'; }
+    await executiveApi.createRequest(payload); keepConfirmationOpen = true; errorBox.className = 'resource-validation success'; errorBox.textContent = 'Change request submitted successfully. It remains pending until the Executive Owner decides.'; showSaveToast('Change request submitted successfully.'); submitButton.textContent = 'Submitted'; document.getElementById('executiveViewMyRequestsBtn').hidden = !['pm', 'sales'].includes(currentRole);
+  } catch (error) { const message = error.message || 'Unable to submit the change.'; errorBox.className = 'resource-validation error'; errorBox.textContent = message; showSaveToast(error.message || 'Unable to submit the change.'); }
   finally { if (!keepConfirmationOpen) { submitButton.disabled = false; submitButton.textContent = originalLabel; } }
 };
 

@@ -122,6 +122,23 @@ test('finds and upgrades a legacy item through its deterministic id', () => {
   assert.equal(result.item.version, 1);
 });
 
+test('authorizes legacy stored section IDs through the canonical configurable policy', () => {
+  const week = fixtureWeek();
+  week.strategyLayer.executiveMilestoneTimeline.rows[0].sectionId = 'solution-ecosystem';
+  const request = createChangeRequest(week, {
+    role: 'pm',
+    itemId: 'exec-1',
+    expectedVersion: 2,
+    changeType: 'move',
+    after: { sectionId: 'ioe-product-portfolio', quarterKey: 'q2', index: 0 },
+    reason: 'Move this milestone to the next quarter.',
+  });
+
+  assert.equal(request.before.sectionId, 'ioe-product-portfolio');
+  assert.equal(request.after.sectionId, 'ioe-product-portfolio');
+  assert.equal(request.state, 'pending');
+});
+
 test('applies one item update immutably and increments its version', () => {
   const week = fixtureWeek();
   const result = applyItemUpdate(week, {
