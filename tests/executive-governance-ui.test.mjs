@@ -153,6 +153,9 @@ test('cross-grid moves show read-only context and requesters can withdraw a pend
     assert.match(dashboard, /executiveApi\.withdrawRequest/);
     assert.match(dashboard, /#executiveChangeRequestOverlay \[hidden\] \{ display:none !important; \}/);
     assert.match(dashboard, /id="executiveViewMyRequestsBtn"/);
+    assert.match(dashboard, /function isExecutiveChangeRequester\(\)/);
+    assert.match(dashboard, /\['pm', 'engineering', 'sales', 'bd', 'product'\]/);
+    assert.doesNotMatch(dashboard, /const canManageOwnRequests = \['pm', 'sales'\]\.includes\(currentRole\)/);
   }
 });
 
@@ -192,6 +195,18 @@ test('move submission uses standard action buttons and leaves a visible result i
     assert.match(dashboard, /Unable to submit the change/);
     assert.match(dashboard, /showSaveToast\('Change request submitted successfully\.'/);
     assert.match(dashboard, /showSaveToast\(error\.message \|\| 'Unable to submit the change\.'/);
+    assert.match(dashboard, /requestButton\.disabled = false/);
+    assert.match(dashboard, /requestButton\.textContent = 'Submit for approval'/);
+  }
+});
+
+test('change inbox renders user-facing summaries and only actionable pending requests', () => {
+  for (const dashboard of dashboards) {
+    assert.match(dashboard, /function executiveChangeRecordDisplay\(record\)/);
+    assert.match(dashboard, /Move from \$\{sourceLocation\} to \$\{targetLocation\}/);
+    assert.match(dashboard, /filter\(record => record\.state === 'pending'\)/);
+    assert.doesNotMatch(dashboard, /JSON\.stringify\(record\.before/);
+    assert.doesNotMatch(dashboard, /JSON\.stringify\(record\.after/);
   }
 });
 
