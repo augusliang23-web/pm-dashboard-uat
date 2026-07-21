@@ -6,6 +6,7 @@ const dashboards = await Promise.all([
   readFile(new URL('../index.html', import.meta.url), 'utf8'),
   readFile(new URL('../team-2/index.html', import.meta.url), 'utf8'),
 ]);
+const [rootDashboard] = dashboards;
 
 test('both dashboards retain defaults while using configuration-driven Executive governance helpers', () => {
   for (const dashboard of dashboards) {
@@ -88,6 +89,13 @@ test('focused drawer supports permission-aware RAG and monthly updates', () => {
     assert.match(dashboard, /window\.saveExecutiveItemUpdate =/);
     assert.match(dashboard, /executiveApi\.addUpdate/);
   }
+});
+
+test('v2.2T Executive milestone editor uses the centered modal pattern', () => {
+  assert.match(rootDashboard, /id="executiveItemDrawerOverlay"[\s\S]{0,160}?<div class="modal executive-item-modal">/);
+  assert.match(rootDashboard, /\.executive-drawer-overlay \{[^}]*justify-content:center;[^}]*align-items:center;/);
+  assert.match(rootDashboard, /\.executive-item-modal \{[^}]*width:min\(760px,94vw\);[^}]*max-height:90vh;/);
+  assert.doesNotMatch(rootDashboard, /\.executive-drawer-overlay \{[^}]*justify-content:flex-end;/);
 });
 
 test('drawer guards auth identity and renders append-only history newest first', () => {
@@ -175,6 +183,15 @@ test('Executive Owner inbox supports approve, reject, conflict, and Admin audit-
   }
 });
 
+test('v2.2T Executive decisions use an inline saved comment with mandatory rejection context', () => {
+  assert.match(rootDashboard, /data-executive-decision-comment=/);
+  assert.match(rootDashboard, /data-executive-decision-error=/);
+  assert.match(rootDashboard, /if \(decision === 'reject' && !decisionNote\)/);
+  assert.match(rootDashboard, /executiveApi\.decideRequest\(\{ requestId, decision, decisionNote \}\)/);
+  assert.match(rootDashboard, /const canDecide = currentRole === 'executive'/);
+  assert.doesNotMatch(rootDashboard, /window\.prompt\(`\$\{decision === 'approve'/);
+});
+
 test('Executive request inbox uses a notification bell with role-accurate labels', () => {
   for (const dashboard of dashboards) {
     assert.match(dashboard, /id="executiveApprovalInboxBtn"[\s\S]{0,400}?aria-label="Change notifications"/);
@@ -198,6 +215,18 @@ test('move submission uses standard action buttons and leaves a visible result i
     assert.match(dashboard, /requestButton\.disabled = false/);
     assert.match(dashboard, /requestButton\.textContent = 'Submit for approval'/);
   }
+});
+
+test('v2.2T request mutations show a real backend-bound busy animation', () => {
+  assert.match(rootDashboard, /function setAsyncActionState\(button, busy, busyLabel = 'Working…'\)/);
+  assert.match(rootDashboard, /class="async-action-spinner"/);
+  assert.match(rootDashboard, /button\.setAttribute\('aria-busy', 'true'\)/);
+  for (const label of ['Submitting…', 'Withdrawing…', 'Approving…', 'Rejecting…']) {
+    assert.match(rootDashboard, new RegExp(label));
+  }
+  assert.match(rootDashboard, /setAsyncActionState\(submitButton, true, direct \? 'Applying…' : 'Submitting…'\)/);
+  assert.match(rootDashboard, /setAsyncActionState\(sourceButton, true, 'Withdrawing…'\)/);
+  assert.match(rootDashboard, /setAsyncActionState\(sourceButton, true, decision === 'approve' \? 'Approving…' : 'Rejecting…'\)/);
 });
 
 test('change inbox renders user-facing summaries and only actionable pending requests', () => {

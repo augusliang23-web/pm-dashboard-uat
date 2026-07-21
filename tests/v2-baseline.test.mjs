@@ -239,9 +239,10 @@ test('gates Overview project mutations per project at render and write boundarie
   assert.ok(controlsSource.includes("const p = findCurrentProject(e.dataTransfer.getData('text/plain'));"));
 });
 
-test('restricts global strategy and executive timeline controls and handlers to administrators', () => {
+test('restricts global strategy to Admin and configurable timeline settings to Admin or Executive', () => {
   assert.ok(dashboard.includes("const canManageStrategy = () => currentRole === 'admin' && !isAdminExecutivePreview;"));
-  assert.ok(dashboard.includes('${executive && canManageStrategy() ? `<button class="btn btn-primary no-print"'));
+  assert.ok(dashboard.includes('onclick="openExecutiveTimelineSettings()">Timeline settings</button>'));
+  assert.ok(dashboard.includes("if (!canChangeExecutiveStructure(currentRole) || isWeekReleased(allWeeks[currentIdx])) return;"));
   for (const handler of [
     'window.addExecutiveTimelineRow = () =>',
     'window.openStrategyLayerModal = () =>',

@@ -244,8 +244,10 @@ const decideExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async req
   try {
     const requestId = String(request.data?.requestId || '').trim();
     const decision = String(request.data?.decision || '').trim().toLowerCase();
+    const decisionNote = String(request.data?.decisionNote || '').trim();
     if (!requestId || requestId.includes('/')) throw new HttpsError('invalid-argument', 'A valid requestId is required.');
     if (!['approve', 'reject'].includes(decision)) throw new HttpsError('invalid-argument', 'Decision must be approve or reject.');
+    if (decision === 'reject' && !decisionNote) throw new HttpsError('invalid-argument', 'A rejection comment is required.');
 
     const requestRef = db.collection('executiveMilestoneChangeRequests').doc(requestId);
     const auditRef = db.collection('executiveMilestoneAudit').doc();
@@ -266,9 +268,25 @@ const decideExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async req
           updatedAt: now,
           decidedAt: now,
           decidedBy: actor.email,
-          decisionNote: String(request.data?.decisionNote || '').trim(),
+          decisionNote,
         };
+        const rejectedAudit = withConfigMetadata({
+          auditId: auditRef.id,
+          action: 'rejected-change',
+          weekId: changeRequest.weekId,
+          requestId,
+          itemId: changeRequest.itemId,
+          changeType: changeRequest.changeType,
+          before: changeRequest.before,
+          after: changeRequest.after,
+          reason: changeRequest.reason,
+          decisionNote,
+          actorEmail: actor.email,
+          actorRole: actor.role,
+          createdAt: now,
+        }, config);
         transaction.update(requestRef, rejected);
+        transaction.create(auditRef, rejectedAudit);
         return { request: rejected, alreadyApplied: false };
       }
 
@@ -278,7 +296,7 @@ const decideExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async req
       const applied = applyApprovedRequest(week, changeRequest, {
         role: actor.role,
         actorEmail: actor.email,
-        decisionNote: request.data?.decisionNote,
+        decisionNote,
         config,
         now,
       });

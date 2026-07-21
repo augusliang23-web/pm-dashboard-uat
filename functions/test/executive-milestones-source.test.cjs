@@ -31,6 +31,16 @@ test('defines and exports a requester-only Executive change withdrawal callable'
   assert.match(read('index.js'), /exports\.withdrawExecutiveMilestoneChangeRequest\s*=\s*executiveMilestones\.withdrawExecutiveMilestoneChangeRequest/);
 });
 
+test('requires and audits Executive rejection comments', () => {
+  const source = read('executive-milestones.js');
+  assert.match(source, /const decisionNote = String\(request\.data\?\.decisionNote \|\| ''\)\.trim\(\)/);
+  assert.match(source, /decision === 'reject' && !decisionNote/);
+  assert.match(source, /A rejection comment is required/);
+  assert.match(source, /action:\s*'rejected-change'/);
+  assert.match(source, /decisionNote,/);
+  assert.match(source, /transaction\.create\(auditRef, rejectedAudit\)/);
+});
+
 test('authenticates from the token email and reloads the actor role in each transaction', () => {
   const source = read('executive-milestones.js');
   assert.match(source, /request\.auth\.token\.email/);

@@ -99,6 +99,9 @@ body {
 }
 #saveToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast-check { width: 20px; height: 20px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+.async-action-spinner { display:inline-block; width:12px; height:12px; margin-right:7px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
+button[aria-busy="true"] { cursor:wait; }
+#unsavedChangesOverlay { z-index:10010; }
 
 /* ── LOGIN ── */
 #loginOverlay { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; align-items: center; justify-content: center; }
@@ -841,6 +844,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .executive-request-change { padding:10px 12px; border-radius:8px; background:var(--s2); color:var(--text-light); }
 .executive-request-reason { color:var(--text-light); }
 .executive-request-meta { font-size:11px; color:var(--muted); }
+.executive-decision-comment { display:grid; gap:6px; color:var(--text); font-size:12px; font-weight:700; }
+.executive-decision-comment span:first-child { display:flex; justify-content:space-between; gap:8px; }
+.executive-decision-comment small { color:var(--muted); font-weight:500; }
+.executive-decision-comment textarea { width:100%; min-height:76px; resize:vertical; padding:9px 10px; border:1px solid var(--border2); border-radius:8px; color:var(--text); font:inherit; font-weight:400; }
 .executive-withdraw-btn { color:#B35858; border-color:#E39A9A; }
 .executive-approval-actions, .modal-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
 .executive-compact-rag { width:9px; height:9px; margin-top:3px; border-radius:50%; background:var(--green); }
@@ -851,12 +858,12 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .executive-compact-update { overflow:hidden; color:var(--text-light); font-size:9px; line-height:1.3; text-overflow:ellipsis; white-space:nowrap; }
 .executive-compact-meta { overflow:hidden; color:var(--muted); font-size:8px; text-overflow:ellipsis; white-space:nowrap; }
 .executive-update-record { overflow:hidden; display:block; color:var(--blue-text); font-size:8px; line-height:1.3; text-overflow:ellipsis; white-space:nowrap; }
-.executive-drawer-overlay { justify-content:flex-end; align-items:stretch; padding:0; }
-.executive-drawer { display:flex; flex-direction:column; width:min(480px,100vw); height:100%; background:var(--s1); box-shadow:-16px 0 40px rgba(36,52,70,.18); }
+.executive-drawer-overlay { justify-content:center; align-items:center; padding:20px; }
+.executive-item-modal { display:flex; flex-direction:column; width:min(760px,94vw); max-height:90vh; overflow:hidden; background:var(--s1); }
 .executive-drawer-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:20px; border-bottom:1px solid var(--border); }
 .executive-drawer-head h2 { margin-top:4px; color:var(--text); font-size:20px; }
 .executive-drawer-kicker { color:var(--accent-hov); font-size:10px; font-weight:850; letter-spacing:.06em; text-transform:uppercase; }
-.executive-drawer-content { display:grid; gap:18px; padding:20px; overflow:auto; }
+.executive-drawer-content { flex:1; display:grid; gap:18px; padding:20px; overflow:auto; }
 .executive-drawer-section { display:grid; gap:8px; color:var(--text); }
 .executive-drawer-section h3, .executive-drawer-label { color:var(--text); font-size:12px; font-weight:850; }
 .executive-drawer-section small { color:var(--muted); font-size:9px; }
@@ -880,8 +887,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .executive-drawer-actions { display:flex; gap:8px; margin-top:auto; padding:16px 20px; border-top:1px solid var(--border); background:#fff; }
 .executive-drawer-actions .btn:first-child { margin-right:auto; }
 @media (max-width: 760px) {
-  .executive-drawer-overlay { align-items:flex-end; }
-  .executive-drawer { width:100%; height:auto; max-height:92vh; border-radius:14px 14px 0 0; }
+  .executive-drawer-overlay { padding:12px; }
+  .executive-item-modal { width:100%; max-height:92vh; }
   .executive-drawer-rag { grid-template-columns:1fr; }
   .executive-drawer-actions { flex-wrap:wrap; }
 }
@@ -1983,8 +1990,8 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 
 <main id="printReportRoot" aria-hidden="true"></main>
 
-<div class="overlay executive-drawer-overlay" id="executiveItemDrawerOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveItemDrawerTitle">
-  <aside class="executive-drawer">
+<div class="overlay executive-drawer-overlay" id="executiveItemDrawerOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="executiveItemDrawerTitle" onclick="closeProjectOverlayFromBackdrop(event)">
+  <div class="modal executive-item-modal">
     <div class="executive-drawer-head">
       <div>
         <div class="executive-drawer-kicker" id="executiveItemDrawerContext">Executive milestone</div>
@@ -2023,10 +2030,10 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
     <div class="executive-drawer-actions">
       <button type="button" class="btn btn-primary" id="executiveSaveUpdateBtn" onclick="saveExecutiveItemUpdate()">Save monthly update</button>
     </div>
-  </aside>
+  </div>
 </div>
 
-<div class="overlay" id="executiveChangeRequestOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveChangeRequestTitle">
+<div class="overlay" id="executiveChangeRequestOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="executiveChangeRequestTitle" onclick="closeProjectOverlayFromBackdrop(event)">
   <div class="modal" style="width:min(720px,94vw);">
     <div class="modal-hdr"><h3 id="executiveChangeRequestTitle">Executive milestone change</h3><button class="modal-x" onclick="closeModal('executiveChangeRequestOverlay')" aria-label="Close structural change dialog">×</button></div>
     <div class="modal-body executive-governance-form">
@@ -2045,21 +2052,21 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   </div>
 </div>
 
-<div class="overlay" id="executiveApprovalInboxOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveApprovalInboxTitle">
+<div class="overlay" id="executiveApprovalInboxOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="executiveApprovalInboxTitle" onclick="closeProjectOverlayFromBackdrop(event)">
   <div class="modal" style="width:min(860px,94vw);">
     <div class="modal-hdr"><div><h3 id="executiveApprovalInboxTitle">Executive change inbox</h3><small id="executiveApprovalInboxMode"></small></div><button class="modal-x" onclick="closeModal('executiveApprovalInboxOverlay')" aria-label="Close Executive inbox">×</button></div>
     <div class="modal-body"><div id="executiveApprovalInboxList" class="executive-approval-list">Loading requests…</div></div>
   </div>
 </div>
 
-<div class="overlay" id="executiveRagOverrideOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveRagOverrideTitle">
+<div class="overlay" id="executiveRagOverrideOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="executiveRagOverrideTitle" onclick="closeProjectOverlayFromBackdrop(event)">
   <div class="modal" style="width:min(540px,92vw);">
     <div class="modal-hdr"><h3 id="executiveRagOverrideTitle">Summary RAG override</h3><button class="modal-x" onclick="closeModal('executiveRagOverrideOverlay')" aria-label="Close RAG override">×</button></div>
     <div class="modal-body executive-governance-form"><p id="executiveRagOverrideTarget"></p><label>Override RAG<select class="fs" id="executiveRagOverrideValue"><option value="green">Green</option><option value="yellow">Yellow</option><option value="red">Red</option></select></label><label>Audit reason<textarea class="fi" id="executiveRagOverrideReason" rows="3" maxlength="1200"></textarea></label><div id="executiveRagOverrideError" class="resource-validation" role="alert"></div><div class="modal-actions"><button class="btn" id="executiveRemoveRagOverrideBtn" onclick="saveExecutiveRagOverride(true)">Remove override</button><button class="btn btn-primary" onclick="saveExecutiveRagOverride(false)">Save override</button></div></div>
   </div>
 </div>
 
-<div class="overlay" id="executiveTimelineSettingsOverlay" role="dialog" aria-modal="true" aria-labelledby="executiveTimelineSettingsTitle">
+<div class="overlay" id="executiveTimelineSettingsOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="executiveTimelineSettingsTitle" onclick="closeProjectOverlayFromBackdrop(event)">
   <div class="modal" style="width:min(840px,94vw);">
     <div class="modal-hdr"><h3 id="executiveTimelineSettingsTitle">Executive timeline settings</h3><button class="modal-x" onclick="closeModal('executiveTimelineSettingsOverlay')" aria-label="Close timeline settings">×</button></div>
     <div class="modal-body executive-governance-form">
@@ -2069,6 +2076,16 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
       <label>Audit reason<textarea class="fi" id="executiveTimelineSettingsReason" rows="3" maxlength="1200" placeholder="Explain why the timeline settings are changing."></textarea></label>
       <div id="executiveTimelineSettingsError" class="resource-validation" role="alert"></div>
       <div class="modal-actions"><button class="btn" onclick="closeModal('executiveTimelineSettingsOverlay')">Cancel</button><button class="btn btn-primary" onclick="saveExecutiveTimelineSettings()">Save settings</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="unsavedChangesOverlay" role="dialog" aria-modal="true" aria-labelledby="unsavedChangesTitle">
+  <div class="modal" style="width:min(460px,92vw);">
+    <div class="modal-hdr"><h3 id="unsavedChangesTitle">Discard unsaved changes?</h3></div>
+    <div class="modal-body">
+      <p class="inline-field-guide">Your changes have not been saved. You can keep editing or discard them and close this screen.</p>
+      <div class="modal-actions"><button type="button" class="btn-ghost" onclick="keepEditing()">Keep editing</button><button type="button" class="btn-danger" onclick="confirmDiscardEditorChanges()">Discard changes</button></div>
     </div>
   </div>
 </div>
@@ -2376,7 +2393,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
   </div>
 </div>
 
-<div class="overlay" id="changePwdOverlay">
+<div class="overlay" id="changePwdOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-label="Change password" onclick="closeProjectOverlayFromBackdrop(event)">
 <div class="modal" style="width:400px">
   <div class="modal-hdr"><h3>Change Password</h3><button class="modal-x" onclick="closeModal('changePwdOverlay')">×</button></div>
   <div class="fg"><label class="fl">Current Password</label><input type="password" class="fi" id="cp_current"></div>
@@ -2388,7 +2405,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 </div>
 
-<div class="overlay" id="projEditOverlay" onclick="closeProjectOverlayFromBackdrop(event)">
+<div class="overlay" id="projEditOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-label="Project editor" onclick="closeProjectOverlayFromBackdrop(event)">
 <div class="modal" style="width:850px">
   <div class="modal-hdr">
     <h3 id="peTitle">Edit Project</h3>
@@ -2594,7 +2611,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 </div>
 
-<div class="overlay" id="weekManageOverlay">
+<div class="overlay" id="weekManageOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-label="Week management" onclick="closeProjectOverlayFromBackdrop(event)">
 <div class="modal" style="width:900px">
   <div class="modal-hdr"><h3>Week Management</h3><button class="modal-x" onclick="closeModal('weekManageOverlay')">×</button></div>
   
@@ -2678,7 +2695,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 </div>
 
-<div class="overlay" id="strategyOverlay">
+<div class="overlay" id="strategyOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-label="Strategic layer management" onclick="closeProjectOverlayFromBackdrop(event)">
 <div class="modal" style="width:1080px">
   <div class="modal-hdr"><h3>Strategic Layer Management</h3><button class="modal-x" onclick="closeModal('strategyOverlay')">×</button></div>
   <div class="strategy-modal-grid">
@@ -2694,7 +2711,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 </div>
 </div>
 
-<div class="overlay" id="ganttTemplateOverlay" role="dialog" aria-modal="true" aria-labelledby="ganttTemplateTitle">
+<div class="overlay" id="ganttTemplateOverlay" data-editor-overlay role="dialog" aria-modal="true" aria-labelledby="ganttTemplateTitle" onclick="closeProjectOverlayFromBackdrop(event)">
   <div class="modal" style="width:820px">
     <div class="modal-hdr">
       <h3 id="ganttTemplateTitle">Default Gantt Templates</h3>
@@ -2799,6 +2816,7 @@ let ganttTemplateSession = null;
 let ganttTemplateSessionSequence = 0;
 let ganttTemplateSaveInFlight = false;
 let modalReturnFocus = null;
+let pendingDiscardEditorId = '';
 let ganttScale = 'month';
 let workstreamPreviewFrame = 0;
 let editorResourceStatus = normalizeResourceBudgetStatus({});
@@ -2876,7 +2894,7 @@ async function loadGanttTemplateConfig(authGeneration, authUser) {
     ownerEmail,
   )) return false;
   stopGanttTemplateConfigSubscription();
-  if (executiveUpdateSession) window.closeExecutiveItemDrawer();
+  if (executiveUpdateSession) window.closeExecutiveItemDrawer({ force: true });
   const generation = ganttTemplateSubscriptionGeneration;
   return new Promise(resolve => {
     let settled = false;
@@ -3104,7 +3122,7 @@ window.saveGanttTemplateSettings = async () => {
     currentGanttTemplateRevision = savedRevision;
     ganttTemplateSaveInFlight = false;
     ganttTemplateSession = null;
-    closeModal('ganttTemplateOverlay');
+    closeModal('ganttTemplateOverlay', { force: true });
     showSaveToast('Default Gantt templates updated');
   } catch (error) {
     if (!isGanttTemplateSessionCurrent(session)) return;
@@ -4165,7 +4183,7 @@ window.handleResetPassword = async () => {
 window.openChangePassword = () => {
   document.getElementById('cp_current').value = '';
   document.getElementById('cp_new').value = '';
-  document.getElementById('changePwdOverlay').classList.add('open');
+  openAccessibleModal(document.getElementById('changePwdOverlay'));
 };
 
 window.saveNewPassword = async () => {
@@ -4182,7 +4200,7 @@ window.saveNewPassword = async () => {
     await updatePassword(currentUser, newPwd);
     await new Promise(r => setTimeout(r, 600)); 
     hideLoader();
-    closeModal('changePwdOverlay');
+    closeModal('changePwdOverlay', { force: true });
     showSaveToast("Password updated successfully");
   } catch(e) {
     hideLoader();
@@ -6397,15 +6415,7 @@ window.openExecutiveItemDrawer = itemId => {
   openAccessibleModal(document.getElementById('executiveItemDrawerOverlay'));
 };
 
-window.closeExecutiveItemDrawer = () => {
-  if (executiveUpdateHistoryUnsub) executiveUpdateHistoryUnsub();
-  executiveUpdateHistoryUnsub = null;
-  executiveUpdateSession = null;
-  executiveUpdateSaving = false;
-  document.getElementById('executiveItemDrawerOverlay')?.classList.remove('open');
-  if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
-  modalReturnFocus = null;
-};
+window.closeExecutiveItemDrawer = (options = {}) => closeModal('executiveItemDrawerOverlay', options);
 
 window.saveExecutiveItemUpdate = async () => {
   const session = executiveUpdateSession;
@@ -6430,7 +6440,7 @@ window.saveExecutiveItemUpdate = async () => {
     const refreshed = await getDoc(doc(db, 'weeks', session.weekId));
     if (!isExecutiveUpdateSessionCurrent(session, { requireVersion: false })) throw new Error('Your dashboard session changed before refresh completed.');
     if (refreshed.exists()) allWeeks[currentIdx] = { ...refreshed.data(), __documentId: refreshed.id };
-    window.closeExecutiveItemDrawer();
+    closeModal('executiveItemDrawerOverlay', { force: true });
     window.render();
     showSaveToast('Executive milestone update saved.');
   } catch (error) {
@@ -6576,7 +6586,6 @@ function openExecutiveStructuralAction({ action = 'add', itemId = '', sectionId 
 window.openExecutiveStructuralAction = openExecutiveStructuralAction;
 window.openExecutiveStructuralActionFromDrawer = action => {
   const itemId = executiveUpdateSession?.itemId || '';
-  window.closeExecutiveItemDrawer();
   openExecutiveStructuralAction({ action, itemId });
 };
 window.openExecutiveChangeRequest = itemId => openExecutiveStructuralAction({ action: itemId ? 'rename' : 'add', itemId });
@@ -6586,15 +6595,13 @@ window.submitExecutiveChangeRequest = async direct => {
   const submitButton = document.getElementById(direct ? 'executiveDirectChangeBtn' : 'executiveSubmitChangeBtn');
   if (submitButton.disabled) return;
   let keepConfirmationOpen = false;
-  const originalLabel = submitButton.textContent;
-  submitButton.disabled = true;
-  submitButton.textContent = direct ? 'Applying…' : 'Submitting…';
+  setAsyncActionState(submitButton, true, direct ? 'Applying…' : 'Submitting…');
   try {
     const payload = buildExecutiveChangePayload();
     if (direct && !canChangeExecutiveStructure(currentRole)) throw new Error('Direct changes require Admin or Executive Owner access.');
     if (direct) {
       await executiveApi.applyDirectChange(payload);
-      closeModal('executiveChangeRequestOverlay');
+      closeModal('executiveChangeRequestOverlay', { force: true });
       await refreshExecutiveWeekSnapshot(payload.weekId);
       await refreshExecutivePendingCount();
       showSaveToast('Executive milestone changed.');
@@ -6605,6 +6612,9 @@ window.submitExecutiveChangeRequest = async direct => {
     errorBox.className = 'resource-validation success';
     errorBox.textContent = 'Change request submitted successfully. It remains pending until the Executive Owner decides.';
     showSaveToast('Change request submitted successfully.');
+    captureEditorBaseline(document.getElementById('executiveChangeRequestOverlay'));
+    setAsyncActionState(submitButton, false);
+    submitButton.disabled = true;
     submitButton.textContent = 'Submitted';
     document.getElementById('executiveViewMyRequestsBtn').hidden = !isExecutiveChangeRequester();
   } catch (error) {
@@ -6614,8 +6624,7 @@ window.submitExecutiveChangeRequest = async direct => {
     showSaveToast(error.message || 'Unable to submit the change.');
   } finally {
     if (!keepConfirmationOpen) {
-      submitButton.disabled = false;
-      submitButton.textContent = originalLabel;
+      setAsyncActionState(submitButton, false);
     }
   }
 };
@@ -6688,8 +6697,29 @@ function renderExecutiveApprovalInbox(records = []) {
     const canWithdraw = record.state === 'pending' && record.requesterEmail === getEmailKey(currentUser) && !executiveApprovalDecisionInFlight;
     const display = executiveChangeRecordDisplay(record);
     const requester = isExecutiveChangeReviewer() ? `<div class="executive-request-meta">Requested by ${escHtml(record.requesterEmail || 'Unknown user')}</div>` : '';
-    return `<article class="executive-approval-card ${isConflict ? 'conflict' : ''}"><div class="executive-request-header"><span class="executive-request-action">${escHtml(display.action)}</span><span class="executive-request-state">Pending approval</span></div><strong class="executive-request-item">${escHtml(display.item)}</strong><div class="executive-request-change">${escHtml(display.summary)}</div><div class="executive-request-reason"><small>Reason</small><div>${escHtml(display.reason)}</div></div>${requester}${isConflict ? `<div class="resource-validation error">${escHtml(record.conflictReason || 'The milestone changed before approval.')}</div>` : ''}${canDecide || canWithdraw ? `<div class="executive-approval-actions">${canWithdraw ? `<button class="btn-ghost executive-withdraw-btn" onclick="withdrawExecutiveChangeRequest('${escHtml(record.requestId)}')">Withdraw request</button>` : ''}${canDecide ? `<button class="btn-ghost" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','reject')">Reject</button><button class="btn-primary" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','approve')">Approve</button>` : ''}</div>` : ''}</article>`;
+    const decisionComment = canDecide ? `<label class="executive-decision-comment"><span>Approver comment <small>Required when rejecting</small></span><textarea data-executive-decision-comment="${escHtml(record.requestId)}" maxlength="1200" placeholder="Add context for the requester and audit record."></textarea><span class="resource-validation error" data-executive-decision-error="${escHtml(record.requestId)}" role="alert"></span></label>` : '';
+    return `<article class="executive-approval-card ${isConflict ? 'conflict' : ''}"><div class="executive-request-header"><span class="executive-request-action">${escHtml(display.action)}</span><span class="executive-request-state">Pending approval</span></div><strong class="executive-request-item">${escHtml(display.item)}</strong><div class="executive-request-change">${escHtml(display.summary)}</div><div class="executive-request-reason"><small>Reason</small><div>${escHtml(display.reason)}</div></div>${requester}${decisionComment}${isConflict ? `<div class="resource-validation error">${escHtml(record.conflictReason || 'The milestone changed before approval.')}</div>` : ''}${canDecide || canWithdraw ? `<div class="executive-approval-actions">${canWithdraw ? `<button class="btn-ghost executive-withdraw-btn" onclick="withdrawExecutiveChangeRequest('${escHtml(record.requestId)}',this)">Withdraw request</button>` : ''}${canDecide ? `<button class="btn-ghost" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','reject',this)">Reject</button><button class="btn-primary" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','approve',this)">Approve</button>` : ''}</div>` : ''}</article>`;
   }).join('');
+}
+
+function executiveDecisionComment(requestId) {
+  return [...document.querySelectorAll('[data-executive-decision-comment]')]
+    .find(field => field.dataset.executiveDecisionComment === requestId) || null;
+}
+
+function setAsyncActionState(button, busy, busyLabel = 'Working…') {
+  if (!button) return;
+  if (busy) {
+    if (!button.dataset.idleLabel) button.dataset.idleLabel = button.textContent.trim();
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    button.innerHTML = `<span class="async-action-spinner" aria-hidden="true"></span>${escHtml(busyLabel)}`;
+    return;
+  }
+  button.disabled = false;
+  button.removeAttribute('aria-busy');
+  button.textContent = button.dataset.idleLabel || button.textContent;
+  delete button.dataset.idleLabel;
 }
 
 window.openExecutiveApprovalInbox = () => {
@@ -6714,15 +6744,16 @@ window.openExecutiveApprovalInbox = () => {
 
 window.openExecutiveMyRequests = () => {
   if (!isExecutiveChangeRequester()) return;
-  closeModal('executiveChangeRequestOverlay');
+  closeModal('executiveChangeRequestOverlay', { force: true });
   window.openExecutiveApprovalInbox();
 };
 
-window.withdrawExecutiveChangeRequest = async requestId => {
+window.withdrawExecutiveChangeRequest = async (requestId, sourceButton) => {
   if (executiveApprovalDecisionInFlight || !requestId) return;
   if (!window.confirm('Withdraw this pending change request?')) return;
   executiveApprovalDecisionInFlight = true;
   document.querySelectorAll('#executiveApprovalInboxList button').forEach(button => { button.disabled = true; });
+  setAsyncActionState(sourceButton, true, 'Withdrawing…');
   try {
     await executiveApi.withdrawRequest({ requestId });
     await refreshExecutivePendingCount();
@@ -6732,16 +6763,29 @@ window.withdrawExecutiveChangeRequest = async requestId => {
   } finally {
     executiveApprovalDecisionInFlight = false;
     document.querySelectorAll('#executiveApprovalInboxList button').forEach(button => { button.disabled = false; });
+    setAsyncActionState(sourceButton, false);
   }
 };
 
-window.decideExecutiveChangeRequest = async (requestId, decision) => {
+window.decideExecutiveChangeRequest = async (requestId, decision, sourceButton) => {
   if (currentRole !== 'executive' || executiveApprovalDecisionInFlight) return;
-  const decisionNote = window.prompt(`${decision === 'approve' ? 'Approval' : 'Rejection'} note (optional):`, '') ?? '';
+  const commentField = executiveDecisionComment(requestId);
+  const decisionNote = commentField?.value.trim() || '';
+  const errorBox = [...document.querySelectorAll('[data-executive-decision-error]')]
+    .find(field => field.dataset.executiveDecisionError === requestId) || null;
+  if (decision === 'reject' && !decisionNote) {
+    if (errorBox) errorBox.textContent = 'Enter a comment before rejecting this request.';
+    commentField?.focus();
+    return;
+  }
+  if (errorBox) errorBox.textContent = '';
   executiveApprovalDecisionInFlight = true;
   document.querySelectorAll('#executiveApprovalInboxList button').forEach(button => { button.disabled = true; });
+  setAsyncActionState(sourceButton, true, decision === 'approve' ? 'Approving…' : 'Rejecting…');
   try {
     const result = await executiveApi.decideRequest({ requestId, decision, decisionNote });
+    if (commentField) commentField.value = '';
+    captureEditorBaseline(document.getElementById('executiveApprovalInboxOverlay'));
     await refreshExecutivePendingCount();
     if (result.state === 'applied') await refreshExecutiveWeekSnapshot(result.weekId);
     showSaveToast(result.state === 'conflict' ? 'Request has a version conflict; submit a new request.' : `Request ${result.state || (decision === 'approve' ? 'approved' : 'rejected')}.`);
@@ -6750,6 +6794,7 @@ window.decideExecutiveChangeRequest = async (requestId, decision) => {
   } finally {
     executiveApprovalDecisionInFlight = false;
     document.querySelectorAll('#executiveApprovalInboxList button').forEach(button => { button.disabled = false; });
+    setAsyncActionState(sourceButton, false);
   }
 };
 
@@ -6774,7 +6819,7 @@ window.saveExecutiveRagOverride = async remove => {
     const reason = document.getElementById('executiveRagOverrideReason').value.trim();
     if (!reason) throw new Error('Enter an audit reason for this override change.');
     await executiveApi.setRagOverride({ weekId: session.weekId, scope: session.scope, targetId: session.targetId, rag: remove ? null : document.getElementById('executiveRagOverrideValue').value, reason });
-    closeModal('executiveRagOverrideOverlay');
+    closeModal('executiveRagOverrideOverlay', { force: true });
     await refreshExecutiveWeekSnapshot(session.weekId);
     showSaveToast(remove ? 'RAG override removed.' : 'RAG override saved.');
   } catch (error) { errorBox.className = 'resource-validation error'; errorBox.textContent = error.message || 'Unable to change the RAG override.'; }
@@ -6812,7 +6857,7 @@ window.saveExecutiveTimelineSettings = async () => {
     const quarters = executiveTimelineConfig.quarters.map(quarter => ({ quarterId: quarter.quarterId, label: document.querySelector(`[data-timeline-quarter-label="${quarter.quarterId}"]`)?.value.trim() || '' }));
     if (sections.some(section => !section.label) || quarters.some(quarter => !quarter.label)) throw new Error('Every section and quarter needs a display name.');
     await executiveApi.saveTimelineConfig({ expectedVersion: session.version, reason, config: { sections, quarters } });
-    closeModal('executiveTimelineSettingsOverlay');
+    closeModal('executiveTimelineSettingsOverlay', { force: true });
     showSaveToast('Executive timeline settings saved.');
   } catch (error) { errorBox.className = 'resource-validation error'; errorBox.textContent = error.message || 'Unable to save timeline settings.'; }
 };
@@ -8501,7 +8546,7 @@ window.openStrategyLayerModal = () => {
     row.querySelector('.pm-checkpoint').value = s.checkpoint || '';
   });
 
-  document.getElementById('strategyOverlay').classList.add('open');
+  openAccessibleModal(document.getElementById('strategyOverlay'));
 };
 
 window.openExecutiveTimelineEditor = () => {
@@ -8559,7 +8604,7 @@ window.saveStrategyLayer = async () => {
       )
     );
     allWeeks[currentIdx] = savedWeek;
-    closeModal('strategyOverlay');
+    closeModal('strategyOverlay', { force: true });
     render();
     showSaveToast("Strategy layer saved");
   } catch (err) {
@@ -8953,28 +8998,83 @@ function openAccessibleModal(modal) {
   modalReturnFocus = document.activeElement;
   if (modal.id === 'onePageStatusModal') isolateProjectDetailModal();
   modal.classList.add('open');
+  captureEditorBaseline(modal);
   requestAnimationFrame(() => modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus());
 }
+
+function serializeEditorState(overlay) {
+  if (!overlay?.hasAttribute('data-editor-overlay')) return '';
+  const values = [];
+  const controls = [...overlay.querySelectorAll('input, select, textarea, [contenteditable="true"]')];
+  controls.forEach((control, index) => {
+    if (control.disabled || control.hasAttribute('data-editor-ignore-dirty')) return;
+    const key = control.id || control.name || control.dataset.editorField || `${control.tagName.toLowerCase()}:${index}`;
+    if ((control.type === 'checkbox' || control.type === 'radio') && !control.checked) return;
+    let value = control.isContentEditable ? control.textContent.trim() : String(control.value ?? '');
+    if (control.tagName === 'SELECT' && control.multiple) {
+      value = [...control.selectedOptions].map(option => option.value).sort().join('|');
+    }
+    if (!value) return;
+    values.push([key, value]);
+  });
+  const activeRag = overlay.querySelector('[data-executive-rag].active');
+  if (activeRag) values.push(['executive-rag', activeRag.dataset.executiveRag || '']);
+  values.sort((left, right) => left[0].localeCompare(right[0]) || left[1].localeCompare(right[1]));
+  return JSON.stringify(values);
+}
+
+function captureEditorBaseline(overlay) {
+  if (!overlay?.hasAttribute('data-editor-overlay')) return;
+  overlay.dataset.editorBaseline = serializeEditorState(overlay);
+}
+
+function editorHasUnsavedChanges(overlay) {
+  if (!overlay?.hasAttribute('data-editor-overlay')) return false;
+  if (overlay.dataset.editorBaseline === undefined) captureEditorBaseline(overlay);
+  return overlay.dataset.editorBaseline !== serializeEditorState(overlay);
+}
+
+window.requestCloseModal = id => closeModal(id);
+
+window.keepEditing = () => {
+  pendingDiscardEditorId = '';
+  closeModal('unsavedChangesOverlay', { force: true });
+};
+
+window.confirmDiscardEditorChanges = () => {
+  const editorId = pendingDiscardEditorId;
+  pendingDiscardEditorId = '';
+  closeModal('unsavedChangesOverlay', { force: true });
+  if (editorId) closeModal(editorId, { force: true });
+};
 
 
 window.closeProjectOverlayFromBackdrop = event => {
   if (event.button !== 0 || event.target !== event.currentTarget) return;
-  closeModal(event.currentTarget.id);
+  requestCloseModal(event.currentTarget.id);
 };
 
-window.closeModal = id => {
+window.closeModal = (id, { force = false } = {}) => {
+  const modal = document.getElementById(id);
+  if (!modal) return false;
+  if (id === 'projEditOverlay' && projectMutationInFlight) return false;
+  if (id === 'ganttTemplateOverlay' && ganttTemplateSaveInFlight) return false;
+  if (!force && editorHasUnsavedChanges(modal)) {
+    pendingDiscardEditorId = id;
+    openAccessibleModal(document.getElementById('unsavedChangesOverlay'));
+    return false;
+  }
   if (id === 'executiveItemDrawerOverlay') {
-    window.closeExecutiveItemDrawer();
-    return;
+    if (executiveUpdateHistoryUnsub) executiveUpdateHistoryUnsub();
+    executiveUpdateHistoryUnsub = null;
+    executiveUpdateSession = null;
+    executiveUpdateSaving = false;
   }
   if (id === 'executiveApprovalInboxOverlay' && executiveApprovalInboxUnsub) executiveApprovalInboxUnsub();
   if (id === 'executiveApprovalInboxOverlay') executiveApprovalInboxUnsub = null;
   if (id === 'executiveChangeRequestOverlay') executiveChangeSession = null;
   if (id === 'executiveRagOverrideOverlay') executiveRagOverrideSession = null;
   if (id === 'executiveTimelineSettingsOverlay') executiveTimelineSettingsSession = null;
-  if (id === 'projEditOverlay' && projectMutationInFlight) return;
-  if (id === 'ganttTemplateOverlay' && ganttTemplateSaveInFlight) return;
-  const modal = document.getElementById(id);
   if (id === 'projEditOverlay') {
     projectEditorSession = null;
     editingProjCode = null;
@@ -8982,17 +9082,22 @@ window.closeModal = id => {
     clearProjectMutationError();
   }
   if (id === 'ganttTemplateOverlay') ganttTemplateSession = null;
-  modal?.classList.remove('open');
+  modal.classList.remove('open');
+  delete modal.dataset.editorBaseline;
   if (id === 'onePageStatusModal') restoreProjectDetailModalState();
   if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
   modalReturnFocus = null;
+  return true;
 };
 document.addEventListener('keydown', event => {
-  const modal = document.querySelector('.overlay.open[role="dialog"]');
+  const discard = document.getElementById('unsavedChangesOverlay');
+  const openModals = [...document.querySelectorAll('.overlay.open[role="dialog"]')];
+  const modal = discard?.classList.contains('open') ? discard : openModals.at(-1);
   if (!modal) return;
   if (event.key === 'Escape') {
     event.preventDefault();
-    closeModal(modal.id);
+    if (modal.id === 'unsavedChangesOverlay') keepEditing();
+    else requestCloseModal(modal.id);
     return;
   }
   if (event.key === 'Tab') {
@@ -9774,7 +9879,7 @@ window.openProjEdit = (code, isNew = false) => {
     originalProject: isNew ? null : p
   });
   document.getElementById('pe_details').open = isNew;
-  document.getElementById('projEditOverlay').classList.add('open');
+  openAccessibleModal(document.getElementById('projEditOverlay'));
   scheduleWorkstreamPreview();
 };
 
@@ -9949,7 +10054,7 @@ window.saveProjEdit = async () => {
   if (!transactionResult) return;
   if (!isProjectEditorSessionCurrent(session)) return;
 
-  closeModal('projEditOverlay');
+  closeModal('projEditOverlay', { force: true });
   const pendingSections = [
     transactionResult.project.dataStatus.team.state !== 'confirmed' && 'team',
     transactionResult.project.dataStatus.budgetPlan.state !== 'confirmed' && 'budget plan',
@@ -10021,7 +10126,7 @@ window.deleteProject = async () => {
   if (!transactionResult) return;
   if (!isProjectEditorSessionCurrent(session)) return;
 
-  closeModal('projEditOverlay');
+  closeModal('projEditOverlay', { force: true });
   showSaveToast("Project deleted");
 };
 
@@ -10230,7 +10335,7 @@ window.openWeekManagement = () => {
   
   window.updateWmDate();
   updateCopilotPrompt();
-  document.getElementById('weekManageOverlay').classList.add('open');
+  openAccessibleModal(document.getElementById('weekManageOverlay'));
 };
 
 window.updateWmDate = () => {
@@ -10281,7 +10386,7 @@ function bindWeeklySummaryCleaner() {
 }
 
 window.saveWeekSummary = async () => {
-  closeModal('weekManageOverlay');
+  closeModal('weekManageOverlay', { force: true });
   showLoader("Updating Summary...");
   
   const week = allWeeks[currentIdx];
@@ -10304,7 +10409,7 @@ window.createNewWeekFromManage = async () => {
   const date = document.getElementById('wm_nw_date').value;
   if (!label) return;
   
-  closeModal('weekManageOverlay');
+  closeModal('weekManageOverlay', { force: true });
   showLoader("Creating New Week...");
   
   const carryover = allWeeks.length > 0
