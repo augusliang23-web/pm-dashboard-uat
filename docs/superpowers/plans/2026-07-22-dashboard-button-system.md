@@ -45,7 +45,7 @@ const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf
 test('v2.2T defines a shared semantic button system', () => {
   assert.match(dashboard, /\.btn,\s*\.btn-primary,\s*\.btn-ghost,\s*\.btn-danger\s*\{[\s\S]*?font-size:12px;[\s\S]*?border-radius:6px;[\s\S]*?cursor:pointer;/);
   assert.match(dashboard, /\.btn-primary\s*\{[\s\S]*?background:var\(--accent\);[\s\S]*?color:#fff;/);
-  assert.match(dashboard, /\.btn-ghost\s*\{[\s\S]*?background:var\(--s1\);/);
+  assert.match(dashboard, /\.btn-ghost,\s*\.btn\s*\{[\s\S]*?background:var\(--s1\);/);
   assert.match(dashboard, /\.btn-danger\s*\{[\s\S]*?border-color:#E39A9A;[\s\S]*?color:#B35858;/);
 });
 
