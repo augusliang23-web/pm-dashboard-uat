@@ -42,10 +42,10 @@ function requireWeekId(data) {
   return weekId;
 }
 
-async function readWeek(transaction, weekRef) {
+async function readWeek(transaction, weekRef, { allowReleased = false } = {}) {
   const snapshot = await transaction.get(weekRef);
   if (!snapshot.exists) throw new HttpsError('not-found', 'Reporting week was not found.');
-  if (snapshot.data().isReleased === true) {
+  if (!allowReleased && snapshot.data().isReleased === true) {
     throw new HttpsError('failed-precondition', 'Released reporting weeks cannot be changed.');
   }
   return { ...snapshot.data(), weekId: snapshot.id };
@@ -149,7 +149,7 @@ const addExecutiveMilestoneUpdate = onCall(CALLABLE_OPTIONS, async request => {
     const result = await db.runTransaction(async transaction => {
       const actor = await getActor(transaction, request);
       const config = await readExecutiveTimelineConfig(transaction);
-      const week = await readWeek(transaction, weekRef);
+      const week = await readWeek(transaction, weekRef, { allowReleased: true });
       const applied = applyItemUpdate(week, {
         ...request.data,
         weekId,

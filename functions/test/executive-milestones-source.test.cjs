@@ -66,6 +66,18 @@ test('keeps weekly snapshots and append-only records in atomic transactions', ()
   assert.match(source, /Released reporting weeks cannot be changed/);
 });
 
+test('allows configured monthly Executive updates on released weeks without opening structural changes', () => {
+  const source = read('executive-milestones.js');
+  assert.match(
+    source,
+    /const addExecutiveMilestoneUpdate[\s\S]*?readWeek\(transaction, weekRef, \{ allowReleased: true \}\)/,
+  );
+  assert.match(
+    source,
+    /const createExecutiveMilestoneChangeRequest[\s\S]*?readWeek\(transaction, weekRef\)/,
+  );
+});
+
 test('reloads live timeline configuration for every Executive mutation', () => {
   const source = read('executive-milestones.js');
   assert.match(source, /collection\(['"]executiveMilestoneConfig['"]\)\.doc\(['"]timeline['"]\)/);
