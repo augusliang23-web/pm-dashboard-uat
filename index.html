@@ -2760,6 +2760,7 @@ import { EXECUTIVE_SECTIONS, calculateVisibleExecutiveRag, canChangeExecutiveStr
 import { DEFAULT_EXECUTIVE_TIMELINE_CONFIG, canUpdateConfiguredSection, canViewConfiguredSection, configuredQuarterLabel, configuredSectionLabel, normalizeExecutiveTimelineConfig } from "./js/executive-timeline-config.mjs";
 import { createExecutiveApi } from "./js/executive-api.mjs";
 import { buildProjectManagerList, canReadDraftWeeks, reconcileProjectManagerFilter } from "./js/dashboard-access.mjs";
+import { createProjectDashboardApi } from "./js/project-dashboard-api.mjs";
 import { applyListCommand, getSelectionListType, handleListEnter, handleListPaste, normalizeListText, renderListHtml } from "./js/list-editor.mjs";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
@@ -2790,13 +2791,14 @@ if (useLocalEmulator) {
   connectFunctionsEmulator(functions, '127.0.0.1', 5001);
 }
 const executiveApi = createExecutiveApi({ functions, httpsCallable });
+const projectDashboardApi = createProjectDashboardApi({ functions, httpsCallable });
 window.__dashboardBootStarted = true;
 
 // ── STATE ──
 let allWeeks = [];
 let currentIdx = -1;
 let currentUser = null;
-let currentRole = 'pm';
+let currentRole = 'pending';
 let executiveUpdateSession = null;
 let executiveUpdateHistoryUnsub = null;
 let executiveUpdateSaving = false;
@@ -3358,6 +3360,10 @@ function sortWeeksByLabel(weeks) {
 
 function isWeekReleased(week) {
   return week?.isReleased === true;
+}
+
+function canManageWeekRelease() {
+  return ['admin', 'pm'].includes(currentRole);
 }
 
 function assertCurrentWeekEditable(week = allWeeks[currentIdx]) {
@@ -4425,7 +4431,7 @@ window.jumpToWeek = (idx) => {
 
 window.toggleReleaseWeek = async () => {
   const week = allWeeks[currentIdx];
-  if (!week || !currentUser || releaseWriteInProgress) return;
+  if (!week || !currentUser || releaseWriteInProgress || !canManageWeekRelease()) return;
   
   const isCurrentlyReleased = isWeekReleased(week);
   const newStatus = !isCurrentlyReleased;
@@ -4436,19 +4442,18 @@ window.toggleReleaseWeek = async () => {
   releaseWriteInProgress = true;
   showLoader(newStatus ? "Releasing to Executive Owner..." : "Reverting to Draft...");
   
-  const id = week.weekLabel.replace(/\s+/g, '-');
+  const id = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
   try {
+    let serverWeek;
     const savedWeek = await confirmWeekMutation(
       week,
       changes,
       async () => {
-        await updateDoc(doc(db, "weeks", id), {
-          isReleased: newStatus,
-          lastModifiedBy: currentUser.email
-        });
+        const result = await projectDashboardApi.setWeekRelease({ weekId: id, isReleased: newStatus });
+        serverWeek = result.week;
       }
     );
-    allWeeks[currentIdx] = savedWeek;
+    allWeeks[currentIdx] = { ...savedWeek, ...serverWeek };
     render();
     showSaveToast(newStatus ? "Week released to Executive Owner!" : "Week reverted to Draft");
   } catch (err) {
@@ -7790,15 +7795,17 @@ window.render = () => {
             <svg style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             Released
           </span>
-          <div style="width:1px; height:12px; background:var(--border2);"></div>
-          <button class="btn btn-ghost" onclick="toggleReleaseWeek()" style="padding:2px 6px; font-size:10px; border:none; background:transparent;" title="Revert to Draft mode">Revert to Draft</button>
+          ${canManageWeekRelease() ? `
+            <div style="width:1px; height:12px; background:var(--border2);"></div>
+            <button class="btn btn-ghost" onclick="toggleReleaseWeek()" style="padding:2px 6px; font-size:10px; border:none; background:transparent;" title="Revert to Draft mode">Revert to Draft</button>
+          ` : ''}
         </div>
       `;
     } else {
       bannerPills.innerHTML = `
         <div style="display:flex; align-items:center; gap:8px; background:#FFF8E1; padding:4px 4px 4px 10px; border-radius:6px; border:1px solid #F3E5AB;">
           <span style="color:#B09854; font-size:12px; font-weight:700;">✎ DRAFT</span>
-          <button class="btn btn-primary" onclick="toggleReleaseWeek()" style="padding:4px 10px; font-size:11px; background:#D4B86A; border-color:#D4B86A;">🚀 Release to Executive Owner</button>
+          ${canManageWeekRelease() ? '<button class="btn btn-primary" onclick="toggleReleaseWeek()" style="padding:4px 10px; font-size:11px; background:#D4B86A; border-color:#D4B86A;">🚀 Release to Executive Owner</button>' : ''}
         </div>
       `;
     }

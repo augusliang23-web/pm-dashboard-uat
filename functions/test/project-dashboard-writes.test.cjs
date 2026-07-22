@@ -11,8 +11,9 @@ test('project authority permits Admin globally and PM ownership only', () => {
   assert.equal(canMutateProject({ role: 'bd', project, email: 'owner@example.com' }), false);
 });
 
-test('released weeks reject writes and only Admin changes release state', () => {
+test('released weeks reject writes and only PM or Admin changes release state', () => {
   assert.throws(() => assertDraftWeek({ isReleased: true }), /Released reporting weeks/);
   assert.equal(canSetWeekRelease('admin'), true);
-  assert.equal(canSetWeekRelease('pm'), false);
+  assert.equal(canSetWeekRelease('pm'), true);
+  assert.equal(canSetWeekRelease('bd'), false);
 });

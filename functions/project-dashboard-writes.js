@@ -27,7 +27,7 @@ function assertDraftWeek(week) {
 }
 
 function canSetWeekRelease(role) {
-  return role === 'admin';
+  return ['admin', 'pm'].includes(role);
 }
 
 async function authenticatedRole(transaction, request) {
@@ -80,7 +80,7 @@ const setDashboardProjectAttention = onCall(async request => database().runTrans
 
 const setDashboardWeekRelease = onCall(async request => database().runTransaction(async transaction => {
   const actor = await authenticatedRole(transaction, request);
-  if (!canSetWeekRelease(actor.role)) throw new HttpsError('permission-denied', 'Only administrators can change release status.');
+  if (!canSetWeekRelease(actor.role)) throw new HttpsError('permission-denied', 'Only PMs and administrators can change release status.');
   const weekRef = database().collection('weeks').doc(requireWeekId(request.data));
   const weekSnapshot = await transaction.get(weekRef);
   if (!weekSnapshot.exists) throw new HttpsError('not-found', 'The reporting week no longer exists.');

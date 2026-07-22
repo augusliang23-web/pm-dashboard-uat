@@ -19,3 +19,11 @@ test('only Admin and PM can edit a project and Executive retains portfolio navig
   assert.match(editSource, /if \(currentRole !== 'pm'\) return false/);
   assert.match(dashboard, /const isExecutivePerspective = \(\) => currentRole === 'admin' && isAdminExecutivePreview;/);
 });
+
+test('only PM and Admin receive a release control and it uses the protected callable', () => {
+  assert.match(dashboard, /let currentRole = 'pending';/);
+  assert.match(dashboard, /function canManageWeekRelease\(\)\s*\{\s*return \['admin', 'pm'\]\.includes\(currentRole\);\s*\}/);
+  assert.match(dashboard, /\$\{canManageWeekRelease\(\) \? [\s\S]*toggleReleaseWeek\(\)/);
+  assert.match(dashboard, /if \(!week \|\| !currentUser \|\| releaseWriteInProgress \|\| !canManageWeekRelease\(\)\) return;/);
+  assert.match(dashboard, /projectDashboardApi\.setWeekRelease\(/);
+});

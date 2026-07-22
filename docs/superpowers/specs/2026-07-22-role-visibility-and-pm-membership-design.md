@@ -28,7 +28,7 @@ The UI must subscribe non-Admin/non-PM accounts only to weeks where `isReleased 
 
 ## Editing policy
 
-- Admin can edit every project in any visible Draft week, and keeps existing week release and account-management powers.
+- Admin can edit every project in any visible Draft week and keeps account-management powers. Admin and PM may release a Draft week or revert a Released week to Draft.
 - PM can edit only Draft projects where they are the owner or deputy.
 - Sales, BD, Engineering, Product, Executive, and every unknown role are read-only for project content.
 - Released weeks remain immutable for every role.

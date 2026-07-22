@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - v2.2T is the sole test branch; do not modify \`team-2\` production files.
-- Admin keeps global project editing, project creation/deletion, week release, and account-management powers.
+- Admin keeps global project editing, project creation/deletion, and account-management powers. Admin and PM may release a Draft week or revert a Released week to Draft.
 - PM may edit only owner/deputy projects in Draft weeks.
 - Sales, BD, Engineering, Product, Executive, and unknown roles are project read-only and see Released weeks only.
 - PM membership means \`role == 'pm'\` or \`role == 'admin' && isProjectManager == true\`.
@@ -288,10 +288,11 @@ test('project authority permits Admin globally and PM ownership only', () => {
   assert.equal(canMutateProject({ role: 'bd', project, email: 'owner@example.com' }), false);
 });
 
-test('released weeks reject writes and only Admin changes release state', () => {
+test('released weeks reject writes and only PM or Admin changes release state', () => {
   assert.throws(() => assertDraftWeek({ isReleased: true }), /Released reporting weeks/);
   assert.equal(canSetWeekRelease('admin'), true);
-  assert.equal(canSetWeekRelease('pm'), false);
+  assert.equal(canSetWeekRelease('pm'), true);
+  assert.equal(canSetWeekRelease('bd'), false);
 });
 ~~~
 
@@ -314,7 +315,7 @@ function assertDraftWeek(week) {
   if (week.isReleased === true) throw new HttpsError('failed-precondition', 'Released reporting weeks cannot be changed.');
 }
 function canSetWeekRelease(role) {
-  return role === 'admin';
+  return ['admin', 'pm'].includes(role);
 }
 ~~~
 
