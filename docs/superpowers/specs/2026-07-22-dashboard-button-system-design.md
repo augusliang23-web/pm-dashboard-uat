@@ -20,6 +20,8 @@ Make every actionable control in the v2.2T main dashboard use one coherent visua
 
 Every text action receives a shared base class for size, typography, border radius, pointer behaviour, focus ring, disabled state, and asynchronous busy state. Variant classes only control semantic colour.
 
+This is the permanent v2.2T design language for future work: every newly introduced actionable button must use the shared base and exactly one semantic variant, unless it is a documented Icon control or belongs to an existing specialised component with equivalent styling. New functionality must add or update a source test when it introduces a new action button.
+
 ## Application rules
 
 - Existing `.btn-primary` and `.btn-ghost` controls continue to render with their current semantic appearance, but inherit the shared base rules.
@@ -27,6 +29,7 @@ Every text action receives a shared base class for size, typography, border radi
 - Add the shared classes to currently unclassified actionable buttons in dialogs and dynamic Executive request cards.
 - Preserve intentionally unstyled controls that are part of a specialised component only when that component already supplies a matching interaction style (for example drag handles and inline text editors).
 - Ensure native `<button>` elements used in dynamic markup always receive a variant class.
+- Treat an unclassified, browser-default action button as a regression in all future v2.2T changes.
 
 ## Accessibility and interaction
 
