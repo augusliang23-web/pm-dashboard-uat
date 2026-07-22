@@ -20,6 +20,79 @@
 
 ---
 
+### Task 0: Isolated v2.2T Firebase Emulator environment
+
+**Files:**
+- Modify: `firebase.json`
+- Create: `.firebaserc`
+- Create: `scripts/start-v2.2t-emulator.ps1`
+- Create: `scripts/seed-v2.2t-emulator.mjs`
+- Create: `tests/emulator-config.test.mjs`
+- Modify: `index.html:2768-2785`
+
+**Interfaces:**
+- Local dashboard URL `http://127.0.0.1:4173/?emulator=1` connects only to Auth, Firestore, and Functions emulators.
+- `.firebaserc` fixes the emulator project identifier to `demo-pm-dashboard-v22t`; it has no production project alias.
+- Seed script creates explicit local-only Admin/PM/BD test accounts and one Draft plus one Released reporting week.
+
+- [ ] **Step 1: Write the failing emulator configuration test**
+
+```js
+test('v2.2T local preview can only opt into the isolated Firebase Emulator project', async () => {
+  const config = JSON.parse(await readFile(new URL('../firebase.json', import.meta.url), 'utf8'));
+  const aliases = JSON.parse(await readFile(new URL('../.firebaserc', import.meta.url), 'utf8'));
+  assert.equal(aliases.projects.default, 'demo-pm-dashboard-v22t');
+  assert.equal(config.emulators.firestore.port, 8080);
+  assert.equal(config.emulators.auth.port, 9099);
+  assert.equal(config.emulators.functions.port, 5001);
+  assert.match(dashboard, /new URLSearchParams\(window\.location\.search\)\.get\('emulator'\) === '1'/);
+  assert.match(dashboard, /connectFirestoreEmulator\(db, '127\.0\.0\.1', 8080\)/);
+});
+```
+
+- [ ] **Step 2: Run the configuration test to verify it fails**
+
+Run: `node --test tests/emulator-config.test.mjs`
+
+Expected: fail because the project currently has no emulator alias, ports, or browser connection switch.
+
+- [ ] **Step 3: Add isolated configuration and local seed/start scripts**
+
+```json
+{
+  "projects": { "default": "demo-pm-dashboard-v22t" }
+}
+```
+
+```json
+{
+  "emulators": {
+    "auth": { "port": 9099 },
+    "firestore": { "port": 8080 },
+    "functions": { "port": 5001 },
+    "ui": { "enabled": true, "port": 4000 },
+    "singleProjectMode": true
+  }
+}
+```
+
+The browser must connect to emulators only for `?emulator=1`; ordinary local preview keeps existing behavior. The seed script must create clearly labelled `TEST / DO NOT DELETE` accounts and data only against the demo project. The start script sets the installed Java executable in its process path, starts `firebase emulators:start`, seeds the demo data, and launches the static preview on port 4173.
+
+- [ ] **Step 4: Verify GREEN**
+
+Run: `node --test tests/emulator-config.test.mjs && npm.cmd --prefix functions exec firebase -- emulators:exec --only firestore,auth "node scripts/seed-v2.2t-emulator.mjs"`
+
+Expected: configuration test passes and the seed command completes against the demo project only.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add firebase.json .firebaserc scripts/start-v2.2t-emulator.ps1 scripts/seed-v2.2t-emulator.mjs tests/emulator-config.test.mjs index.html functions/package.json functions/package-lock.json
+git commit -m "feat: add isolated v2.2T emulator"
+```
+
+---
+
 ### Task 1: Shared access predicates
 
 **Files:**
@@ -366,4 +439,3 @@ git commit -m "test: cover role visibility policy"
 - Tasks 3-4 provide the server and Rules boundary required to prevent BD from retrieving Drafts or bypassing the UI to edit.
 - The plan intentionally does not add a new account-management screen. The existing protected provisioning process sets \`role\` and \`isProjectManager\`; the browser list reacts live to every user document change.
 - Every role predicate uses the same Admin/PM definition. A stale \`isProjectManager\` flag never grants a non-PM role access.
-

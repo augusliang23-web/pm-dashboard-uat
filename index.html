@@ -2766,19 +2766,28 @@ import { calculateExecutiveCategory, calculateExecutiveOutcome, executiveOutcome
 import { applyProjectAttentionUpdate, applyProjectDelete, applyProjectSave, ensureStableEditorRowId, projectRevisionFingerprint, withProjectEditorRowIds } from "./js/project-mutations.mjs";
 import { buildLastSeenPresenceActivities, buildPresenceTimelineLanes, selectPresenceWriteScale } from "./js/presence-usage.mjs";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { getFirestore, collection, doc, onSnapshot, runTransaction, setDoc, updateDoc, query, orderBy, where, getDoc, getDocs, increment, serverTimestamp, limit, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFunctions, httpsCallable, connectFunctionsEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 import { confirmWeekMutation, getWriteErrorMessage } from "./sync-core.js";
 import { getExecutiveTimelineCell } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
 
-const app = initializeApp(FIREBASE_CONFIG);
+const LOCAL_EMULATOR_PROJECT_ID = 'demo-pm-dashboard-v22t';
+const useLocalEmulator = new URLSearchParams(window.location.search).get('emulator') === '1';
+const app = initializeApp(useLocalEmulator
+  ? { ...FIREBASE_CONFIG, projectId: LOCAL_EMULATOR_PROJECT_ID, authDomain: '127.0.0.1' }
+  : FIREBASE_CONFIG);
 const PROFESSIONAL_PDF_SERVICE_URL = window.PM_DASHBOARD_PDF_SERVICE_URL || '';
 const db = getFirestore(app);
 const auth = getAuth(app);
 const functions = getFunctions(app, 'us-central1');
+if (useLocalEmulator) {
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFunctionsEmulator(functions, '127.0.0.1', 5001);
+}
 const executiveApi = createExecutiveApi({ functions, httpsCallable });
 window.__dashboardBootStarted = true;
 
