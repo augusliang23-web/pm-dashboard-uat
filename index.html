@@ -1029,6 +1029,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
 .exec-outcome-badge.red { background:var(--rdim); color:#A84F4F; }
 .exec-outcome-sources { display:grid; gap:4px; }
 .exec-outcome-source { display:grid; grid-template-columns:minmax(0,1fr) 26px; gap:4px; }
+.exec-outcome-source .row-delete { width:26px; height:26px; padding:0; }
 .exec-outcome-row .fi, .exec-outcome-row .fs { min-width:0; width:100%; font-size:10px; padding:6px; }
 .exec-outcome-row button { min-height:27px; border:1px solid var(--border2); border-radius:5px; background:#fff; color:var(--text-light); cursor:pointer; }
 .exec-outcome-add, .exec-source-add { margin-top:5px; width:100%; padding:6px; border:1px dashed var(--border2); border-radius:6px; background:#fff; color:var(--text-light); cursor:pointer; font-size:10px; font-weight:700; }
@@ -6710,7 +6711,7 @@ function renderExecutiveApprovalInbox(records = []) {
     const display = executiveChangeRecordDisplay(record);
     const requester = isExecutiveChangeReviewer() ? `<div class="executive-request-meta">Requested by ${escHtml(record.requesterEmail || 'Unknown user')}</div>` : '';
     const decisionComment = canDecide ? `<label class="executive-decision-comment"><span>Approver comment <small>Required when rejecting</small></span><textarea data-executive-decision-comment="${escHtml(record.requestId)}" maxlength="1200" placeholder="Add context for the requester and audit record."></textarea><span class="resource-validation error" data-executive-decision-error="${escHtml(record.requestId)}" role="alert"></span></label>` : '';
-    return `<article class="executive-approval-card ${isConflict ? 'conflict' : ''}"><div class="executive-request-header"><span class="executive-request-action">${escHtml(display.action)}</span><span class="executive-request-state">Pending approval</span></div><strong class="executive-request-item">${escHtml(display.item)}</strong><div class="executive-request-change">${escHtml(display.summary)}</div><div class="executive-request-reason"><small>Reason</small><div>${escHtml(display.reason)}</div></div>${requester}${decisionComment}${isConflict ? `<div class="resource-validation error">${escHtml(record.conflictReason || 'The milestone changed before approval.')}</div>` : ''}${canDecide || canWithdraw ? `<div class="executive-approval-actions">${canWithdraw ? `<button class="btn-ghost executive-withdraw-btn" onclick="withdrawExecutiveChangeRequest('${escHtml(record.requestId)}',this)">Withdraw request</button>` : ''}${canDecide ? `<button class="btn-ghost" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','reject',this)">Reject</button><button class="btn-primary" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','approve',this)">Approve</button>` : ''}</div>` : ''}</article>`;
+    return `<article class="executive-approval-card ${isConflict ? 'conflict' : ''}"><div class="executive-request-header"><span class="executive-request-action">${escHtml(display.action)}</span><span class="executive-request-state">Pending approval</span></div><strong class="executive-request-item">${escHtml(display.item)}</strong><div class="executive-request-change">${escHtml(display.summary)}</div><div class="executive-request-reason"><small>Reason</small><div>${escHtml(display.reason)}</div></div>${requester}${decisionComment}${isConflict ? `<div class="resource-validation error">${escHtml(record.conflictReason || 'The milestone changed before approval.')}</div>` : ''}${canDecide || canWithdraw ? `<div class="executive-approval-actions">${canWithdraw ? `<button class="btn btn-danger executive-withdraw-btn" onclick="withdrawExecutiveChangeRequest('${escHtml(record.requestId)}',this)">Withdraw request</button>` : ''}${canDecide ? `<button class="btn btn-danger" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','reject',this)">Reject</button><button class="btn btn-primary" onclick="decideExecutiveChangeRequest('${escHtml(record.requestId)}','approve',this)">Approve</button>` : ''}</div>` : ''}</article>`;
   }).join('');
 }
 
@@ -8214,7 +8215,7 @@ function renderExecutiveSourceSelect(reference = {}) {
       ${selectedKey && !sourceExists ? `<option value="${escHtml(selectedKey)}" selected>Needs relink: ${escHtml(reference.projectCode)} / ${escHtml(reference.milestoneId)}</option>` : ''}
       ${currentExecutiveEvidenceCatalog.options.map(option => `<option value="${escHtml(option.key)}" ${option.key === selectedKey ? 'selected' : ''}>${escHtml(option.label)}</option>`).join('')}
     </select>
-    <button type="button" onclick="this.parentElement.remove()" aria-label="Remove evidence">×</button>
+    <button type="button" class="row-delete" onclick="this.parentElement.remove()" aria-label="Remove evidence">×</button>
   </div>`;
 }
 
@@ -10161,7 +10162,7 @@ window.addMilestoneRow = (name='', status='to-do', dateStr='', planData = null) 
       <option ${status==='at-risk'?'selected':''}>at-risk</option>
       <option ${status==='done'?'selected':''}>done</option>
     </select>
-    <button type="button" onclick="removeMilestoneRow(this)" style="border:none; background:none; cursor:pointer;" title="Delete milestone" aria-label="Delete milestone">🗑️</button>
+    <button type="button" class="qms-delete row-delete" onclick="removeMilestoneRow(this)" title="Delete milestone" aria-label="Delete milestone">🗑️</button>
   `;
   const handle = div.querySelector('.milestone-drag-handle');
   handle.ondragstart = event => {

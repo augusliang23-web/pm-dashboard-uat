@@ -17,3 +17,16 @@ test('reported confirmation and milestone controls use semantic variants', () =>
   assert.match(dashboard, /class="btn btn-ghost" id="executiveRenameChangeBtn"/);
   assert.match(dashboard, /class="btn btn-danger" id="executiveDeleteChangeBtn"/);
 });
+
+test('dynamic Executive request actions use the same semantic button variants', () => {
+  assert.match(dashboard, /class="btn btn-danger executive-withdraw-btn"/);
+  assert.match(dashboard, /class="btn btn-danger" onclick="decideExecutiveChangeRequest/);
+  assert.match(dashboard, /class="btn btn-primary" onclick="decideExecutiveChangeRequest/);
+  assert.match(dashboard, /'reject',this/);
+  assert.match(dashboard, /'approve',this/);
+});
+
+test('dynamic delete controls use established icon-button styling', () => {
+  assert.match(dashboard, /class="row-delete" onclick="this\.parentElement\.remove\(\)" aria-label="Remove evidence"/);
+  assert.match(dashboard, /class="qms-delete row-delete" onclick="removeMilestoneRow\(this\)" title="Delete milestone"/);
+});
