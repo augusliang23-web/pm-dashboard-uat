@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createProjectDashboardApi } from '../js/project-dashboard-api.mjs';
+
+test('project dashboard API calls the protected callable names', async () => {
+  const calls = [];
+  const api = createProjectDashboardApi({
+    functions: {},
+    httpsCallable: (_functions, name) => async data => { calls.push({ name, data }); return { data: { ok: true } }; },
+  });
+  await api.saveProject({ weekId: 'W30-2026' });
+  await api.setAttention({ weekId: 'W30-2026' });
+  await api.setWeekRelease({ weekId: 'W30-2026' });
+  assert.deepEqual(calls.map(call => call.name), ['saveDashboardProject', 'setDashboardProjectAttention', 'setDashboardWeekRelease']);
+});

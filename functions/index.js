@@ -6,6 +6,7 @@ initializeApp();
 
 const db = getFirestore();
 const executiveMilestones = require("./executive-milestones");
+const projectDashboardWrites = require("./project-dashboard-writes");
 const SESSION_COLLECTION = "presenceSessions";
 const ROLLUP_COLLECTION = "presenceDailyRollups";
 const SESSION_TIMEOUT_MS = 12 * 60 * 1000;
@@ -135,3 +136,6 @@ exports.decideExecutiveMilestoneChangeRequest = executiveMilestones.decideExecut
 exports.applyDirectExecutiveMilestoneChange = executiveMilestones.applyDirectExecutiveMilestoneChange;
 exports.saveExecutiveMilestoneTimelineConfig = executiveMilestones.saveExecutiveMilestoneTimelineConfig;
 exports.setExecutiveRagOverride = executiveMilestones.setExecutiveRagOverride;
+exports.saveDashboardProject = projectDashboardWrites.saveDashboardProject;
+exports.setDashboardProjectAttention = projectDashboardWrites.setDashboardProjectAttention;
+exports.setDashboardWeekRelease = projectDashboardWrites.setDashboardWeekRelease;
