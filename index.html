@@ -2759,6 +2759,7 @@ import { isAuthInitializationCurrent } from "./js/auth-session.mjs";
 import { EXECUTIVE_SECTIONS, calculateVisibleExecutiveRag, canChangeExecutiveStructure, canUpdateExecutiveSection, canViewExecutiveSection as canViewExecutiveSectionByRole, createExecutiveLegacyItemId, getExecutiveUpdateFreshness, normalizeExecutiveRole, validateExecutiveItemUpdate } from "./js/executive-governance.mjs";
 import { DEFAULT_EXECUTIVE_TIMELINE_CONFIG, canUpdateConfiguredSection, canViewConfiguredSection, configuredQuarterLabel, configuredSectionLabel, normalizeExecutiveTimelineConfig } from "./js/executive-timeline-config.mjs";
 import { createExecutiveApi } from "./js/executive-api.mjs";
+import { buildProjectManagerList, canReadDraftWeeks, reconcileProjectManagerFilter } from "./js/dashboard-access.mjs";
 import { applyListCommand, getSelectionListType, handleListEnter, handleListPaste, normalizeListText, renderListHtml } from "./js/list-editor.mjs";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
 import { calculateQuarterlyKpi, normalizeQuarterlyMilestone, quarterlyWeightValue } from "./js/quarterly-kpi.mjs";
@@ -2822,7 +2823,7 @@ let activeStrategicTrack = 'all';
 let activeRoadmapYear = null;
 let activePortfolioRoadmapView = 'executive';
 let isOverview = false;
-const isExecutivePerspective = () => currentRole === 'executive' || (currentRole === 'admin' && isAdminExecutivePreview);
+const isExecutivePerspective = () => currentRole === 'admin' && isAdminExecutivePreview;
 const canManageStrategy = () => currentRole === 'admin' && !isAdminExecutivePreview;
 let editingProjCode = null;
 let isCreatingNew = false;
@@ -3241,6 +3242,7 @@ const FIRESTORE_SIX_WEEK_BASELINE = {
   freeWriteQuota: 42 * FIRESTORE_FREE_WRITES_PER_DAY
 };
 let weeksUnsub = null;
+let projectManagerUnsub = null;
 let presenceUsageFlushTimer = null;
 let presenceSessionId = null;
 let presenceSessionStartedAt = 0;
@@ -4141,6 +4143,7 @@ function setDashboardAccessPending() {
 
 function quiesceDashboardForAuthTransition() {
   stopPresenceSystem();
+  stopProjectManagerSubscription();
   if (weeksUnsub) {
     weeksUnsub();
     weeksUnsub = null;
@@ -4241,6 +4244,7 @@ window.handleLogout = async () => {
   stopGanttTemplateConfigSubscription();
   showLoader("Logging out...");
   stopPresenceSystem();
+  stopProjectManagerSubscription();
   if (weeksUnsub) {
     weeksUnsub();
     weeksUnsub = null;
@@ -4282,9 +4286,8 @@ onAuthStateChanged(auth, async user => {
 
       const ganttTemplatesReady = await loadGanttTemplateConfig(authGeneration, user);
       if (!isCurrentAuthInitialization() || !ganttTemplatesReady) return;
-      const nextPMList = await fetchDynamicPMList();
+      await startProjectManagerSubscription(isCurrentAuthInitialization);
       if (!isCurrentAuthInitialization()) return;
-      PM_LIST = nextPMList;
       setupUI();
       initData(authGeneration, user);
       startPresenceSystem(authGeneration, user);
@@ -4333,23 +4336,37 @@ function getUserDisplayName(emailStr) {
   return n.charAt(0).toUpperCase() + n.slice(1);
 }
 
-async function fetchDynamicPMList() {
-  try {
-    const snap = await getDocs(collection(db, "users"));
-    const pmSet = new Set();
-    snap.forEach(d => { 
-      // Only non-Executive Owner roles are included in the PM list.
-      const accountRole = normalizeRole(d.data().role);
-      if (accountRole && accountRole !== 'executive') {
-        pmSet.add(getUserDisplayName(d.id)); 
+function stopProjectManagerSubscription() {
+  if (projectManagerUnsub) projectManagerUnsub();
+  projectManagerUnsub = null;
+}
+
+function syncProjectManagerFilterOptions() {
+  const selector = document.getElementById('topPmSelect');
+  if (!selector) return;
+  currentPMFilter = reconcileProjectManagerFilter(currentPMFilter, PM_LIST);
+  selector.innerHTML = `<option value="all">👥 All PMs</option>${PM_LIST.map(name => `<option value="${escHtml(name)}">${escHtml(name)}</option>`).join('')}`;
+  selector.value = currentPMFilter;
+}
+
+function startProjectManagerSubscription(isCurrentSession) {
+  stopProjectManagerSubscription();
+  return new Promise((resolve, reject) => {
+    let initial = true;
+    projectManagerUnsub = onSnapshot(collection(db, 'users'), snapshot => {
+      if (!isCurrentSession()) return;
+      PM_LIST = buildProjectManagerList(snapshot.docs.map(entry => ({ id: entry.id, ...entry.data() })), getUserDisplayName);
+      syncProjectManagerFilterOptions();
+      if (allWeeks.length) render();
+      if (initial) {
+        initial = false;
+        resolve(PM_LIST);
       }
+    }, error => {
+      if (initial) reject(error);
+      else console.warn('PM membership subscription failed.', error);
     });
-    return Array.from(pmSet).sort();
-  } catch(e) {
-    console.warn("Could not load users list, falling back.", e);
-    // Fallback list for network issues. Replace with real PM names.
-    return ["Augus", "Bonnie", "Josiah", "Huichong"];
-  }
+  });
 }
 
 function setupUI() {
@@ -4391,17 +4408,10 @@ function setupUI() {
   }
   else if (currentRole === 'executive') {
     rBadge.classList.add('executive');
-    document.querySelectorAll('.executive-hidden').forEach(el => el.style.display = 'none');
     document.getElementById('onlineUsersContainer').style.display = 'none'; 
-    isOverview = true;
-    document.getElementById('normalView').style.display = 'none';
-    document.getElementById('execView').style.display = 'block';
     document.getElementById('executiveApprovalInboxBtn').style.display = 'inline-flex';
   }
-  
-  const sel = document.getElementById('topPmSelect');
-  sel.innerHTML = `<option value="all">👥 All PMs</option>` + 
-    PM_LIST.map(pm => `<option value="${pm}">${pm}</option>`).join('');
+  syncProjectManagerFilterOptions();
   updateMasterDataLists();
   refreshExecutivePendingCount();
   refreshFxRates();
@@ -4457,9 +4467,9 @@ function initData(authGeneration, authUser) {
   }
 
   const weeksRef = collection(db, "weeks");
-  const weeksQuery = currentRole === 'executive'
-    ? query(weeksRef, where("isReleased", "==", true))
-    : query(weeksRef, orderBy("weekLabel"));
+  const weeksQuery = canReadDraftWeeks(currentRole)
+    ? query(weeksRef, orderBy('weekLabel'))
+    : query(weeksRef, where('isReleased', '==', true));
   const ownerUid = authUser?.uid || '';
   const ownerEmail = getEmailKey(authUser);
   const isCurrentDataSession = () => isAuthInitializationCurrent(
@@ -4524,7 +4534,7 @@ function initData(authGeneration, authUser) {
 
 function canEditProject(proj) {
   if (currentRole === 'admin') return true;
-  if (currentRole === 'executive') return false;
+  if (currentRole !== 'pm') return false;
   if (!currentUser) return false;
 
   const userEmail = getEmailKey(currentUser);
