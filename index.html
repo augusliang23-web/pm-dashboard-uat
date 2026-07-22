@@ -8203,12 +8203,22 @@ function renderExec(projs, summary, allProjects = projs) {
   bindDecisionControls(editableDecisionView);
 }
 
-async function saveCurrentWeekQuietly() {
+async function saveCurrentWeekQuietly(project) {
   const week = allWeeks[currentIdx];
-  if (!week || !currentUser) return;
+  if (!week || !currentUser || !project) return;
   assertCurrentWeekEditable(week);
-  week.lastModifiedBy = currentUser.email;
-  await setDoc(doc(db, "weeks", week.weekLabel.replace(/\s+/g, '-')), week);
+  const weekId = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
+  const result = await projectDashboardApi.saveProject({
+    weekId,
+    originalCode: project.code,
+    projectCode: project.code,
+    project,
+  });
+  if (result?.week) {
+    Object.defineProperty(result.week, '__documentId', { value: weekId, enumerable: false, configurable: true });
+    allWeeks[currentIdx] = result.week;
+  }
+  return result;
 }
 
 window.setStrategicTrack = (trackId) => {
@@ -8634,14 +8644,10 @@ window.saveStrategyLayer = async () => {
       }
     });
     const strategyLayer = { ...(week.strategyLayer || {}), projectMap };
-    const savedWeek = await confirmWeekMutation(
-      week,
-      { strategyLayer, lastModifiedBy: currentUser.email },
-      candidate => setDoc(
-        doc(db, "weeks", candidate.weekLabel.replace(/\s+/g, '-')),
-        candidate
-      )
-    );
+    const weekId = week.__documentId || week.weekLabel.replace(/\s+/g, '-');
+    const response = await projectDashboardApi.saveWeekFields({ weekId, fields: { strategyLayer } });
+    const savedWeek = response.week;
+    Object.defineProperty(savedWeek, '__documentId', { value: weekId, enumerable: false, configurable: true });
     allWeeks[currentIdx] = savedWeek;
     closeModal('strategyOverlay', { force: true });
     render();
@@ -8670,27 +8676,9 @@ async function updateProjectAttention(code, attention) {
     render();
     return false;
   }
-  const weekRef = doc(db, 'weeks', weekId);
   try {
-    const result = await runTransaction(db, async transaction => {
-      const snapshot = await transaction.get(weekRef);
-      if (!snapshot.exists()) throw new Error('The selected week no longer exists.');
-      const mutation = applyProjectAttentionUpdate(snapshot.data(), {
-        projectCode: code,
-        attention,
-        role,
-        canEdit: project => projectOwnershipMatchesIdentity(project, {
-          displayName: getUserDisplayName(authEmail),
-          email: authEmail,
-        }),
-        lastModifiedBy: authEmail,
-      });
-      transaction.update(weekRef, {
-        projects: mutation.week.projects,
-        lastModifiedBy: authEmail,
-      });
-      return mutation;
-    });
+    const response = await projectDashboardApi.setAttention({ weekId, projectCode: code, attention });
+    const result = { week: response.week };
     const selectionStillCurrent = currentIdx === selectedIndex
       && (currentUser?.uid || '') === authUid
       && getEmailKey(currentUser) === authEmail
@@ -8728,7 +8716,7 @@ function bindDecisionControls(editable) {
       if (!p || !canEditProject(p)) return;
       p.riskList = chk.checked;
       p.riskManual = true;
-      await saveCurrentWeekQuietly();
+      await saveCurrentWeekQuietly(p);
       render();
       showSaveToast("Risk list updated");
     };
@@ -10038,7 +10026,6 @@ window.saveProjEdit = async () => {
     },
     dataStatus: collectResourceBudgetStatus()
   };
-  const targetWeekRef = doc(db, 'weeks', session.weekId);
   let transactionResult = null;
 
   clearProjectMutationError();
@@ -10047,34 +10034,20 @@ window.saveProjEdit = async () => {
   setProjectMutationControlsDisabled(true);
   showLoader("Saving Project...");
   try {
-    transactionResult = await runTransaction(db, async transaction => {
-      assertProjectEditorSessionCurrent(session);
-      const liveSnapshot = await transaction.get(targetWeekRef);
-      assertProjectEditorSessionCurrent(session);
-      if (!liveSnapshot.exists()) {
-        throw new Error('The selected week no longer exists. Refresh the dashboard and try again.');
-      }
-      const liveWeek = liveSnapshot.data();
-      assertCurrentWeekEditable(liveWeek);
-      const result = applyProjectSave(liveSnapshot.data(), {
-        draft: pData,
-        originalCode: session.code,
-        isNew: session.isNew,
-        role: session.role,
-        canEdit: project => projectOwnershipMatchesIdentity(project, {
-          displayName: getUserDisplayName(session.authEmail),
-          email: session.authEmail
-        }),
-        expectedFingerprint: session.revisionFingerprint,
-        fingerprintProject: project => projectRevisionFingerprint(normalizeProject(project)),
-        lastModifiedBy: session.authEmail
-      });
-      transaction.update(targetWeekRef, {
-        projects: result.week.projects,
-        lastModifiedBy: session.authEmail
-      });
-      return result;
+    const response = await projectDashboardApi.saveProject({
+      weekId: session.weekId,
+      originalCode: session.isNew ? '' : session.code,
+      projectCode: pData.code,
+      project: pData,
+      isNew: session.isNew,
     });
+    const savedWeek = response.week;
+    Object.defineProperty(savedWeek, '__documentId', { value: session.weekId, enumerable: false, configurable: true });
+    transactionResult = {
+      week: savedWeek,
+      project: savedWeek.projects.find(project => project.code === pData.code) || pData,
+    };
+    allWeeks[currentIdx] = savedWeek;
   } catch (error) {
     if (isProjectEditorSessionCurrent(session)) {
       showProjectMutationError(
@@ -10116,7 +10089,6 @@ window.deleteProject = async () => {
   }
   if (session.role !== 'admin') return;
   if(!confirm("Are you sure you want to permanently DELETE this project? This cannot be undone.")) return;
-  const targetWeekRef = doc(db, 'weeks', session.weekId);
   let transactionResult = null;
 
   clearProjectMutationError();
@@ -10125,28 +10097,11 @@ window.deleteProject = async () => {
   setProjectMutationControlsDisabled(true);
   showLoader("Deleting Project...");
   try {
-    transactionResult = await runTransaction(db, async transaction => {
-      assertProjectEditorSessionCurrent(session);
-      const liveSnapshot = await transaction.get(targetWeekRef);
-      assertProjectEditorSessionCurrent(session);
-      if (!liveSnapshot.exists()) {
-        throw new Error('The selected week no longer exists. Refresh the dashboard and try again.');
-      }
-      const liveWeek = liveSnapshot.data();
-      assertCurrentWeekEditable(liveWeek);
-      const result = applyProjectDelete(liveSnapshot.data(), {
-        originalCode: session.code,
-        role: session.role,
-        expectedFingerprint: session.revisionFingerprint,
-        fingerprintProject: project => projectRevisionFingerprint(normalizeProject(project)),
-        lastModifiedBy: session.authEmail
-      });
-      transaction.update(targetWeekRef, {
-        projects: result.week.projects,
-        lastModifiedBy: session.authEmail
-      });
-      return result;
-    });
+    const response = await projectDashboardApi.deleteProject({ weekId: session.weekId, originalCode: session.code });
+    const savedWeek = response.week;
+    Object.defineProperty(savedWeek, '__documentId', { value: session.weekId, enumerable: false, configurable: true });
+    transactionResult = { week: savedWeek };
+    allWeeks[currentIdx] = savedWeek;
   } catch (error) {
     if (isProjectEditorSessionCurrent(session)) {
       showProjectMutationError(
@@ -10436,7 +10391,11 @@ window.saveWeekSummary = async () => {
   document.getElementById('wm_summary').value = week.summary;
   week.lastModifiedBy = currentUser.email;
   
-  await setDoc(doc(db, "weeks", id), week);
+  const response = await projectDashboardApi.saveWeekFields({ weekId: id, fields: { summary: week.summary } });
+  if (response?.week) {
+    Object.defineProperty(response.week, '__documentId', { value: id, enumerable: false, configurable: true });
+    allWeeks[currentIdx] = response.week;
+  }
   await new Promise(r => setTimeout(r, 600));
   hideLoader();
   showSaveToast("Summary updated");
@@ -10465,7 +10424,14 @@ window.createNewWeekFromManage = async () => {
   };
   
   jumpToLatestOnNextRender = true;
-  await setDoc(doc(db, "weeks", label.replace(/\s+/g, '-')), newWeek);
+  const response = await projectDashboardApi.createWeek({
+    weekId: label.replace(/\s+/g, '-'),
+    week: newWeek,
+  });
+  if (response?.week) {
+    Object.defineProperty(response.week, '__documentId', { value: label.replace(/\s+/g, '-'), enumerable: false, configurable: true });
+    allWeeks.push(response.week);
+  }
   
   await new Promise(r => setTimeout(r, 600));
   hideLoader();

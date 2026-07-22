@@ -47,15 +47,15 @@ test("firebase config includes Executive history query indexes", async () => {
   ]);
 });
 
-test("clients cannot change an existing Executive timeline directly", async () => {
+test("clients cannot change an existing Executive timeline or dashboard week directly", async () => {
   const rules = await readRules();
 
   assert.match(rules, /function\s+executiveTimelineUnchanged\(\)/);
   assert.match(rules, /request\.resource\.data\.get\('strategyLayer'/);
   assert.match(rules, /resource\.data\.get\('strategyLayer'/);
-  assert.match(rules, /allow update:\s*if isSignedIn\(\)\s*&&\s*executiveTimelineUnchanged\(\)/);
+  assert.match(rules, /match\s+\/weeks\/\{weekId\}[\s\S]*?allow write:\s*if false/);
   assert.match(rules, /allow delete:\s*if false/);
-  assert.match(rules, /allow create:\s*if isAdmin\(\)/);
+  assert.doesNotMatch(rules, /match\s+\/weeks\/\{weekId\}[\s\S]*?allow create:\s*if isAdmin\(\)/);
   assert.doesNotMatch(rules, /allow read, create:\s*if isSignedIn\(\)/);
 });
 
@@ -83,4 +83,12 @@ test("Executive configuration is client-readable but callable-write-only", async
   assert.match(rules, /match\s+\/executiveMilestoneConfig\/\{configId\}/);
   assert.match(rules, /allow read:\s*if isSignedIn\(\);\s*allow write:\s*if false;/);
   assert.doesNotMatch(rules, /sectionId == 'ioe-product-portfolio'/);
+});
+
+test('Firestore draft week reads are limited to PM and Admin while released reads remain available', async () => {
+  const rules = await readRules();
+  assert.match(rules, /function canReadDraftWeeks\(\)/);
+  assert.match(rules, /dashboardRole\(\) in \['admin', 'pm'\]/);
+  assert.match(rules, /allow read:\s*if isSignedIn\(\)\s*&& \(canReadDraftWeeks\(\) \|\| resource\.data\.isReleased == true\)/);
+  assert.match(rules, /allow write: if false;/);
 });

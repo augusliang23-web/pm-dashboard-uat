@@ -1,6 +1,13 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { assertDraftWeek, canMutateProject, canSetWeekRelease } = require('../project-dashboard-writes');
+const {
+  assertDraftWeek,
+  canMutateProject,
+  canSetWeekRelease,
+  canDeleteProject,
+  canManageWeekFields,
+  canCreateProject,
+} = require('../project-dashboard-writes');
 
 const project = { owner: 'owner@example.com', deputy: 'Deputy' };
 
@@ -16,4 +23,13 @@ test('released weeks reject writes and only PM or Admin changes release state', 
   assert.equal(canSetWeekRelease('admin'), true);
   assert.equal(canSetWeekRelease('pm'), true);
   assert.equal(canSetWeekRelease('bd'), false);
+});
+
+test('structural and week management authority is explicit', () => {
+  assert.equal(canDeleteProject('admin'), true);
+  assert.equal(canDeleteProject('pm'), false);
+  assert.equal(canCreateProject('admin'), true);
+  assert.equal(canCreateProject('pm'), false);
+  assert.equal(canManageWeekFields('admin'), true);
+  assert.equal(canManageWeekFields('pm'), false);
 });

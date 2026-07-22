@@ -20,6 +20,10 @@ service cloud.firestore {
       return dashboardRole() == 'executive';
     }
 
+    function canReadDraftWeeks() {
+      return dashboardRole() in ['admin', 'pm'];
+    }
+
     function canViewExecutiveSection(sectionId) {
       return isSignedIn()
         && exists(/databases/$(database)/documents/executiveMilestoneConfig/timeline)
@@ -37,9 +41,9 @@ service cloud.firestore {
     }
 
     match /weeks/{weekId} {
-      allow read: if isSignedIn();
-      allow create: if isAdmin();
-      allow update: if isSignedIn() && executiveTimelineUnchanged();
+      allow read: if isSignedIn()
+        && (canReadDraftWeeks() || resource.data.isReleased == true);
+      allow write: if false;
       allow delete: if false;
     }
 
