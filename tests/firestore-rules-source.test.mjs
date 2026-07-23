@@ -7,6 +7,11 @@ const readRules = () =>
     () => "",
   );
 
+const readSharedBackendRules = () =>
+  readFile(new URL("../firestore.shared-backend.rules", import.meta.url), "utf8").catch(
+    () => "",
+  );
+
 test("presence sessions allow owner writes and admin reads", async () => {
   const rules = await readRules();
 
@@ -97,4 +102,19 @@ test('Firestore draft week reads are limited to PM and Admin while released read
   assert.match(rules, /dashboardRole\(\) in \['admin', 'pm'\]/);
   assert.match(rules, /allow read:\s*if isSignedIn\(\)\s*&& \(canReadDraftWeeks\(\) \|\| resource\.data\.isReleased == true\)/);
   assert.match(rules, /allow write: if false;/);
+});
+
+test('shared v2.1 and UAT backend rules expose Executive data without breaking v2.1 week writes', async () => {
+  const rules = await readSharedBackendRules();
+  const config = JSON.parse(
+    await readFile(new URL("../firebase.shared-backend.json", import.meta.url), "utf8"),
+  );
+
+  assert.equal(config.firestore?.rules, "firestore.shared-backend.rules");
+  assert.match(rules, /match\s+\/weeks\/\{weekId\}[\s\S]*?allow read, write:\s*if isSignedIn\(\)/);
+  assert.match(rules, /match\s+\/executiveMilestoneState\/\{stateId\}[\s\S]*?allow read:\s*if isSignedIn\(\);[\s\S]*?allow write:\s*if false/);
+  assert.match(rules, /match\s+\/executiveMilestoneConfig\/\{configId\}[\s\S]*?allow read:\s*if isSignedIn\(\);[\s\S]*?allow write:\s*if false/);
+  assert.match(rules, /match\s+\/executiveMilestoneUpdates[\s\S]*?allow write:\s*if false/);
+  assert.match(rules, /match\s+\/executiveMilestoneChangeRequests[\s\S]*?allow write:\s*if false/);
+  assert.match(rules, /match\s+\/executiveMilestoneAudit[\s\S]*?allow write:\s*if false/);
 });

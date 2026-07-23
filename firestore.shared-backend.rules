@@ -1,0 +1,106 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function dashboardRole() {
+      return isSignedIn()
+        && request.auth.token.email != null
+        ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role
+        : '';
+    }
+
+    function isAdmin() {
+      return dashboardRole() == 'admin';
+    }
+
+    function isExecutive() {
+      return dashboardRole() == 'executive';
+    }
+
+    function canViewExecutiveSection(sectionId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/executiveMilestoneConfig/timeline)
+        && dashboardRole() in get(/databases/$(database)/documents/executiveMilestoneConfig/timeline).data.sectionPolicies[sectionId].viewRoles;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // v2.1 still writes reporting weeks directly. Keep this compatibility
+    // rule until the production client migrates to the protected callables.
+    match /weeks/{weekId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /executiveMilestoneConfig/{configId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /executiveMilestoneState/{stateId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /executiveMilestoneUpdates/{updateId} {
+      allow read: if isSignedIn()
+        && canViewExecutiveSection(resource.data.sectionId);
+      allow write: if false;
+    }
+
+    match /executiveMilestoneChangeRequests/{requestId} {
+      allow read: if isAdmin()
+        || isExecutive()
+        || (isSignedIn() && resource.data.requesterEmail == request.auth.token.email);
+      allow write: if false;
+    }
+
+    match /executiveMilestoneAudit/{auditId} {
+      allow read: if isAdmin() || isExecutive();
+      allow write: if false;
+    }
+
+    match /logs/{logId} {
+      allow create, read: if isSignedIn();
+    }
+
+    match /presence/{document} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /presenceSessions/{sessionId} {
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.userKey == request.auth.token.email
+        && request.resource.data.sessionId == sessionId;
+
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.userKey == resource.data.userKey
+        && request.resource.data.sessionId == resource.data.sessionId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'lastSeenAt',
+          'endedAt',
+          'activeMs',
+          'idleMs',
+          'state',
+          'endReason',
+          'updatedAt'
+        ]);
+
+      allow read: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /presenceDailyRollups/{rollupId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+  }
+}
