@@ -37,6 +37,11 @@ const executiveTimelineConfig = {
     { sectionId: 'investors-strategy', label: 'Investors & Strategy', viewRoles: ['admin', 'executive', 'sales', 'bd', 'product'], updateRoles: ['admin', 'executive'] },
   ],
   quarters: [{ quarterId: 'q1', label: 'Q1' }, { quarterId: 'q2', label: 'Q2' }, { quarterId: 'q3', label: 'Q3' }, { quarterId: 'q4', label: 'Q4' }],
+  sectionPolicies: {
+    'ioe-product-portfolio': { viewRoles: ['admin', 'executive', 'pm', 'engineering', 'sales', 'bd', 'product'], updateRoles: ['admin', 'executive', 'pm', 'engineering'] },
+    'customer-engagements': { viewRoles: ['admin', 'executive', 'sales', 'bd', 'product'], updateRoles: ['admin', 'executive', 'sales', 'bd', 'product'] },
+    'investors-strategy': { viewRoles: ['admin', 'executive', 'sales', 'bd', 'product'], updateRoles: ['admin', 'executive'] },
+  },
 };
 
 const liveExecutiveTimeline = {

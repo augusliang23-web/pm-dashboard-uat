@@ -28,6 +28,7 @@ test('the local seed bypasses rules only through the Emulator Admin SDK', () => 
 test('the local seed includes the live Executive timeline and its configurable access policy', () => {
   assert.match(seed, /seedDocument\('executiveMilestoneConfig', 'timeline'/);
   assert.match(seed, /seedDocument\('executiveMilestoneState', 'live'/);
+  assert.match(seed, /sectionPolicies:/);
   assert.match(seed, /TEST \/ DO NOT DELETE/);
 });
 
