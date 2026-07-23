@@ -158,6 +158,7 @@ const addExecutiveMilestoneUpdate = onCall(CALLABLE_OPTIONS, async request => {
       const now = new Date().toISOString();
       const applied = applyItemUpdate(liveTimelineAsWeek(state), {
         ...request.data,
+        weekId: 'live',
         role: actor.role,
         actorEmail: actor.email,
         config,
@@ -182,6 +183,7 @@ const createExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async req
       const { state } = await readLiveTimeline(transaction);
       const created = createChangeRequest(liveTimelineAsWeek(state), {
         ...request.data,
+        weekId: 'live',
         requestId: requestRef.id,
         role: actor.role,
         requesterEmail: actor.email,

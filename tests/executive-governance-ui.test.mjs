@@ -101,7 +101,7 @@ test('v2.2T Executive milestone editor uses the centered modal pattern', () => {
 test('drawer guards auth identity and renders append-only history newest first', () => {
   for (const dashboard of dashboards) {
     assert.match(dashboard, /function isExecutiveUpdateSessionCurrent\(/);
-    for (const field of ['authUid', 'authEmail', 'role', 'weekId', 'itemId', 'version']) {
+    for (const field of ['authUid', 'authEmail', 'role', 'itemId', 'version']) {
       assert.match(dashboard, new RegExp(`${field}:`));
     }
     assert.match(dashboard, /collection\(db, 'executiveMilestoneUpdates'\)/);
@@ -111,6 +111,19 @@ test('drawer guards auth identity and renders append-only history newest first',
     assert.match(dashboard, /@media \(max-width: 760px\)/);
     assert.match(dashboard, /await executiveApi\.addUpdate\([\s\S]*?isExecutiveUpdateSessionCurrent\(session, \{ requireVersion: false \}\)/);
   }
+});
+
+test('v2.2T reads Executive milestones from the live state instead of the selected reporting week', () => {
+  assert.match(rootDashboard, /let executiveLiveTimelineState = null;/);
+  assert.match(rootDashboard, /doc\(db, 'executiveMilestoneState', 'live'\)/);
+  assert.match(rootDashboard, /function currentExecutiveTimeline\(\)/);
+  const renderStart = rootDashboard.indexOf('function renderExecutiveQuarterMilestones(');
+  const renderEnd = rootDashboard.indexOf('function renderProjectQuarterItems(', renderStart);
+  const source = rootDashboard.slice(renderStart, renderEnd);
+  assert.match(source, /const timeline = currentExecutiveTimeline\(\);/);
+  assert.doesNotMatch(source, /isWeekReleased\(allWeeks\[currentIdx\]\)/);
+  assert.match(rootDashboard, /initializeExecutiveLiveTimeline/);
+  assert.doesNotMatch(rootDashboard, /weekId: session\.weekId,[\s\S]{0,100}?itemId: session\.itemId/);
 });
 
 test('structural requests use contextual actions and retain an exact hidden diff', () => {

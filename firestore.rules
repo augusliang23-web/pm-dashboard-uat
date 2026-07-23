@@ -52,6 +52,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /executiveMilestoneState/{stateId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
     match /executiveMilestoneUpdates/{updateId} {
       allow read: if isSignedIn()
         && canViewExecutiveSection(resource.data.sectionId);

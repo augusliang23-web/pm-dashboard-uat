@@ -12,5 +12,6 @@ export function createExecutiveApi({ functions, httpsCallable }) {
     applyDirectChange: invoke(call('applyDirectExecutiveMilestoneChange')),
     setRagOverride: invoke(call('setExecutiveRagOverride')),
     saveTimelineConfig: invoke(call('saveExecutiveMilestoneTimelineConfig')),
+    initializeLiveTimeline: invoke(call('initializeExecutiveMilestoneLiveTimeline')),
   };
 }

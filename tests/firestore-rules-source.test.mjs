@@ -59,6 +59,12 @@ test("clients cannot change an existing Executive timeline or dashboard week dir
   assert.doesNotMatch(rules, /allow read, create:\s*if isSignedIn\(\)/);
 });
 
+test("live Executive milestone state is signed-in readable and client write protected", async () => {
+  const rules = await readRules();
+
+  assert.match(rules, /match\s+\/executiveMilestoneState\/\{stateId\}[\s\S]*?allow read:\s*if isSignedIn\(\);[\s\S]*?allow write:\s*if false/);
+});
+
 test("Executive append-only collections are role-readable and client read-only", async () => {
   const rules = await readRules();
 
