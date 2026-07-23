@@ -11,6 +11,13 @@ const {
   normalizeRole,
 } = require('./executive-milestone-core');
 const { defaultTimelineConfig, normalizeTimelineConfig } = require('./executive-timeline-config');
+const {
+  liveTimelineAsWeek,
+  liveTimelineFromWeek,
+  liveTimelineRef,
+  nextLiveTimelineState,
+  normalizeLiveTimelineState,
+} = require('./executive-live-timeline');
 
 const db = getFirestore();
 const CALLABLE_OPTIONS = { region: 'us-central1', cors: true };
@@ -36,19 +43,10 @@ async function getActor(transaction, request) {
   return { email, role, uid: request.auth.uid, userRef };
 }
 
-function requireWeekId(data) {
-  const weekId = String(data?.weekId || '').trim();
-  if (!weekId || weekId.includes('/')) throw new HttpsError('invalid-argument', 'A valid weekId is required.');
+function requireSourceWeekId(data) {
+  const weekId = String(data?.sourceWeekId || '').trim();
+  if (!weekId || weekId.includes('/')) throw new HttpsError('invalid-argument', 'A valid sourceWeekId is required.');
   return weekId;
-}
-
-async function readWeek(transaction, weekRef, { allowReleased = false } = {}) {
-  const snapshot = await transaction.get(weekRef);
-  if (!snapshot.exists) throw new HttpsError('not-found', 'Reporting week was not found.');
-  if (!allowReleased && snapshot.data().isReleased === true) {
-    throw new HttpsError('failed-precondition', 'Released reporting weeks cannot be changed.');
-  }
-  return { ...snapshot.data(), weekId: snapshot.id };
 }
 
 function executiveTimelineConfigRef() {
@@ -76,11 +74,20 @@ function withConfigMetadata(record, config) {
   };
 }
 
-function updateTimeline(transaction, weekRef, week, actorEmail) {
-  transaction.update(weekRef, {
-    'strategyLayer.executiveMilestoneTimeline': week.strategyLayer.executiveMilestoneTimeline,
-    lastModifiedBy: actorEmail,
-  });
+async function readLiveTimeline(transaction) {
+  const liveRef = liveTimelineRef(db);
+  const snapshot = await transaction.get(liveRef);
+  const state = normalizeLiveTimelineState(snapshot.exists ? snapshot.data() : null);
+  if (!state.timeline) {
+    throw new HttpsError('failed-precondition', 'Executive milestones have not been initialized. Ask an administrator to initialize the live roadmap.');
+  }
+  return { liveRef, state };
+}
+
+function saveLiveTimeline(transaction, liveRef, state, timeline, actorEmail, now) {
+  const nextState = nextLiveTimelineState(state, timeline, actorEmail, now);
+  transaction.set(liveRef, nextState, { merge: true });
+  return nextState;
 }
 
 function asHttpsError(error) {
@@ -143,26 +150,24 @@ function validateTimelineConfigChange(currentConfig, rawConfig) {
 
 const addExecutiveMilestoneUpdate = onCall(CALLABLE_OPTIONS, async request => {
   try {
-    const weekId = requireWeekId(request.data);
-    const weekRef = db.collection('weeks').doc(weekId);
     const updateRef = db.collection('executiveMilestoneUpdates').doc();
     const result = await db.runTransaction(async transaction => {
       const actor = await getActor(transaction, request);
       const config = await readExecutiveTimelineConfig(transaction);
-      const week = await readWeek(transaction, weekRef, { allowReleased: true });
-      const applied = applyItemUpdate(week, {
+      const { liveRef, state } = await readLiveTimeline(transaction);
+      const now = new Date().toISOString();
+      const applied = applyItemUpdate(liveTimelineAsWeek(state), {
         ...request.data,
-        weekId,
         role: actor.role,
         actorEmail: actor.email,
         config,
-        now: new Date().toISOString(),
+        now,
       });
-      updateTimeline(transaction, weekRef, applied.week, actor.email);
-      transaction.create(updateRef, { ...withConfigMetadata(applied.updateRecord, config), updateId: updateRef.id });
-      return applied;
+      const nextState = saveLiveTimeline(transaction, liveRef, state, applied.week.strategyLayer.executiveMilestoneTimeline, actor.email, now);
+      transaction.create(updateRef, { ...withConfigMetadata(applied.updateRecord, config), updateId: updateRef.id, timelineVersion: nextState.version });
+      return { applied, nextState };
     });
-    return { ok: true, weekId, itemId: result.item.id, version: result.item.version };
+    return { ok: true, itemId: result.applied.item.id, version: result.applied.item.version, timelineVersion: result.nextState.version };
   } catch (error) {
     throw asHttpsError(error);
   }
@@ -170,26 +175,23 @@ const addExecutiveMilestoneUpdate = onCall(CALLABLE_OPTIONS, async request => {
 
 const createExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async request => {
   try {
-    const weekId = requireWeekId(request.data);
-    const weekRef = db.collection('weeks').doc(weekId);
     const requestRef = db.collection('executiveMilestoneChangeRequests').doc();
     const changeRequest = await db.runTransaction(async transaction => {
       const actor = await getActor(transaction, request);
       const config = await readExecutiveTimelineConfig(transaction);
-      const week = await readWeek(transaction, weekRef);
-      const created = createChangeRequest(week, {
+      const { state } = await readLiveTimeline(transaction);
+      const created = createChangeRequest(liveTimelineAsWeek(state), {
         ...request.data,
         requestId: requestRef.id,
-        weekId,
         role: actor.role,
         requesterEmail: actor.email,
         config,
         now: new Date().toISOString(),
       });
-      transaction.create(requestRef, withConfigMetadata(created, config));
+      transaction.create(requestRef, { ...withConfigMetadata(created, config), timelineVersion: state.version });
       return created;
     });
-    return { ok: true, weekId, itemId: changeRequest.itemId, requestId: requestRef.id };
+    return { ok: true, itemId: changeRequest.itemId, requestId: requestRef.id };
   } catch (error) {
     throw asHttpsError(error);
   }
@@ -226,8 +228,8 @@ const withdrawExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async r
         auditId: auditRef.id,
         action: 'withdraw-change-request',
         requestId,
-        weekId: changeRequest.weekId,
         itemId: changeRequest.itemId,
+        timelineVersion: changeRequest.timelineVersion,
         actorEmail: actor.email,
         actorRole: actor.role,
         createdAt: now,
@@ -273,7 +275,6 @@ const decideExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async req
         const rejectedAudit = withConfigMetadata({
           auditId: auditRef.id,
           action: 'rejected-change',
-          weekId: changeRequest.weekId,
           requestId,
           itemId: changeRequest.itemId,
           changeType: changeRequest.changeType,
@@ -290,28 +291,28 @@ const decideExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async req
         return { request: rejected, alreadyApplied: false };
       }
 
-      const weekId = requireWeekId({ weekId: changeRequest.weekId });
-      const weekRef = db.collection('weeks').doc(weekId);
-      const week = await readWeek(transaction, weekRef);
-      const applied = applyApprovedRequest(week, changeRequest, {
+      const { liveRef, state } = await readLiveTimeline(transaction);
+      const applied = applyApprovedRequest(liveTimelineAsWeek(state), changeRequest, {
         role: actor.role,
         actorEmail: actor.email,
         decisionNote,
         config,
         now,
       });
-      if (applied.request.state === 'applied' && !applied.alreadyApplied) updateTimeline(transaction, weekRef, applied.week, actor.email);
+      const nextState = applied.request.state === 'applied' && !applied.alreadyApplied
+        ? saveLiveTimeline(transaction, liveRef, state, applied.week.strategyLayer.executiveMilestoneTimeline, actor.email, now)
+        : state;
       if (!applied.alreadyApplied) transaction.update(requestRef, applied.request);
-      if (applied.audit) transaction.create(auditRef, { ...withConfigMetadata(applied.audit, config), auditId: auditRef.id });
-      return applied;
+      if (applied.audit) transaction.create(auditRef, { ...withConfigMetadata(applied.audit, config), auditId: auditRef.id, timelineVersion: nextState.version });
+      return { ...applied, nextState };
     });
     return {
       ok: true,
-      weekId: result.request.weekId,
       itemId: result.request.itemId,
       requestId,
       state: result.request.state,
       alreadyApplied: result.alreadyApplied === true,
+      timelineVersion: result.nextState?.version ?? result.request.timelineVersion ?? null,
     };
   } catch (error) {
     throw asHttpsError(error);
@@ -320,26 +321,24 @@ const decideExecutiveMilestoneChangeRequest = onCall(CALLABLE_OPTIONS, async req
 
 const applyDirectExecutiveMilestoneChange = onCall(CALLABLE_OPTIONS, async request => {
   try {
-    const weekId = requireWeekId(request.data);
-    const weekRef = db.collection('weeks').doc(weekId);
     const auditRef = db.collection('executiveMilestoneAudit').doc();
     const result = await db.runTransaction(async transaction => {
       const actor = await getActor(transaction, request);
       const config = await readExecutiveTimelineConfig(transaction);
-      const week = await readWeek(transaction, weekRef);
-      const applied = applyDirectStructureChange(week, {
+      const { liveRef, state } = await readLiveTimeline(transaction);
+      const now = new Date().toISOString();
+      const applied = applyDirectStructureChange(liveTimelineAsWeek(state), {
         ...request.data,
-        weekId,
         role: actor.role,
         actorEmail: actor.email,
         config,
-        now: new Date().toISOString(),
+        now,
       });
-      updateTimeline(transaction, weekRef, applied.week, actor.email);
-      transaction.create(auditRef, { ...withConfigMetadata(applied.audit, config), auditId: auditRef.id });
-      return applied;
+      const nextState = saveLiveTimeline(transaction, liveRef, state, applied.week.strategyLayer.executiveMilestoneTimeline, actor.email, now);
+      transaction.create(auditRef, { ...withConfigMetadata(applied.audit, config), auditId: auditRef.id, timelineVersion: nextState.version });
+      return { applied, nextState };
     });
-    return { ok: true, weekId, itemId: result.audit.itemId, version: result.item?.version ?? null };
+    return { ok: true, itemId: result.applied.audit.itemId, version: result.applied.item?.version ?? null, timelineVersion: result.nextState.version };
   } catch (error) {
     throw asHttpsError(error);
   }
@@ -380,9 +379,34 @@ const saveExecutiveMilestoneTimelineConfig = onCall(CALLABLE_OPTIONS, async requ
   }
 });
 
+const initializeExecutiveMilestoneLiveTimeline = onCall(CALLABLE_OPTIONS, async request => {
+  try {
+    const sourceWeekId = requireSourceWeekId(request.data);
+    const result = await db.runTransaction(async transaction => {
+      const actor = await getActor(transaction, request);
+      if (actor.role !== 'admin') throw new HttpsError('permission-denied', 'Only administrators can initialize the live Executive timeline.');
+      const liveRef = liveTimelineRef(db);
+      const liveSnapshot = await transaction.get(liveRef);
+      if (liveSnapshot.exists && normalizeLiveTimelineState(liveSnapshot.data()).timeline) {
+        throw new HttpsError('already-exists', 'The live Executive timeline is already initialized.');
+      }
+      const sourceSnapshot = await transaction.get(db.collection('weeks').doc(sourceWeekId));
+      if (!sourceSnapshot.exists) throw new HttpsError('not-found', 'The selected source reporting week was not found.');
+      const timeline = liveTimelineFromWeek(sourceSnapshot.data());
+      if (!timeline) throw new HttpsError('failed-precondition', 'The selected reporting week has no Executive milestone timeline.');
+      const now = new Date().toISOString();
+      const state = { timeline, version: 1, initializedAt: now, initializedBy: actor.email, updatedAt: now, updatedBy: actor.email };
+      transaction.set(liveRef, state);
+      return state;
+    });
+    return { ok: true, timelineVersion: result.version };
+  } catch (error) {
+    throw asHttpsError(error);
+  }
+});
+
 const setExecutiveRagOverride = onCall(CALLABLE_OPTIONS, async request => {
   try {
-    const weekId = requireWeekId(request.data);
     const scope = String(request.data?.scope || '').trim().toLowerCase();
     const targetId = String(request.data?.targetId || '').trim();
     const replacementValue = request.data?.rag == null ? null : String(request.data.rag).trim().toLowerCase();
@@ -391,14 +415,14 @@ const setExecutiveRagOverride = onCall(CALLABLE_OPTIONS, async request => {
     if (replacementValue !== null && !RAGS.has(replacementValue)) throw new HttpsError('invalid-argument', 'Override RAG must be green, yellow, red, or null.');
     if (!reason) throw new HttpsError('invalid-argument', 'An override reason is required.');
 
-    const weekRef = db.collection('weeks').doc(weekId);
     const auditRef = db.collection('executiveMilestoneAudit').doc();
     const result = await db.runTransaction(async transaction => {
       const actor = await getActor(transaction, request);
       if (!['admin', 'executive'].includes(actor.role)) throw new HttpsError('permission-denied', 'Role is not authorized to override Executive RAG.');
       const config = await readExecutiveTimelineConfig(transaction);
-      const week = await readWeek(transaction, weekRef);
-      const timeline = JSON.parse(JSON.stringify(week.strategyLayer?.executiveMilestoneTimeline || {}));
+      const { liveRef, state } = await readLiveTimeline(transaction);
+      const now = new Date().toISOString();
+      const timeline = JSON.parse(JSON.stringify(state.timeline || {}));
       const calculatedValue = calculateOverrideTarget(timeline, scope, targetId, config);
       const key = [scope, targetId].join(':');
       timeline.ragOverrides = timeline.ragOverrides && typeof timeline.ragOverrides === 'object' ? timeline.ragOverrides : {};
@@ -412,16 +436,12 @@ const setExecutiveRagOverride = onCall(CALLABLE_OPTIONS, async request => {
         reason,
         actorEmail: actor.email,
         actorRole: actor.role,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
       };
-      transaction.update(weekRef, {
-        'strategyLayer.executiveMilestoneTimeline': timeline,
-        lastModifiedBy: actor.email,
-      });
+      const nextState = saveLiveTimeline(transaction, liveRef, state, timeline, actor.email, now);
       const audit = {
         auditId: auditRef.id,
         action: replacementValue === null ? 'remove-rag-override' : 'set-rag-override',
-        weekId,
         scope,
         targetId,
         calculatedValue,
@@ -431,12 +451,13 @@ const setExecutiveRagOverride = onCall(CALLABLE_OPTIONS, async request => {
         actorEmail: actor.email,
         actorRole: actor.role,
         configVersion: config.version,
-        createdAt: new Date().toISOString(),
+        timelineVersion: nextState.version,
+        createdAt: now,
       };
       transaction.create(auditRef, audit);
       return audit;
     });
-    return { ok: true, weekId, scope, targetId, rag: result.replacementValue };
+    return { ok: true, scope, targetId, rag: result.replacementValue, timelineVersion: result.timelineVersion };
   } catch (error) {
     throw asHttpsError(error);
   }
@@ -448,6 +469,7 @@ module.exports = {
   withdrawExecutiveMilestoneChangeRequest,
   decideExecutiveMilestoneChangeRequest,
   applyDirectExecutiveMilestoneChange,
+  initializeExecutiveMilestoneLiveTimeline,
   saveExecutiveMilestoneTimelineConfig,
   setExecutiveRagOverride,
 };

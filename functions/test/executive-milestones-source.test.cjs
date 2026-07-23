@@ -21,6 +21,21 @@ test('defines all Executive milestone callable handlers', () => {
   }
 });
 
+test('Executive mutations read and write the live timeline rather than a reporting week', () => {
+  const source = read('executive-milestones.js');
+  assert.match(source, /liveTimelineRef\(db\)/);
+  assert.match(source, /transaction\.get\(liveRef\)/);
+  assert.match(source, /transaction\.set\(liveRef,/);
+  assert.doesNotMatch(source, /const weekId = requireWeekId\(request\.data\)/);
+});
+
+test('only Admin can initialise the live Executive timeline from a selected week', () => {
+  const source = read('executive-milestones.js');
+  assert.match(source, /const initializeExecutiveMilestoneLiveTimeline = onCall/);
+  assert.match(source, /Only administrators can initialize the live Executive timeline/);
+  assert.match(read('index.js'), /exports\.initializeExecutiveMilestoneLiveTimeline/);
+});
+
 test('defines and exports a requester-only Executive change withdrawal callable', () => {
   const source = read('executive-milestones.js');
   assert.match(source, /const\s+withdrawExecutiveMilestoneChangeRequest\s*=\s*onCall/);
@@ -51,30 +66,29 @@ test('authenticates from the token email and reloads the actor role in each tran
   assert.doesNotMatch(source, /allowVipBridge:\s*true/);
 });
 
-test('keeps weekly snapshots and append-only records in atomic transactions', () => {
+test('keeps live timeline writes and append-only records in atomic transactions', () => {
   const source = read('executive-milestones.js');
-  assert.match(source, /executiveMilestoneTimeline/);
+  assert.match(source, /liveTimelineRef/);
   assert.match(source, /executiveMilestoneUpdates/);
   assert.match(source, /executiveMilestoneChangeRequests/);
   assert.match(source, /executiveMilestoneAudit/);
-  assert.match(source, /transaction\.update\(weekRef/);
-  assert.match(source, /lastModifiedBy:\s*actor(?:Email|\.email)/);
+  assert.match(source, /transaction\.set\(liveRef, nextState/);
+  assert.match(source, /timelineVersion:/);
   assert.match(source, /transaction\.create\(updateRef/);
   assert.match(source, /transaction\.create\(requestRef/);
   assert.match(source, /transaction\.create\(auditRef/);
-  assert.match(source, /snapshot\.data\(\)\.isReleased\s*===\s*true/);
-  assert.match(source, /Released reporting weeks cannot be changed/);
+  assert.match(source, /Executive milestones have not been initialized/);
 });
 
-test('allows configured monthly Executive updates on released weeks without opening structural changes', () => {
+test('keeps every Executive mutation independent of reporting-week release state', () => {
   const source = read('executive-milestones.js');
   assert.match(
     source,
-    /const addExecutiveMilestoneUpdate[\s\S]*?readWeek\(transaction, weekRef, \{ allowReleased: true \}\)/,
+    /const addExecutiveMilestoneUpdate[\s\S]*?readLiveTimeline\(transaction\)/,
   );
   assert.match(
     source,
-    /const createExecutiveMilestoneChangeRequest[\s\S]*?readWeek\(transaction, weekRef\)/,
+    /const createExecutiveMilestoneChangeRequest[\s\S]*?readLiveTimeline\(transaction\)/,
   );
 });
 
