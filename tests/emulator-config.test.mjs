@@ -25,6 +25,12 @@ test('the local seed bypasses rules only through the Emulator Admin SDK', () => 
   assert.doesNotMatch(seed, /firestoreBase/);
 });
 
+test('the local seed includes the live Executive timeline and its configurable access policy', () => {
+  assert.match(seed, /seedDocument\('executiveMilestoneConfig', 'timeline'/);
+  assert.match(seed, /seedDocument\('executiveMilestoneState', 'live'/);
+  assert.match(seed, /TEST \/ DO NOT DELETE/);
+});
+
 test('the local emulator starter bypasses the workstation PowerShell script policy', () => {
   assert.match(starter, /powershell\.exe -NoProfile -ExecutionPolicy Bypass -File/);
   assert.match(starter, /start-v2\.2t-emulator\.ps1/);
