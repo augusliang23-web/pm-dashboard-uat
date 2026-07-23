@@ -14,6 +14,7 @@ const handler = createReportHandler({
     verifyIdToken: token => auth.verifyIdToken(token),
     getUserByEmail: async email => (await db.collection('users').doc(email).get()).data(),
     getWeekById: async id => (await db.collection('weeks').doc(id).get()).data(),
+    getLiveExecutiveTimeline: async () => (await db.collection('executiveMilestoneState').doc('live').get()).data(),
     getTrendWeeks: async week => {
       const snapshot = await db.collection('weeks')
         .where('weekLabel', '<=', String(week.weekLabel || ''))

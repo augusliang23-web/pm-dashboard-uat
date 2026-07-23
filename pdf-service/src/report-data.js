@@ -35,6 +35,17 @@ function includedProjectSections(project, sections) {
   });
 }
 
+function clone(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+function executiveTimelineForReport(week, liveState) {
+  const snapshot = week?.strategyLayer?.executiveMilestoneTimelineSnapshot;
+  if (week?.isReleased === true && snapshot?.timeline) return snapshot.timeline;
+  if (week?.isReleased !== true && liveState?.timeline) return liveState.timeline;
+  return week?.strategyLayer?.executiveMilestoneTimeline || week?.executiveMilestoneTimeline || null;
+}
+
 export async function loadAuthorizedReport({ request, idToken, adapters }) {
   const decodedToken = await adapters.verifyIdToken(idToken);
   const email = String(decodedToken?.email || '').trim().toLowerCase();
@@ -53,9 +64,22 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
         .filter(item => access.role !== 'executive' || item.isReleased === true)
         .slice(-6);
     }
+    const reportWeek = clone(week);
+    if (request.sections.includes('executive-milestones')) {
+      const liveState = week.isReleased === true || typeof adapters.getLiveExecutiveTimeline !== 'function'
+        ? null
+        : await adapters.getLiveExecutiveTimeline();
+      const executiveTimeline = executiveTimelineForReport(week, liveState);
+      if (executiveTimeline) {
+        reportWeek.strategyLayer = {
+          ...(reportWeek.strategyLayer || {}),
+          executiveMilestoneTimeline: clone(executiveTimeline)
+        };
+      }
+    }
     const report = {
       access,
-      week,
+      week: reportWeek,
       trendWeeks,
       sections: request.sections,
       overviewScope: request.overviewScope || 'system'
