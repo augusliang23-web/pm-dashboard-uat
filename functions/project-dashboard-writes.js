@@ -1,5 +1,6 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { getFirestore } = require('firebase-admin/firestore');
+const { liveTimelineRef, normalizeLiveTimelineState, snapshotFromLiveTimeline } = require('./executive-live-timeline');
 
 function database() {
   return getFirestore();
@@ -138,7 +139,17 @@ const setDashboardWeekRelease = onCall(async request => database().runTransactio
   const weekRef = database().collection('weeks').doc(requireWeekId(request.data));
   const weekSnapshot = await transaction.get(weekRef);
   if (!weekSnapshot.exists) throw new HttpsError('not-found', 'The reporting week no longer exists.');
-  const patch = { isReleased: request.data.isReleased === true, lastModifiedBy: actor.email, version: nextWeekVersion(weekSnapshot.data()) };
+  const isReleasing = request.data.isReleased === true;
+  const patch = { isReleased: isReleasing, lastModifiedBy: actor.email, version: nextWeekVersion(weekSnapshot.data()) };
+  if (isReleasing) {
+    const liveRef = liveTimelineRef(database());
+    const liveSnapshot = await transaction.get(liveRef);
+    const state = normalizeLiveTimelineState(liveSnapshot.exists ? liveSnapshot.data() : null);
+    if (!state.timeline) {
+      throw new HttpsError('failed-precondition', 'Executive milestones have not been initialized. Initialize the live roadmap before releasing this week.');
+    }
+    patch['strategyLayer.executiveMilestoneTimelineSnapshot'] = snapshotFromLiveTimeline(state, actor.email, new Date().toISOString());
+  }
   transaction.update(weekRef, patch);
   return { week: { ...weekSnapshot.data(), ...patch } };
 }));
