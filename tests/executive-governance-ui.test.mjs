@@ -113,7 +113,7 @@ test('drawer guards auth identity and renders append-only history newest first',
   }
 });
 
-test('v2.2T reads Executive milestones from the live state instead of the selected reporting week', () => {
+test('v2.2T routes Executive milestones through the independent live timeline source', () => {
   assert.match(rootDashboard, /let executiveLiveTimelineState = null;/);
   assert.match(rootDashboard, /doc\(db, 'executiveMilestoneState', 'live'\)/);
   assert.match(rootDashboard, /function currentExecutiveTimeline\(\)/);
@@ -124,6 +124,24 @@ test('v2.2T reads Executive milestones from the live state instead of the select
   assert.doesNotMatch(source, /isWeekReleased\(allWeeks\[currentIdx\]\)/);
   assert.match(rootDashboard, /initializeExecutiveLiveTimeline/);
   assert.doesNotMatch(rootDashboard, /weekId: session\.weekId,[\s\S]{0,100}?itemId: session\.itemId/);
+});
+
+test('released Executive views default to the reporting-week snapshot and require an explicit live switch to edit', () => {
+  assert.match(rootDashboard, /let executiveTimelineViewMode = 'period';/);
+  assert.match(rootDashboard, /function selectedExecutiveTimelineSnapshot\(\)/);
+  assert.match(rootDashboard, /function isViewingLiveExecutiveTimeline\(\)/);
+  assert.match(rootDashboard, /window\.toggleExecutiveTimelineView =/);
+  assert.match(rootDashboard, /View live now/);
+  assert.match(rootDashboard, /Back to .*snapshot/);
+  assert.match(rootDashboard, /Release snapshot · Read-only/);
+  const renderStart = rootDashboard.indexOf('function renderExecutiveQuarterMilestones(');
+  const renderEnd = rootDashboard.indexOf('function renderProjectQuarterItems(', renderStart);
+  const source = rootDashboard.slice(renderStart, renderEnd);
+  assert.match(source, /const viewingLive = isViewingLiveExecutiveTimeline\(\);/);
+  assert.match(source, /const canChangeStructure = viewingLive && canChangeExecutiveStructure\(currentRole\);/);
+  assert.match(rootDashboard, /const canEdit = viewingLive && canUpdateConfiguredSection/);
+  assert.match(rootDashboard, /if \(!isViewingLiveExecutiveTimeline\(\)\) return;/);
+  assert.match(rootDashboard, /resetExecutiveTimelineView\(\);/);
 });
 
 test('structural requests use contextual actions and retain an exact hidden diff', () => {

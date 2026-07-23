@@ -2810,6 +2810,7 @@ let executiveTimelineConfig = DEFAULT_EXECUTIVE_TIMELINE_CONFIG;
 let executiveTimelineConfigUnsub = null;
 let executiveLiveTimelineState = null;
 let executiveLiveTimelineUnsub = null;
+let executiveTimelineViewMode = 'period';
 let authSessionGeneration = 0;
 let isAdminExecutivePreview = false;
 let currentPMFilter = 'all';
@@ -4166,6 +4167,7 @@ function quiesceDashboardForAuthTransition() {
   }
   executiveTimelineConfig = DEFAULT_EXECUTIVE_TIMELINE_CONFIG;
   executiveLiveTimelineState = null;
+  executiveTimelineViewMode = 'period';
   stopGanttTemplateConfigSubscription();
   invalidateProjectEditorSession();
   invalidateGanttTemplateSession();
@@ -4433,6 +4435,7 @@ function setupUI() {
 // ── DATA ──
 window.jumpToWeek = (idx) => {
   currentIdx = parseInt(idx, 10);
+  resetExecutiveTimelineView();
   render();
 };
 
@@ -5450,8 +5453,34 @@ function canViewExecutiveSection(row = {}, role = currentRole) {
   return canViewConfiguredSection(executiveTimelineConfig, role, row.sectionId);
 }
 
+function selectedExecutiveTimelineSnapshot() {
+  const week = allWeeks[currentIdx];
+  if (!isWeekReleased(week)) return null;
+  const stored = week?.strategyLayer?.executiveMilestoneTimelineSnapshot;
+  const timeline = stored?.timeline || week?.strategyLayer?.executiveMilestoneTimeline || week?.executiveMilestoneTimeline;
+  if (!timeline) return null;
+  return {
+    timeline,
+    capturedAt: stored?.capturedAt || '',
+    capturedBy: stored?.capturedBy || '',
+    legacy: !stored?.timeline,
+  };
+}
+
+function isViewingLiveExecutiveTimeline() {
+  return !selectedExecutiveTimelineSnapshot() || executiveTimelineViewMode === 'live';
+}
+
+function resetExecutiveTimelineView() {
+  executiveTimelineViewMode = 'period';
+}
+
 function currentExecutiveTimeline() {
-  return normalizeExecutiveMilestoneTimeline(executiveLiveTimelineState?.timeline || {});
+  const snapshot = selectedExecutiveTimelineSnapshot();
+  const timeline = !snapshot || isViewingLiveExecutiveTimeline()
+    ? executiveLiveTimelineState?.timeline
+    : snapshot.timeline;
+  return normalizeExecutiveMilestoneTimeline(timeline || {});
 }
 
 function normalizeExecutiveMilestoneTimeline(raw = {}) {
@@ -6255,7 +6284,7 @@ function renderExecutiveCompactItem(source, row) {
   const updateRecord = executiveUpdateRecordLabel(freshness, item.latestStatusAt);
   const updateRecordHelp = 'This indicates the freshness of the leadership status update only. It does not indicate milestone delay or change the RAG status.';
   const canUpdate = canUpdateConfiguredSection(executiveTimelineConfig, currentRole, row.sectionId);
-  const canDrag = canViewExecutiveSection(row);
+  const canDrag = isViewingLiveExecutiveTimeline() && canViewExecutiveSection(row);
   return `<article class="executive-compact-item ${rag}${canUpdate ? '' : ' read-only'}">
     ${canDrag ? `<button type="button" class="executive-milestone-drag-handle" draggable="true" data-executive-drag-item-id="${escHtml(item.id)}" aria-label="Drag ${escHtml(item.text || 'milestone')} to another quarter or section">☰</button>` : '<span></span>'}
     <button type="button" class="executive-compact-open" data-executive-item-id="${escHtml(item.id)}" data-executive-can-update="${canUpdate}" aria-label="${escHtml(`${item.text}, ${executiveRagLabel(rag)}`)}">
@@ -6287,26 +6316,35 @@ function renderExecutiveCategorySummaries(timeline, catalog, rows = timeline.row
 }
 
 function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), activeTrack = 'all', year = getDefaultRoadmapYear(projs, layer)) {
-  if (!executiveLiveTimelineState?.timeline) {
+  const snapshot = selectedExecutiveTimelineSnapshot();
+  const viewingLive = isViewingLiveExecutiveTimeline();
+  if (viewingLive && !executiveLiveTimelineState?.timeline) {
     const canInitialize = currentRole === 'admin' && executiveWeekDocumentId();
     return `<section class="roadmap-block executive-milestone-block"><div class="roadmap-block-head"><div><div class="roadmap-block-title">Executive milestones</div><div class="roadmap-block-note">The live Executive timeline has not been initialized yet.</div></div>${canInitialize ? '<button type="button" class="btn btn-primary" onclick="initializeExecutiveLiveTimeline()">Initialize Executive milestones</button>' : ''}</div></section>`;
   }
   const timeline = currentExecutiveTimeline();
+  const selectedWeek = allWeeks[currentIdx];
   const visibleRows = (timeline.rows || []).filter(row => canViewExecutiveSection(row));
   const quarters = executiveTimelineConfig.quarters;
   const catalog = buildExecutiveEvidenceCatalog(projs);
   const sectionRags = new Map(visibleRows.map(row => [row.sectionId, calculateExecutiveSectionRag(timeline, row)]));
   const quarterRags = quarters.map((quarter, index) => calculateExecutiveQuarterRag(timeline, catalog, index, visibleRows));
-  const canChangeStructure = canChangeExecutiveStructure(currentRole);
+  const canChangeStructure = viewingLive && canChangeExecutiveStructure(currentRole);
   const canManageOwnRequests = isExecutiveChangeRequester();
+  const modeLabel = viewingLive
+    ? 'Live Executive milestones · Current as of now'
+    : `${selectedWeek?.weekLabel || 'Selected week'} · Release snapshot · Read-only`;
+  const modeToggle = snapshot
+    ? `<button type="button" class="btn btn-ghost" onclick="toggleExecutiveTimelineView()">${viewingLive ? `Back to ${escHtml(selectedWeek?.weekLabel || 'selected week')} snapshot` : 'View live now'}</button>`
+    : '';
   if (!visibleRows.length) return '';
   return `<section class="roadmap-block executive-milestone-block">
     <div class="roadmap-block-head">
       <div>
         <div class="roadmap-block-title">Executive milestones</div>
-        <div class="roadmap-block-note">Leadership-level quarterly timeline, separate from PM project milestone input.</div>
+        <div class="roadmap-block-note">${escHtml(modeLabel)}</div>
       </div>
-      <div class="executive-approval-actions">${canManageOwnRequests ? '<button type="button" class="btn-ghost" onclick="openExecutiveMyRequests()">My change requests</button>' : ''}${canChangeStructure ? '<button type="button" class="btn-ghost" onclick="openExecutiveTimelineSettings()">Timeline settings</button>' : ''}<span class="reason-pill">${year}</span></div>
+      <div class="executive-approval-actions">${modeToggle}${canManageOwnRequests ? '<button type="button" class="btn-ghost" onclick="openExecutiveMyRequests()">My change requests</button>' : ''}${canChangeStructure ? '<button type="button" class="btn-ghost" onclick="openExecutiveTimelineSettings()">Timeline settings</button>' : ''}<span class="reason-pill">${year}</span></div>
     </div>
     <div class="dcdc-timeline">
       <div class="dcdc-title">${escHtml(timeline.title || `Selected ${year} DCDC Milestone Timeline`)}</div>
@@ -6315,7 +6353,7 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
         ${quarters.map((quarter, index) => `<div class="dcdc-cell dcdc-quarter"><div class="dcdc-quarter-content"><span>${escHtml(quarter.label)}</span>${canChangeStructure ? `<button type="button" class="executive-summary-rag-control" data-executive-rag-override="quarter" data-target-id="${escHtml(quarter.quarterId)}" onclick="openExecutiveRagOverride('quarter','${escHtml(quarter.quarterId)}')"><span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span></button>` : `<span class="dcdc-quarter-rag ${quarterRags[index]}">${escHtml(executiveRagLabel(quarterRags[index]))}</span>`}</div></div>`).join('')}
         ${visibleRows.map(row => `
           <div class="dcdc-cell dcdc-row-label"><span>${escHtml(row.label)}</span>${canChangeStructure ? `<button type="button" class="executive-summary-rag-control" data-executive-rag-override="section" data-target-id="${escHtml(row.sectionId)}" onclick="openExecutiveRagOverride('section','${escHtml(row.sectionId)}')"><span class="dcdc-section-rag ${sectionRags.get(row.sectionId)}">${escHtml(executiveRagLabel(sectionRags.get(row.sectionId)))}</span></button>` : `<span class="dcdc-section-rag ${sectionRags.get(row.sectionId)}">${escHtml(executiveRagLabel(sectionRags.get(row.sectionId)))}</span>`}</div>
-          ${(row.cells || []).map((items, quarterIndex) => `<div class="dcdc-cell" data-executive-drop-section="${escHtml(row.sectionId)}" data-executive-drop-quarter="${escHtml(quarters[quarterIndex]?.quarterId || '')}"><div class="executive-compact-list">${(items || []).map(item => renderExecutiveCompactItem(item, row)).join('')}${canViewExecutiveSection(row) ? `<button type="button" class="btn btn-ghost executive-inline-add" onclick="openExecutiveStructuralAction({ action: 'add', sectionId: '${escHtml(row.sectionId)}', quarterKey: '${escHtml(quarters[quarterIndex]?.quarterId || '')}' })">+ Add milestone</button>` : ''}</div></div>`).join('')}
+          ${(row.cells || []).map((items, quarterIndex) => `<div class="dcdc-cell" data-executive-drop-section="${escHtml(row.sectionId)}" data-executive-drop-quarter="${escHtml(quarters[quarterIndex]?.quarterId || '')}"><div class="executive-compact-list">${(items || []).map(item => renderExecutiveCompactItem(item, row)).join('')}${viewingLive && canViewExecutiveSection(row) ? `<button type="button" class="btn btn-ghost executive-inline-add" onclick="openExecutiveStructuralAction({ action: 'add', sectionId: '${escHtml(row.sectionId)}', quarterKey: '${escHtml(quarters[quarterIndex]?.quarterId || '')}' })">+ Add milestone</button>` : ''}</div></div>`).join('')}
         `).join('')}
       </div>
       <div class="dcdc-phase-row">
@@ -6325,6 +6363,15 @@ function renderExecutiveQuarterMilestones(projs, layer = getStrategyLayer(), act
     </div>
   </section>`;
 }
+
+window.toggleExecutiveTimelineView = () => {
+  if (!selectedExecutiveTimelineSnapshot()) return;
+  executiveTimelineViewMode = isViewingLiveExecutiveTimeline() ? 'period' : 'live';
+  closeModal('executiveItemDrawerOverlay', { force: true });
+  closeModal('executiveChangeRequestOverlay', { force: true });
+  closeModal('executiveRagOverrideOverlay', { force: true });
+  render();
+};
 
 document.addEventListener('click', event => {
   const button = event.target.closest?.('[data-executive-item-id]');
@@ -6336,6 +6383,7 @@ let executiveDragSession = null;
 function clearExecutiveDragTarget() { document.querySelectorAll('.executive-drop-target').forEach(cell => cell.classList.remove('executive-drop-target')); }
 function executiveDropIndex(cell, clientY) { const cards = [...cell.querySelectorAll('.executive-compact-item')]; const targetIndex = cards.findIndex(card => clientY < card.getBoundingClientRect().top + (card.getBoundingClientRect().height / 2)); return targetIndex < 0 ? cards.length : targetIndex; }
 document.addEventListener('dragstart', event => {
+  if (!isViewingLiveExecutiveTimeline()) return;
   const handle = event.target.closest?.('[data-executive-drag-item-id]'); if (!handle) return;
   const location = findExecutiveTimelineItem(handle.dataset.executiveDragItemId); if (!location || !canViewExecutiveSection(location.row)) return;
   executiveDragSession = { itemId: location.item.id, sourceSectionId: location.row.sectionId, sourceQuarterKey: location.quarterKey, sourceIndex: location.row.cells[location.quarterIndex].findIndex(item => item.id === location.item.id) };
@@ -6384,6 +6432,7 @@ function findExecutiveTimelineItem(itemId) {
 
 function isExecutiveUpdateSessionCurrent(session = executiveUpdateSession, options = {}) {
   if (!session || session !== executiveUpdateSession) return false;
+  if (!isViewingLiveExecutiveTimeline()) return false;
   if (session.authUid !== (currentUser?.uid || '')) return false;
   if (session.authEmail !== getEmailKey(currentUser)) return false;
   if (session.role !== currentRole) return false;
@@ -6420,7 +6469,12 @@ function renderExecutiveItemDrawer(location, canEdit) {
   const saveButton = document.getElementById('executiveSaveUpdateBtn');
   if (context) context.textContent = location.row.label + ' · ' + location.quarterKey.toUpperCase();
   if (title) title.textContent = item.text || 'Milestone update';
-  if (readOnly) readOnly.hidden = canEdit;
+  if (readOnly) {
+    readOnly.hidden = canEdit;
+    readOnly.textContent = isViewingLiveExecutiveTimeline()
+      ? 'Read-only access. You may review history or request a structural change.'
+      : 'This is the released snapshot. Select View live now to work with the current Executive milestones.';
+  }
   if (textarea) {
     textarea.value = '';
     textarea.disabled = !canEdit;
@@ -6434,7 +6488,7 @@ function renderExecutiveItemDrawer(location, canEdit) {
     saveButton.disabled = false;
   }
   const structuralSection = document.getElementById('executiveDrawerStructuralSection');
-  if (structuralSection) structuralSection.hidden = false;
+  if (structuralSection) structuralSection.hidden = !isViewingLiveExecutiveTimeline();
   const error = document.getElementById('executiveItemDrawerError');
   if (error) {
     error.textContent = '';
@@ -6453,7 +6507,8 @@ window.openExecutiveItemDrawer = itemId => {
   const location = findExecutiveTimelineItem(String(itemId || ''));
   if (!location || !canViewExecutiveSection(location.row)) return;
   if (executiveUpdateHistoryUnsub) executiveUpdateHistoryUnsub();
-  const canEdit = canUpdateConfiguredSection(executiveTimelineConfig, currentRole, location.row.sectionId);
+  const viewingLive = isViewingLiveExecutiveTimeline();
+  const canEdit = viewingLive && canUpdateConfiguredSection(executiveTimelineConfig, currentRole, location.row.sectionId);
   executiveUpdateSession = {
     authUid: currentUser?.uid || '',
     authEmail: getEmailKey(currentUser),
@@ -6467,6 +6522,11 @@ window.openExecutiveItemDrawer = itemId => {
   renderExecutiveItemDrawer(location, canEdit);
   renderExecutiveUpdateHistory([]);
   const history = document.getElementById('executiveUpdateHistory');
+  if (!viewingLive) {
+    if (history) history.innerHTML = '<div class="executive-history-empty">This is the released snapshot. View live now to review the current update history.</div>';
+    openAccessibleModal(document.getElementById('executiveItemDrawerOverlay'));
+    return;
+  }
   if (history) history.innerHTML = '<div class="executive-history-empty">Loading history…</div>';
   const historyQuery = query(
     collection(db, 'executiveMilestoneUpdates'),
@@ -6534,6 +6594,7 @@ function executiveLocationSnapshot(location) {
 function isExecutiveChangeSessionCurrent(session = executiveChangeSession) {
   return Boolean(session
     && session === executiveChangeSession
+    && isViewingLiveExecutiveTimeline()
     && session.authUid === (currentUser?.uid || '')
     && session.authEmail === getEmailKey(currentUser)
     && session.role === currentRole);
@@ -6597,6 +6658,7 @@ function renderExecutiveStructuralSummary() {
 window.renderExecutiveStructuralSummary = renderExecutiveStructuralSummary;
 
 function openExecutiveStructuralAction({ action = 'add', itemId = '', sectionId = '', quarterKey = '', targetIndex } = {}) {
+  if (!isViewingLiveExecutiveTimeline()) return;
   const location = itemId ? findExecutiveTimelineItem(String(itemId)) : null;
   if (!['add', 'rename', 'move', 'delete'].includes(action) || (itemId && (!location || !canViewExecutiveSection(location.row)))) return;
   const visibleSections = executiveTimelineConfig.sections.filter(section => canViewConfiguredSection(executiveTimelineConfig, currentRole, section.sectionId));
@@ -6852,6 +6914,7 @@ window.decideExecutiveChangeRequest = async (requestId, decision, sourceButton) 
 };
 
 window.openExecutiveRagOverride = (scope, targetId) => {
+  if (!isViewingLiveExecutiveTimeline()) return;
   if (!canChangeExecutiveStructure(currentRole)) return;
   const timeline = currentExecutiveTimeline();
   const existing = timeline.ragOverrides?.[`${scope}:${targetId}`] || null;
@@ -9011,6 +9074,7 @@ window.navWeek = (dir) => {
   const nextIndex = Math.max(0, Math.min(allWeeks.length - 1, currentIdx + dir));
   if (nextIndex !== currentIdx) {
     currentIdx = nextIndex;
+    resetExecutiveTimelineView();
   }
   render();
 };
