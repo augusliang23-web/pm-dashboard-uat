@@ -2776,19 +2776,20 @@ import { getExecutiveTimelineCell } from "./executive-timeline-core.js";
 import { copyPreviousWeekCarryover } from "./week-carryover.mjs";
 import { downloadProfessionalPdf } from "./professional-pdf-client.mjs";
 
-const LOCAL_EMULATOR_PROJECT_ID = 'demo-pm-dashboard-v22t';
-const useLocalEmulator = new URLSearchParams(window.location.search).get('emulator') === '1';
-const app = initializeApp(useLocalEmulator
-  ? { ...FIREBASE_CONFIG, projectId: LOCAL_EMULATOR_PROJECT_ID, authDomain: '127.0.0.1' }
-  : FIREBASE_CONFIG);
+const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const useLocalAuthEmulator = isLocalPreview
+  && new URLSearchParams(window.location.search).get('emulator') === '1';
+const app = initializeApp(FIREBASE_CONFIG);
 const PROFESSIONAL_PDF_SERVICE_URL = window.PM_DASHBOARD_PDF_SERVICE_URL || '';
 const db = getFirestore(app);
 const auth = getAuth(app);
 const functions = getFunctions(app, 'us-central1');
-if (useLocalEmulator) {
+if (isLocalPreview) {
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
-  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
   connectFunctionsEmulator(functions, '127.0.0.1', 5001);
+}
+if (useLocalAuthEmulator) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
 }
 const executiveApi = createExecutiveApi({ functions, httpsCallable });
 const projectDashboardApi = createProjectDashboardApi({ functions, httpsCallable });

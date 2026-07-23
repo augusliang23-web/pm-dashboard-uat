@@ -10,7 +10,7 @@ $emulatorErrorLog = Join-Path $repoRoot 'tmp\v2.2t-emulator-error.log'
 $previewLog = Join-Path $repoRoot 'tmp\v2.2t-preview.log'
 $previewErrorLog = Join-Path $repoRoot 'tmp\v2.2t-preview-error.log'
 
-Start-Process -FilePath 'npm.cmd' -ArgumentList '--prefix', 'functions', 'exec', 'firebase', '--', 'emulators:start', '--only', 'auth,firestore,functions' -WorkingDirectory $repoRoot -WindowStyle Hidden -RedirectStandardOutput $emulatorLog -RedirectStandardError $emulatorErrorLog
+Start-Process -FilePath 'npm.cmd' -ArgumentList '--prefix', 'functions', 'exec', 'firebase', '--', 'emulators:start', '--project', 'project-manager-dashboar-a067f', '--only', 'auth,firestore,functions' -WorkingDirectory $repoRoot -WindowStyle Hidden -RedirectStandardOutput $emulatorLog -RedirectStandardError $emulatorErrorLog
 
 for ($attempt = 0; $attempt -lt 30; $attempt += 1) {
   if ((Test-NetConnection -ComputerName '127.0.0.1' -Port 8080 -InformationLevel Quiet)) { break }
@@ -23,7 +23,8 @@ if (-not (Test-NetConnection -ComputerName '127.0.0.1' -Port 8080 -InformationLe
 $env:FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099'
 $env:FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080'
 node (Join-Path $repoRoot 'scripts\seed-v2.2t-emulator.mjs')
+node (Join-Path $repoRoot 'scripts\sync-v2.2t-local-data.mjs')
 if (-not (Test-NetConnection -ComputerName '127.0.0.1' -Port 4173 -InformationLevel Quiet)) {
   Start-Process -FilePath 'npx.cmd' -ArgumentList '--yes', 'http-server', '.', '-p', '4173', '-c-1' -WorkingDirectory $repoRoot -WindowStyle Hidden -RedirectStandardOutput $previewLog -RedirectStandardError $previewErrorLog
 }
-Write-Output 'Open http://127.0.0.1:4173/?emulator=1'
+Write-Output 'Open http://127.0.0.1:4173/'
