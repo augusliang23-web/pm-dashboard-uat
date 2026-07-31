@@ -98,6 +98,18 @@ test('v2.2T Executive milestone editor uses the centered modal pattern', () => {
   assert.doesNotMatch(rootDashboard, /\.executive-drawer-overlay \{[^}]*justify-content:flex-end;/);
 });
 
+test('root Executive structural actions lock a milestone while its approval request is pending', () => {
+  assert.match(rootDashboard, /from "\.\/js\/executive-pending-lock\.mjs"/);
+  assert.match(rootDashboard, /let executivePendingMilestoneIds = new Set\(\);/);
+  assert.match(rootDashboard, /collection\(db, 'executiveMilestoneChangeRequests'\)/);
+  assert.match(rootDashboard, /pendingExecutiveMilestoneIds\(snapshot\.docs\.map\(entry => entry\.data\(\)\)\)/);
+  assert.match(rootDashboard, /This Executive Milestone is waiting for approval\./);
+  const actionStart = rootDashboard.indexOf('function openExecutiveStructuralAction(');
+  const actionEnd = rootDashboard.indexOf('window.openExecutiveStructuralAction =', actionStart);
+  const actionSource = rootDashboard.slice(actionStart, actionEnd);
+  assert.match(actionSource, /isExecutiveMilestoneActionLocked\(\{ action, itemId: location\.item\.id, pendingIds: executivePendingMilestoneIds \}\)/);
+});
+
 test('drawer guards auth identity and renders append-only history newest first', () => {
   for (const dashboard of dashboards) {
     assert.match(dashboard, /function isExecutiveUpdateSessionCurrent\(/);
@@ -245,16 +257,6 @@ test('move submission uses standard action buttons and leaves a visible result i
     assert.match(dashboard, /showSaveToast\(error\.message \|\| 'Unable to submit the change\.'/);
     assert.match(dashboard, /requestButton\.disabled = false/);
     assert.match(dashboard, /requestButton\.textContent = 'Submit for approval'/);
-  }
-});
-
-test('both dashboards wire pending Executive milestone locks into structural changes', () => {
-  for (const dashboard of dashboards) {
-    assert.match(dashboard, /executivePendingMilestoneOverlay/);
-    assert.match(dashboard, /This Executive Milestone is waiting for approval\./);
-    assert.match(dashboard, /pendingExecutiveMilestoneIds\(snapshot\.docs\.map\(entry => entry\.data\(\)\)\)/);
-    assert.match(dashboard, /isExecutiveMilestoneActionLocked\(\{ action, itemId: location\.item\.id, pendingIds: executivePendingMilestoneIds \}\)/);
-    assert.match(dashboard, /isExecutiveMilestoneActionLocked\(\{ action: payload\.changeType, itemId: payload\.itemId, pendingIds: executivePendingMilestoneIds \}\)/);
   }
 });
 

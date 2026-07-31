@@ -5,12 +5,13 @@ import { readFile } from 'node:fs/promises';
 const production = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const testVersion = await readFile(new URL('../team-2/index.html', import.meta.url), 'utf8');
 
-test('v2.0 uses confirmed immutable release writes', () => {
+test('v2.2T uses confirmed protected release writes', () => {
   assert.match(
     production,
     /import \{ confirmWeekMutation, getWriteErrorMessage \} from "\.\/sync-core\.js"/
   );
-  assert.match(production, /await updateDoc\(doc\(db, "weeks", id\), \{/);
+  assert.match(production, /await projectDashboardApi\.setWeekRelease\(\{ weekId: id, isReleased: newStatus \}\)/);
+  assert.doesNotMatch(production, /await updateDoc\(doc\(db, "weeks", id\), \{/);
   assert.match(
     production,
     /finally\s*\{\s*releaseWriteInProgress = false;\s*hideLoader\(\)/s

@@ -6,6 +6,7 @@ const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf
 const seed = await readFile(new URL('../scripts/seed-v2.2t-emulator.mjs', import.meta.url), 'utf8');
 const starter = await readFile(new URL('../scripts/start-v2.2t-emulator.cmd', import.meta.url), 'utf8');
 const starterScript = await readFile(new URL('../scripts/start-v2.2t-emulator.ps1', import.meta.url), 'utf8');
+const localSync = await readFile(new URL('../scripts/sync-v2.2t-local-data.mjs', import.meta.url), 'utf8').catch(() => '');
 
 test('v2.2T local preview can only opt into the isolated Firebase Emulator project', async () => {
   const config = JSON.parse(await readFile(new URL('../firebase.json', import.meta.url), 'utf8'));
@@ -17,6 +18,14 @@ test('v2.2T local preview can only opt into the isolated Firebase Emulator proje
   assert.equal(config.emulators.functions.port, 5001);
   assert.match(dashboard, /new URLSearchParams\(window\.location\.search\)\.get\('emulator'\) === '1'/);
   assert.match(dashboard, /connectFirestoreEmulator\(db, '127\.0\.0\.1', 8080\)/);
+});
+
+test('normal localhost keeps secure Auth while using local Firestore and Functions', () => {
+  assert.match(dashboard, /const isLocalPreview = \['localhost', '127\.0\.0\.1'\]\.includes\(window\.location\.hostname\)/);
+  assert.match(dashboard, /const useLocalAuthEmulator = isLocalPreview[\s\S]*get\('emulator'\) === '1'/);
+  assert.match(dashboard, /const app = initializeApp\(FIREBASE_CONFIG\)/);
+  assert.match(dashboard, /if \(isLocalPreview\) \{[\s\S]*connectFirestoreEmulator\(db, '127\.0\.0\.1', 8080\)[\s\S]*connectFunctionsEmulator\(functions, '127\.0\.0\.1', 5001\)/);
+  assert.match(dashboard, /if \(useLocalAuthEmulator\) \{[\s\S]*connectAuthEmulator\(auth, 'http:\/\/127\.0\.0\.1:9099'/);
 });
 
 test('the local seed bypasses rules only through the Emulator Admin SDK', () => {
@@ -46,4 +55,14 @@ test('the starter writes emulator errors separately and preserves an existing lo
 test('the starter seeds Auth and Firestore into the isolated emulator only', () => {
   assert.match(starterScript, /\$env:FIREBASE_AUTH_EMULATOR_HOST\s*=\s*'127\.0\.0\.1:9099'/);
   assert.match(starterScript, /\$env:FIRESTORE_EMULATOR_HOST\s*=\s*'127\.0\.0\.1:8080'/);
+});
+
+test('the local starter restores existing dashboard data after seeding', () => {
+  assert.match(starterScript, /sync-v2\.2t-local-data\.mjs/);
+  assert.match(starterScript, /--project', 'project-manager-dashboar-a067f'/);
+  assert.match(localSync, /project-manager-dashboar-a067f/);
+  assert.match(localSync, /const LOCAL_PROJECT_ID = SOURCE_PROJECT_ID/);
+  assert.match(localSync, /v2\.2t-production-snapshot\.json/);
+  assert.match(localSync, /applicationDefault\(\)/);
+  assert.match(localSync, /FIRESTORE_EMULATOR_HOST/);
 });

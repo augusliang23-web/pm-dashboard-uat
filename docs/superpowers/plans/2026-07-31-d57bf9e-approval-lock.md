@@ -67,7 +67,7 @@ Expected: both root editor markers appear; the second command prints no paths.
 - Create: `js/executive-pending-lock.mjs`
 
 **Interfaces:**
-- Produces: `pendingExecutiveMilestoneIds(records)` returning `Set<string>` and `isExecutiveMilestoneActionLocked(milestoneId, pendingIds)` returning `boolean`
+- Produces: `pendingExecutiveMilestoneIds(records)` returning `Set<string>` and `isExecutiveMilestoneActionLocked({ action, itemId, pendingIds })` returning `boolean`
 - Consumed by: Task 3 root-page action guards
 
 - [ ] **Step 1: Write the failing helper test**
@@ -84,13 +84,13 @@ import {
 
 test('only pending Executive Milestone requests lock the matching milestone', () => {
   const pendingIds = pendingExecutiveMilestoneIds([
-    { milestoneId: 'waiting', status: 'pending' },
-    { milestoneId: 'approved', status: 'approved' },
-    { milestoneId: 'missing-id', status: 'pending' },
+    { itemId: 'waiting', state: 'pending' },
+    { itemId: 'approved', state: 'approved' },
+    { itemId: '', state: 'pending' },
   ]);
 
-  assert.equal(isExecutiveMilestoneActionLocked('waiting', pendingIds), true);
-  assert.equal(isExecutiveMilestoneActionLocked('approved', pendingIds), false);
+  assert.equal(isExecutiveMilestoneActionLocked({ action: 'move', itemId: 'waiting', pendingIds }), true);
+  assert.equal(isExecutiveMilestoneActionLocked({ action: 'move', itemId: 'approved', pendingIds }), false);
 });
 ```
 
@@ -111,12 +111,12 @@ Create `js/executive-pending-lock.mjs`:
 ```js
 export function pendingExecutiveMilestoneIds(records = []) {
   return new Set(records
-    .filter(record => record?.status === 'pending' && typeof record?.milestoneId === 'string' && record.milestoneId)
-    .map(record => record.milestoneId));
+    .filter(record => record?.state === 'pending' && typeof record?.itemId === 'string' && record.itemId)
+    .map(record => record.itemId));
 }
 
-export function isExecutiveMilestoneActionLocked(milestoneId, pendingIds) {
-  return Boolean(milestoneId && pendingIds?.has(milestoneId));
+export function isExecutiveMilestoneActionLocked({ action, itemId, pendingIds }) {
+  return ['move', 'rename', 'delete'].includes(action) && Boolean(itemId && pendingIds?.has(itemId));
 }
 ```
 
@@ -138,7 +138,7 @@ Expected: PASS with 1 test.
 - Create: `js/executive-pending-lock.mjs` (from Task 2)
 
 **Interfaces:**
-- Consumes: `pendingExecutiveMilestoneIds(records)` and `isExecutiveMilestoneActionLocked(milestoneId, pendingIds)`
+- Consumes: `pendingExecutiveMilestoneIds(records)` and `isExecutiveMilestoneActionLocked({ action, itemId, pendingIds })`
 - Produces: a Firestore-backed `Set` of pending milestone IDs and guard calls for move, rename, and delete
 
 - [ ] **Step 1: Add a failing root UI source test**
@@ -170,14 +170,14 @@ In `index.html`:
 ```js
 import { isExecutiveMilestoneActionLocked, pendingExecutiveMilestoneIds } from './js/executive-pending-lock.mjs';
 
-let pendingExecutiveMilestoneIdSet = new Set();
+let executivePendingMilestoneIds = new Set();
 
 function showPendingExecutiveMilestoneLock() {
   alert('This Executive Milestone is waiting for approval. You can move, rename, or delete it after the request is approved, rejected, or withdrawn.');
 }
 ```
 
-Subscribe to `executiveMilestoneChangeRequests` using the existing Firestore listener pattern, assigning `pendingExecutiveMilestoneIdSet = pendingExecutiveMilestoneIds(snapshot.docs.map(doc => doc.data()))`. Before each move, rename, and delete write path, call `isExecutiveMilestoneActionLocked(milestoneId, pendingExecutiveMilestoneIdSet)`; if true, call `showPendingExecutiveMilestoneLock()` and return before the write.
+Subscribe to `executiveMilestoneChangeRequests` using the existing Firestore listener pattern, assigning `executivePendingMilestoneIds = pendingExecutiveMilestoneIds(snapshot.docs.map(doc => doc.data()))`. Before each move, rename, and delete write path, call `isExecutiveMilestoneActionLocked({ action, itemId, pendingIds: executivePendingMilestoneIds })`; if true, call `showExecutiveMilestonePendingDialog()` and return before the write.
 
 - [ ] **Step 4: Run focused root tests to verify them passing**
 

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const dashboard = await readFile(new URL('../team-2/index.html', import.meta.url), 'utf8');
+const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 test('Overview exposes one Portfolio Roadmap with two view tabs', () => {
   assert.match(dashboard, /Portfolio Roadmap/);
@@ -13,13 +13,14 @@ test('Overview exposes one Portfolio Roadmap with two view tabs', () => {
   assert.doesNotMatch(dashboard, /Portfolio-wide executive timeline/);
 });
 
-test('executive roadmap has one edit action and project roadmap points to project cards', () => {
+test('v2.2T roadmap removes the legacy edit button and points project edits to project cards', () => {
   const start = dashboard.indexOf('function renderQuarterlyBoard');
   const end = dashboard.indexOf('function renderAttentionMatrix', start);
   const source = dashboard.slice(start, end);
-  assert.equal((source.match(/openExecutiveTimelineEditor\(\)/g) || []).length, 1);
-  assert.match(source, /Edit Quarterly Milestones/);
+  assert.equal((source.match(/openExecutiveTimelineEditor\(\)/g) || []).length, 0);
+  assert.doesNotMatch(source, /Edit Quarterly Milestones/);
   assert.doesNotMatch(source, /Edit Executive Roadmap/);
   assert.match(source, /Edit milestones from the project card/);
   assert.doesNotMatch(source, /Manage Strategy/);
+  assert.match(dashboard, /View live now/);
 });

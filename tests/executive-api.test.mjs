@@ -25,6 +25,7 @@ test('maps each browser method to the approved callable and exact payload', asyn
     ['applyDirectChange', 'applyDirectExecutiveMilestoneChange', { weekId: 'w1', reason: 'Admin correction' }],
     ['setRagOverride', 'setExecutiveRagOverride', { weekId: 'w1', scope: 'quarter', targetId: 'q1' }],
     ['saveTimelineConfig', 'saveExecutiveMilestoneTimelineConfig', { expectedVersion: 1, reason: 'Rename Q1', config: { sections: [], quarters: [] } }],
+    ['initializeLiveTimeline', 'initializeExecutiveMilestoneLiveTimeline', { sourceWeekId: 'W29-2026' }],
   ];
   for (const [method, name, payload] of payloads) {
     assert.deepEqual(await api[method](payload), { ok: true, name });
@@ -32,10 +33,7 @@ test('maps each browser method to the approved callable and exact payload', asyn
   assert.deepEqual(calls, payloads.map(([, name, payload]) => ({ name, payload })));
 });
 
-test('keeps root and Team 2 callable clients identical', async () => {
-  const [root, team2] = await Promise.all([
-    readFile(new URL('../js/executive-api.mjs', import.meta.url), 'utf8'),
-    readFile(new URL('../team-2/js/executive-api.mjs', import.meta.url), 'utf8'),
-  ]);
-  assert.equal(team2, root);
+test('v2.2T root client includes the live timeline initializer', async () => {
+  const root = await readFile(new URL('../js/executive-api.mjs', import.meta.url), 'utf8');
+  assert.match(root, /initializeLiveTimeline: invoke\(call\('initializeExecutiveMilestoneLiveTimeline'\)\)/);
 });
