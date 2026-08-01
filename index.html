@@ -265,6 +265,8 @@ button[aria-busy="true"] { cursor:wait; }
 .card-progress-val { font-size: 22px; font-weight: 800; line-height: 1; color: var(--text); }
 .card-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; margin-bottom: 18px; padding: 14px 0 16px; border-top: 1px solid var(--border); border-bottom: 1px dashed var(--border); }
 .info-lbl { font-size: 10px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+.section-update-note { color: var(--muted); font-size: 10px; font-weight: 600; line-height: 1.35; text-transform: none; }
+.exec-signal-heading { display:flex; align-items:flex-start; gap:8px; justify-content:space-between; }
 .info-val { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.4; }
 .info-val.owner { color: var(--accent-hov); }
 .card-section { margin-top: 18px; }
@@ -4362,6 +4364,16 @@ function getUserDisplayName(emailStr) {
   return n.charAt(0).toUpperCase() + n.slice(1);
 }
 
+function sectionUpdateLabel(project, section) {
+  const record = project?.sectionUpdatedAt?.[section];
+  const savedAt = record?.savedAt ? new Date(record.savedAt) : null;
+  const date = savedAt && !Number.isNaN(savedAt.getTime())
+    ? new Intl.DateTimeFormat('en-GB', { day:'numeric', month:'short', year:'numeric' }).format(savedAt)
+    : '';
+  const editorName = String(record?.editorName || '').trim();
+  return `<span class="section-update-note">${date && editorName ? `Updated · ${escHtml(date)} · ${escHtml(editorName)}` : 'No update recorded'}</span>`;
+}
+
 function stopProjectManagerSubscription() {
   if (projectManagerUnsub) projectManagerUnsub();
   projectManagerUnsub = null;
@@ -8247,6 +8259,7 @@ function renderExec(projs, summary, allProjects = projs) {
                   <span class="exec-owner-chip">${escHtml(p.owner || '-')}</span>
                   <span class="exec-code-chip">${escHtml(p.code)}</span>
                 </div>
+                ${sectionUpdateLabel(p, 'status')}
               </div>
 
               <div class="exec-progress-block">
@@ -8279,15 +8292,15 @@ function renderExec(projs, summary, allProjects = projs) {
 
               <div class="exec-project-signals">
                 <div class="exec-signal">
-                  <div class="exec-signal-label">Highlight</div>
+                  <div class="exec-signal-heading"><div class="exec-signal-label">Highlight</div>${sectionUpdateLabel(p, 'highlights')}</div>
                   <div class="stext">${formatBullets(p.highlight)}</div>
                 </div>
                 <div class="exec-signal risk">
-                  <div class="exec-signal-label">Risk / Blocker</div>
+                  <div class="exec-signal-heading"><div class="exec-signal-label">Risk / Blocker</div>${sectionUpdateLabel(p, 'riskActions')}</div>
                   <div class="stext">${formatBullets(p.risk)}</div>
                 </div>
                 <div class="exec-signal next">
-                  <div class="exec-signal-label">Weekly Actions</div>
+                  <div class="exec-signal-heading"><div class="exec-signal-label">Weekly Actions</div>${sectionUpdateLabel(p, 'weeklyActions')}</div>
                   <div class="stext">${formatBullets(p.weeklyActions || p.weeklyAction || 'No weekly actions yet.')}</div>
                 </div>
               </div>
@@ -10149,6 +10162,8 @@ window.saveProjEdit = async () => {
       projectCode: pData.code,
       project: pData,
       isNew: session.isNew,
+      editorName: getUserDisplayName(session.authEmail),
+      savedAt: new Date().toISOString(),
     });
     const savedWeek = response.week;
     Object.defineProperty(savedWeek, '__documentId', { value: session.weekId, enumerable: false, configurable: true });

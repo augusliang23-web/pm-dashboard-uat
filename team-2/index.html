@@ -9523,7 +9523,9 @@ window.saveProjEdit = async () => {
         }),
         expectedFingerprint: session.revisionFingerprint,
         fingerprintProject: project => projectRevisionFingerprint(normalizeProject(project)),
-        lastModifiedBy: session.authEmail
+        lastModifiedBy: session.authEmail,
+        editorName: getUserDisplayName(session.authEmail),
+        savedAt: new Date().toISOString()
       });
       transaction.update(targetWeekRef, {
         projects: result.week.projects,

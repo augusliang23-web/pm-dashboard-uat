@@ -67,6 +67,29 @@ function requestedProjectCode(data, fallback = '') {
   return String(data?.projectCode || data?.project?.code || fallback).trim();
 }
 
+const SECTION_METADATA_PATHS = {
+  status: ['projectLevel', 'lifecycle', 'status', 'progress', 'attention', 'attentionManual'],
+  highlights: ['highlight'], weeklyActions: ['weeklyActions'], riskActions: ['riskActions', 'risk', 'next'],
+  milestones: ['milestones', 'quarterlyMilestones'], schedule: ['ganttWorkstreams'],
+  teamAllocation: ['teamMembers', 'dataStatus.team'],
+  budgetPlan: ['budget.mode', 'budget.currency', 'budget.totalEstimated', 'budget.monthlyPlans', 'dataStatus.budgetPlan'],
+  actualSpend: ['budget.actuals', 'dataStatus.budgetActual'], disciplineHours: ['resources'],
+};
+
+function valueAtPath(source, path) {
+  return path.split('.').reduce((value, key) => value?.[key], source);
+}
+
+function updateProjectSectionMetadata(before = {}, after = {}, { editorName, savedAt } = {}) {
+  if (!String(editorName || '').trim() || !String(savedAt || '').trim()) return before.sectionUpdatedAt;
+  const metadata = { ...(before.sectionUpdatedAt || {}) };
+  for (const [section, paths] of Object.entries(SECTION_METADATA_PATHS)) {
+    const changed = paths.some(path => JSON.stringify(valueAtPath(before, path)) !== JSON.stringify(valueAtPath(after, path)));
+    if (changed) metadata[section] = { savedAt, editorName };
+  }
+  return Object.keys(metadata).length ? metadata : undefined;
+}
+
 function updateProject(week, data, actor) {
   assertDraftWeek(week);
   const code = requestedProjectCode(data);
@@ -77,7 +100,9 @@ function updateProject(week, data, actor) {
     throw new HttpsError('permission-denied', 'You do not have permission to edit this project.');
   }
   const projects = [...week.projects];
-  projects[index] = { ...projects[index], ...(data.project || {}), code: code || projects[index].code };
+  const savedProject = { ...projects[index], ...(data.project || {}), code: code || projects[index].code };
+  const sectionUpdatedAt = updateProjectSectionMetadata(projects[index], savedProject, data);
+  projects[index] = sectionUpdatedAt ? { ...savedProject, sectionUpdatedAt } : savedProject;
   if (projects.some((project, projectIndex) => projectIndex !== index && project?.code === projects[index].code)) {
     throw new HttpsError('already-exists', 'A project with this code already exists in the reporting week.');
   }
@@ -94,7 +119,9 @@ const saveDashboardProject = onCall(async request => database().runTransaction(a
   if (request.data?.isNew === true) {
     if (!canCreateProject(actor.role)) throw new HttpsError('permission-denied', 'Only administrators can create projects.');
     assertDraftWeek(week);
-    const project = { ...(request.data.project || {}), code: requestedProjectCode(request.data) };
+    const draftProject = { ...(request.data.project || {}), code: requestedProjectCode(request.data) };
+    const sectionUpdatedAt = updateProjectSectionMetadata({}, draftProject, request.data);
+    const project = sectionUpdatedAt ? { ...draftProject, sectionUpdatedAt } : draftProject;
     if (!project.code) throw new HttpsError('invalid-argument', 'A project code is required.');
     if ((week.projects || []).some(existing => existing?.code === project.code)) {
       throw new HttpsError('already-exists', 'A project with this code already exists in the reporting week.');
@@ -191,6 +218,7 @@ module.exports = {
   canDeleteProject,
   canCreateProject,
   canManageWeekFields,
+  updateProjectSectionMetadata,
   saveDashboardProject,
   deleteDashboardProject,
   setDashboardProjectAttention,
