@@ -49,5 +49,8 @@
 
 - [ ] Compare matching feature files against the v2.1 worktree after UAT implementation.
 - [ ] Run `npm test --prefix pdf-service && node --test tests/*.test.mjs` in both worktrees.
-- [ ] Deploy the shared Cloud Run PDF service once, then deploy each verified Pages source.
-- [ ] Confirm both release URLs expose and submit the two-step export flow.
+- [ ] Prepare and smoke-test a temporary Cloud Run source identical to the final service except that an omitted `projectCodes` field remains accepted for cached legacy clients.
+- [ ] Deploy the temporary compatible Cloud Run revision before changing either Pages site.
+- [ ] Push both verified Pages sources and confirm each live URL exposes the two-step flow and submits `projectCodes`.
+- [ ] Keep the compatible revision active through the Pages cache and active-session transition, then deploy the strict UAT Cloud Run source that requires `projectCodes`.
+- [ ] Re-test both release URLs against the strict revision and record the deployed commits and Cloud Run revision.
