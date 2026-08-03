@@ -55,6 +55,24 @@ test('loads no more than six trend weeks only for selected Overview trends', asy
   assert.equal(report.trendWeeks[0].weekLabel, 'W23');
 });
 
+test('limits trend history to released weeks for both Executive role vocabularies', async () => {
+  for (const role of ['vip', 'executive']) {
+    const report = await loadAuthorizedReport({
+      request: { mode: 'overview', weekId: 'W28', sections: ['weekly-trend'], projectCodes: ['PMS-001'] },
+      idToken: `${role}@example.com`,
+      adapters: {
+        ...adapters,
+        getUserByEmail: async () => ({ role }),
+        getTrendWeeks: async () => [
+          { weekLabel: 'W26', isReleased: false, projects: [{ code: 'PMS-001' }] },
+          { weekLabel: 'W27', isReleased: true, projects: [{ code: 'PMS-001' }] }
+        ]
+      }
+    });
+    assert.deepEqual(report.trendWeeks.map(week => week.weekLabel), ['W27'], role);
+  }
+});
+
 test('does not read trend history when Weekly trends is not selected', async () => {
   let calls = 0;
   const report = await loadAuthorizedReport({
@@ -192,4 +210,53 @@ test('filters current and trend weeks to selected Overview project codes', async
   assert.deepEqual(report.week.projects.map(project => project.code), ['PMS-001']);
   assert.deepEqual(report.trendWeeks[0].projects.map(project => project.code), ['PMS-001']);
   assert.equal(report.availableProjectCount, 2);
+});
+
+test('derives partial selection from trusted matching projects instead of requested code count', async () => {
+  const report = await loadAuthorizedReport({
+    request: {
+      mode: 'overview', weekId: 'W28', sections: ['executive-milestones'],
+      overviewScope: 'all', projectCodes: ['PMS-001', 'STALE-999']
+    },
+    idToken: 'pm@example.com',
+    adapters: {
+      ...adapters,
+      getWeekById: async () => ({
+        isReleased: true,
+        projects: [
+          { code: 'PMS-001', projectLevel: 'system', visibility: 'active' },
+          { code: 'MOD-002', projectLevel: 'hardware-module', visibility: 'active' }
+        ]
+      })
+    }
+  });
+
+  assert.equal(report.selectedProjectCount, 1);
+  assert.equal(report.availableProjectCount, 2);
+  assert.equal(report.projectSelectionIsPartial, true);
+});
+
+test('treats all reportable projects in the requested scope as a complete selection', async () => {
+  const report = await loadAuthorizedReport({
+    request: {
+      mode: 'overview', weekId: 'W28', sections: ['executive-milestones'],
+      overviewScope: 'hardware-module', projectCodes: ['MOD-002']
+    },
+    idToken: 'pm@example.com',
+    adapters: {
+      ...adapters,
+      getWeekById: async () => ({
+        isReleased: true,
+        projects: [
+          { code: 'PMS-001', projectLevel: 'system', visibility: 'active' },
+          { code: 'MOD-002', projectLevel: 'hardware-module', visibility: 'active' },
+          { code: 'MOD-ARCHIVED', projectLevel: 'hardware-module', visibility: 'archived' }
+        ]
+      })
+    }
+  });
+
+  assert.equal(report.selectedProjectCount, 1);
+  assert.equal(report.availableProjectCount, 1);
+  assert.equal(report.projectSelectionIsPartial, false);
 });
