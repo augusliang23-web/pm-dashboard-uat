@@ -61,6 +61,10 @@ function reportableOverviewProjects(week, overviewScope = 'system') {
     });
 }
 
+function activeOverviewWeek(week) {
+  return { ...week, projects: reportableOverviewProjects(week, 'all') };
+}
+
 function executiveTimelineForReport(week, liveState) {
   const snapshot = week?.strategyLayer?.executiveMilestoneTimelineSnapshot;
   if (week?.isReleased === true && snapshot?.timeline) return snapshot.timeline;
@@ -85,10 +89,10 @@ export async function loadAuthorizedReport({ request, idToken, adapters }) {
       trendWeeks = (Array.isArray(history) ? history : [])
         .filter(item => item && typeof item === 'object')
         .filter(item => !['vip', 'executive'].includes(access.role) || item.isReleased === true)
-        .map(item => selectOverviewProjects(item, request.projectCodes))
+        .map(item => selectOverviewProjects(activeOverviewWeek(item), request.projectCodes))
         .slice(-6);
     }
-    const reportWeek = selectOverviewProjects(clone(week), request.projectCodes);
+    const reportWeek = selectOverviewProjects(activeOverviewWeek(clone(week)), request.projectCodes);
     const availableProjectCount = reportableOverviewProjects(week, overviewScope).length;
     const selectedProjectCount = reportableOverviewProjects(reportWeek, overviewScope).length;
     if (request.sections.includes('executive-milestones')) {
