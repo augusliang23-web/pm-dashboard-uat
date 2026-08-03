@@ -164,3 +164,32 @@ test('uses the current live Executive timeline for a draft overview PDF', async 
   assert.equal(report.week.strategyLayer.executiveMilestoneTimeline.title, 'Current live timeline');
   assert.equal(liveReads, 1);
 });
+
+test('filters current and trend weeks to selected Overview project codes', async () => {
+  const report = await loadAuthorizedReport({
+    request: {
+      mode: 'overview',
+      weekId: 'W28',
+      sections: ['weekly-trend'],
+      projectCodes: ['PMS-001']
+    },
+    idToken: 'pm@example.com',
+    adapters: {
+      ...adapters,
+      getWeekById: async () => ({
+        weekLabel: 'W28 2026',
+        isReleased: true,
+        projects: [{ code: 'PMS-001' }, { code: 'MOD-002' }]
+      }),
+      getTrendWeeks: async () => [{
+        weekLabel: 'W27 2026',
+        isReleased: true,
+        projects: [{ code: 'PMS-001' }, { code: 'MOD-002' }]
+      }]
+    }
+  });
+
+  assert.deepEqual(report.week.projects.map(project => project.code), ['PMS-001']);
+  assert.deepEqual(report.trendWeeks[0].projects.map(project => project.code), ['PMS-001']);
+  assert.equal(report.availableProjectCount, 2);
+});
