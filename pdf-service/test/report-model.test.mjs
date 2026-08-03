@@ -128,6 +128,31 @@ test('filters Executive milestones for each authorized audience view', () => {
   assert.deepEqual(labelsFor('everyone'), ['IoE Product Portfolio']);
 });
 
+test('preserves legacy Executive milestone row labels and audience filtering', () => {
+  const fixture = completeOverviewReportFixture();
+  fixture.week.strategyLayer.executiveMilestoneTimeline = {
+    title: 'Legacy Executive Timeline',
+    quarters: ['Q1', 'Q2', 'Q3', 'Q4'],
+    phases: ['Plan', 'Build', 'Validate', 'Launch'],
+    rows: [
+      { label: 'Shared delivery', audience: 'all-working-team', cells: [['Shared Q1'], [], [], []] },
+      { label: 'Engineering', audience: 'pm-engineering', cells: [[], ['Engineering Q2'], [], []] },
+      { label: 'Commercial', audience: 'business-product', cells: [[], [], ['Commercial Q3'], []] },
+      { label: 'Leadership', audience: 'leadership-only', cells: [[], [], [], ['Leadership Q4']] },
+      { label: 'Public', audience: 'everyone', cells: [['Public Q1'], [], [], []] }
+    ]
+  };
+
+  const model = buildOverviewReportModel({ ...fixture, executiveAudienceView: 'pm-engineering' });
+
+  assert.deepEqual(model.executiveMilestones.rows.map(row => row.label), [
+    'Shared delivery', 'Engineering', 'Public'
+  ]);
+  assert.equal(JSON.stringify(model.executiveMilestones).includes('IoE Product Portfolio'), false);
+  assert.equal(JSON.stringify(model.executiveMilestones).includes('Commercial Q3'), false);
+  assert.equal(JSON.stringify(model.executiveMilestones).includes('Leadership Q4'), false);
+});
+
 test('normalizes Executive milestone outcomes to display text only', () => {
   const fixture = completeOverviewReportFixture();
   const model = buildOverviewReportModel({ ...fixture, executiveAudienceView: 'leadership' });

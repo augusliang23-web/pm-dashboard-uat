@@ -328,6 +328,13 @@ const EXECUTIVE_SECTIONS_BY_VIEW = {
   'business-product': new Set(EXECUTIVE_SECTIONS.map(section => section.sectionId)),
   everyone: new Set(['ioe-product-portfolio'])
 };
+const EXECUTIVE_AUDIENCES_BY_VIEW = {
+  leadership: new Set(['all-working-team', 'pm-engineering', 'business-product', 'leadership-only', 'everyone']),
+  'all-working-team': new Set(['all-working-team', 'everyone']),
+  'pm-engineering': new Set(['all-working-team', 'pm-engineering', 'everyone']),
+  'business-product': new Set(['all-working-team', 'business-product', 'everyone']),
+  everyone: new Set(['everyone'])
+};
 const LEGACY_EXECUTIVE_AUDIENCE_SECTIONS = {
   'all-working-team': 'ioe-product-portfolio',
   'pm-engineering': 'ioe-product-portfolio',
@@ -348,10 +355,31 @@ function executiveOutcomeText(value) {
 
 function normalizeExecutiveMilestones(week, executiveAudienceView) {
   const source = week?.strategyLayer?.executiveMilestoneTimeline || week?.executiveMilestoneTimeline;
-  const allowedSections = EXECUTIVE_SECTIONS_BY_VIEW[executiveAudienceView] || new Set();
   const quarters = Array.from({ length: 4 }, (_, index) => String(source?.quarters?.[index] || `Q${index + 1}`));
   const phases = Array.from({ length: 4 }, (_, index) => String(source?.phases?.[index] || ''));
-  const sourceRows = (Array.isArray(source?.rows) ? source.rows : []).map(row => ({
+  const rawRows = Array.isArray(source?.rows) ? source.rows : [];
+  const usesConfiguredSections = rawRows.some(row => EXECUTIVE_SECTIONS.some(section => section.sectionId === row?.sectionId));
+  if (!usesConfiguredSections) {
+    const allowedAudiences = EXECUTIVE_AUDIENCES_BY_VIEW[executiveAudienceView] || new Set();
+    const rows = rawRows.map(row => ({
+      label: String(row?.label || '').trim(),
+      audience: String(row?.audience || 'leadership-only').trim(),
+      cells: Array.from({ length: 4 }, (_, index) => {
+        const cell = executiveTimelineCell(row?.cells, index);
+        const values = Array.isArray(cell) ? cell : cell === undefined || cell === null ? [] : [cell];
+        return values.map(executiveOutcomeText).filter(Boolean);
+      })
+    })).filter(row => allowedAudiences.has(row.audience))
+      .filter(row => row.label || row.cells.some(cell => cell.length));
+    return {
+      title: String(source?.title || 'Executive Milestones').trim(),
+      quarters,
+      phases,
+      rows
+    };
+  }
+  const allowedSections = EXECUTIVE_SECTIONS_BY_VIEW[executiveAudienceView] || new Set();
+  const sourceRows = rawRows.map(row => ({
     sectionId: EXECUTIVE_SECTIONS.some(section => section.sectionId === row?.sectionId)
       ? row.sectionId
       : LEGACY_EXECUTIVE_AUDIENCE_SECTIONS[String(row?.audience || 'leadership-only').trim()] || '',
@@ -383,6 +411,7 @@ export function buildOverviewReportModel({
   sections = [],
   overviewScope = 'system',
   executiveAudienceView = 'leadership',
+  projectSelectionApplied = false,
   projectSelectionIsPartial = false
 } = {}) {
   const projects = scopedProjects(week.projects, overviewScope);
@@ -399,6 +428,7 @@ export function buildOverviewReportModel({
     sections: [...sections],
     overviewScope: scopeLevel(overviewScope),
     executiveSummary: String(week.executiveSummary || week.summary || week.overviewSummary || ''),
+    projectSelectionApplied,
     projectSelectionIsPartial,
     projects,
     health: healthSummary(projects),
