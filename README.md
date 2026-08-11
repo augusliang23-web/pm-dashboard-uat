@@ -21,6 +21,27 @@ Client authorization checks are defense-in-depth. Before UAT, verify and deploy 
 
 Deployment blockers: the current `weeks` schema embeds all three Executive sections in one document. Firestore Security Rules cannot redact individual fields from a readable document, so the role-based section visibility is enforced by the dashboard UI but is not yet a confidentiality boundary against direct API reads. The schema also has no authoritative active-week marker; callables reject released weeks, but cannot distinguish the current draft from an older unreleased draft. Do not expose v2.2T to restricted-role users until the Executive sections are migrated to separately protected documents (or an equivalent server-filtered read model) and mutations validate a protected active-week setting.
 
+## Mac local verification
+
+Local development runs on macOS with the Firebase Emulator Suite. Windows users only consume the deployed web dashboard and do not need this local setup.
+
+```bash
+npm ci --prefix functions
+npm run local:start
+```
+
+Open `http://127.0.0.1:4173/?emulator=1` and sign in with the test account printed by the starter. The local page uses Auth, Firestore, and Functions emulators together; a localhost page without `?emulator=1` does not connect to any emulator. Stop the stack with `npm run local:stop`.
+
+Before any deployment, run:
+
+```bash
+npm run verify:local
+npm run deploy       # verification only; no push
+npm run deploy -- --push  # only after explicit release approval
+```
+
+The default deploy command never pushes. v2.1 remains a separate repository and is only changed when an explicit v2.1 sync is requested.
+
 ## Vendored dependencies
 
 `team-2/vendor/xlsx.full.min.js` is SheetJS CE 0.20.3 from `https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js`. SHA-256: `CC015130AA8521E7F088F88898EBA949CCDCBFB38DF0BD129B44B7273C3A6F41`.

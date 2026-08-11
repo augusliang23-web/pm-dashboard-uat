@@ -1,0 +1,14 @@
+{
+  "name": "pm-dashboard-v22t-local",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "local:start": "node scripts/local-stack.mjs",
+    "local:stop": "node scripts/local-stop.mjs",
+    "local:seed": "node scripts/local-stack.mjs --seed-only",
+    "test:all": "node --test *.test.cjs tests/*.test.mjs functions/test/*.test.cjs",
+    "test:local": "node scripts/local-health.mjs",
+    "verify:local": "npm run test:all && npm run test:local && git diff --check",
+    "deploy": "node scripts/deploy-after-verify.mjs"
+  }
+}

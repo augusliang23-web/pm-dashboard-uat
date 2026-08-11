@@ -7,6 +7,10 @@ const seed = await readFile(new URL('../scripts/seed-v2.2t-emulator.mjs', import
 const starter = await readFile(new URL('../scripts/start-v2.2t-emulator.cmd', import.meta.url), 'utf8');
 const starterScript = await readFile(new URL('../scripts/start-v2.2t-emulator.ps1', import.meta.url), 'utf8');
 const localSync = await readFile(new URL('../scripts/sync-v2.2t-local-data.mjs', import.meta.url), 'utf8').catch(() => '');
+const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8').catch(() => '{"scripts":{}}'));
+const localRunner = await readFile(new URL('../scripts/local-stack.mjs', import.meta.url), 'utf8').catch(() => '');
+const localStop = await readFile(new URL('../scripts/local-stop.mjs', import.meta.url), 'utf8').catch(() => '');
+const localHealth = await readFile(new URL('../scripts/local-health.mjs', import.meta.url), 'utf8').catch(() => '');
 
 test('v2.2T local preview can only opt into the isolated Firebase Emulator project', async () => {
   const config = JSON.parse(await readFile(new URL('../firebase.json', import.meta.url), 'utf8'));
@@ -20,12 +24,12 @@ test('v2.2T local preview can only opt into the isolated Firebase Emulator proje
   assert.match(dashboard, /connectFirestoreEmulator\(db, '127\.0\.0\.1', 8080\)/);
 });
 
-test('normal localhost keeps secure Auth while using local Firestore and Functions', () => {
+test('localhost only uses all emulators in explicit emulator mode', () => {
   assert.match(dashboard, /const isLocalPreview = \['localhost', '127\.0\.0\.1'\]\.includes\(window\.location\.hostname\)/);
-  assert.match(dashboard, /const useLocalAuthEmulator = isLocalPreview[\s\S]*get\('emulator'\) === '1'/);
+  assert.match(dashboard, /const useLocalEmulator = isLocalPreview[\s\S]*get\('emulator'\) === '1'/);
   assert.match(dashboard, /const app = initializeApp\(FIREBASE_CONFIG\)/);
-  assert.match(dashboard, /if \(isLocalPreview\) \{[\s\S]*connectFirestoreEmulator\(db, '127\.0\.0\.1', 8080\)[\s\S]*connectFunctionsEmulator\(functions, '127\.0\.0\.1', 5001\)/);
-  assert.match(dashboard, /if \(useLocalAuthEmulator\) \{[\s\S]*connectAuthEmulator\(auth, 'http:\/\/127\.0\.0\.1:9099'/);
+  assert.match(dashboard, /if \(useLocalEmulator\) \{[\s\S]*connectFirestoreEmulator\(db, '127\.0\.0\.1', 8080\)[\s\S]*connectFunctionsEmulator\(functions, '127\.0\.0\.1', 5001\)[\s\S]*connectAuthEmulator\(auth, 'http:\/\/127\.0\.0\.1:9099'/);
+  assert.doesNotMatch(dashboard, /if \(isLocalPreview\) \{[\s\S]*connectFirestoreEmulator\(db, '127\.0\.0\.1', 8080\)/);
 });
 
 test('the local seed bypasses rules only through the Emulator Admin SDK', () => {
@@ -65,4 +69,20 @@ test('the local starter restores existing dashboard data after seeding', () => {
   assert.match(localSync, /v2\.2t-production-snapshot\.json/);
   assert.match(localSync, /applicationDefault\(\)/);
   assert.match(localSync, /FIRESTORE_EMULATOR_HOST/);
+});
+
+test('the Mac local workflow exposes one explicit command contract', () => {
+  assert.equal(packageJson.scripts?.['local:start'], 'node scripts/local-stack.mjs');
+  assert.equal(packageJson.scripts?.['local:stop'], 'node scripts/local-stop.mjs');
+  assert.equal(packageJson.scripts?.['local:seed'], 'node scripts/local-stack.mjs --seed-only');
+  assert.equal(packageJson.scripts?.['test:local'], 'node scripts/local-health.mjs');
+  assert.match(packageJson.scripts?.['test:all'] || '', /node --test/);
+  assert.match(packageJson.scripts?.['verify:local'] || '', /test:all/);
+  assert.match(localRunner, /127\.0\.0\.1:9099/);
+  assert.match(localRunner, /127\.0\.0\.1:8080/);
+  assert.match(localRunner, /functions:\s*5001/);
+  assert.match(localRunner, /emulator=1/);
+  assert.match(localStop, /v22t-local-processes/);
+  assert.match(localStop, /process\.kill/);
+  assert.match(localHealth, /emulator-unavailable/);
 });
