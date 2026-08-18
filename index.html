@@ -4142,7 +4142,7 @@ function renderOnlineUsers(users) {
   } else {
     pulseDot.classList.remove('idle');
     container.innerHTML = finalUsers.map(u => 
-      `<div class="online-badge ${u.idle ? 'idle' : ''}">${u.name}</div>`
+      `<div class="online-badge ${u.idle ? 'idle' : ''}">${escHtml(u.name)}</div>`
     ).join('');
   }
 }

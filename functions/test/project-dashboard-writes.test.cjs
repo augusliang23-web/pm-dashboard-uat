@@ -43,6 +43,24 @@ test('project authority permits Admin globally and PM ownership only', () => {
   assert.equal(canMutateProject({ actor: { ...actor, role: 'bd' }, project }), false);
 });
 
+test('protected draft saves permit Admin, owner, and deputy identities', () => {
+  const liveProject = { code: 'ALPHA', name: 'Alpha', owner: 'Owner', deputy: 'Deputy' };
+  const week = { projects: [liveProject], version: 1, isReleased: false };
+  const request = {
+    weekId: 'W1', originalCode: 'ALPHA', projectCode: 'ALPHA',
+    project: { ...liveProject, highlight: 'Updated' },
+    expectedRevision: projectRevisionFingerprint(liveProject),
+  };
+
+  for (const allowedActor of [
+    { ...actor, role: 'admin', email: 'admin@example.com', displayName: 'Admin' },
+    { ...actor, email: 'owner@example.com', displayName: 'Owner' },
+    { ...actor, email: 'deputy@example.com', displayName: 'Deputy' },
+  ]) {
+    assert.doesNotThrow(() => buildProjectPatch(week, request, allowedActor, '2026-08-18T00:00:00.000Z'));
+  }
+});
+
 test('ownership uses exact canonical display-name, email, or email-prefix tokens', () => {
   assert.deepEqual([...identityTokens(actor)].sort(), ['augus', 'augus liang', 'augus@example.com']);
   assert.deepEqual(ownershipTokens('Ann, owner@example.com / Deputy\nThird'), [
