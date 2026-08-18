@@ -12,6 +12,9 @@ const readSharedBackendRules = () =>
     () => "",
   );
 
+const readDashboard = () =>
+  readFile(new URL("../index.html", import.meta.url), "utf8").catch(() => "");
+
 test("presence sessions allow owner writes and admin reads", async () => {
   const rules = await readRules();
 
@@ -104,17 +107,31 @@ test('Firestore draft week reads are limited to PM and Admin while released read
   assert.match(rules, /allow write: if false;/);
 });
 
-test('shared v2.1 and UAT backend rules expose Executive data without breaking v2.1 week writes', async () => {
+test('shared backend rules cannot restore direct client week writes', async () => {
   const rules = await readSharedBackendRules();
   const config = JSON.parse(
     await readFile(new URL("../firebase.shared-backend.json", import.meta.url), "utf8"),
   );
 
   assert.equal(config.firestore?.rules, "firestore.shared-backend.rules");
-  assert.match(rules, /match\s+\/weeks\/\{weekId\}[\s\S]*?allow read, write:\s*if isSignedIn\(\)/);
+  assert.match(rules, /match\s+\/weeks\/\{weekId\}[\s\S]*?allow write:\s*if false/);
+  assert.doesNotMatch(rules, /match\s+\/weeks\/\{weekId\}[\s\S]*?allow read, write:\s*if isSignedIn\(\)/);
   assert.match(rules, /match\s+\/executiveMilestoneState\/\{stateId\}[\s\S]*?allow read:\s*if isSignedIn\(\);[\s\S]*?allow write:\s*if false/);
   assert.match(rules, /match\s+\/executiveMilestoneConfig\/\{configId\}[\s\S]*?allow read:\s*if isSignedIn\(\);[\s\S]*?allow write:\s*if false/);
   assert.match(rules, /match\s+\/executiveMilestoneUpdates[\s\S]*?allow write:\s*if false/);
   assert.match(rules, /match\s+\/executiveMilestoneChangeRequests[\s\S]*?allow write:\s*if false/);
   assert.match(rules, /match\s+\/executiveMilestoneAudit[\s\S]*?allow write:\s*if false/);
+});
+
+test('root dashboard presence writes establish the authenticated immutable identity', async () => {
+  const dashboard = await readDashboard();
+  const presenceWrites = dashboard.match(
+    /setDoc\(doc\(db, "presence", getEmailKey\(currentUser\)\), \{[\s\S]{0,240}?\}, \{ merge: true \}\)/g,
+  ) || [];
+
+  assert.equal(presenceWrites.length, 5);
+  for (const write of presenceWrites) {
+    assert.match(write, /ownerUid:\s*currentUser\.uid/);
+    assert.match(write, /userKey:\s*getEmailKey\(currentUser\)/);
+  }
 });

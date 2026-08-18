@@ -20,6 +20,82 @@ service cloud.firestore {
       return dashboardRole() == 'executive';
     }
 
+    function canReadDraftWeeks() {
+      return dashboardRole() in ['admin', 'pm'];
+    }
+
+    function hasBoundedString(data, key, maximumLength) {
+      return data.get(key, '') is string
+        && data.get(key, '').size() > 0
+        && data.get(key, '').size() <= maximumLength;
+    }
+
+    function hasValidAuditLogEnvelope() {
+      return request.resource.data.keys().hasAll([
+          'eventType', 'actorUid', 'actorEmail', 'createdAt', 'weekId',
+          'projectCode', 'message', 'context'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'eventType', 'actorUid', 'actorEmail', 'createdAt', 'weekId',
+          'projectCode', 'message', 'context'
+        ])
+        && hasBoundedString(request.resource.data, 'eventType', 64)
+        && hasBoundedString(request.resource.data, 'actorUid', 128)
+        && hasBoundedString(request.resource.data, 'actorEmail', 320)
+        && hasBoundedString(request.resource.data, 'weekId', 128)
+        && hasBoundedString(request.resource.data, 'projectCode', 128)
+        && hasBoundedString(request.resource.data, 'message', 2000)
+        && request.resource.data.context is map
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.actorEmail == request.auth.token.email
+        && request.resource.data.createdAt == request.time;
+    }
+
+    function hasOnlyPresenceFields(data) {
+      return data.keys().hasOnly([
+        'name', 'role', 'status', 'lastActive', 'lastSeenAt', 'usageBuckets',
+        'ownerUid', 'userKey'
+      ]);
+    }
+
+    function hasValidPresenceFieldTypes(data) {
+      return data.get('name', '') is string
+        && data.get('name', '').size() <= 128
+        && data.get('role', '') is string
+        && data.get('role', '').size() <= 64
+        && data.get('status', '') is string
+        && data.get('status', '').size() <= 64
+        && data.get('lastActive', 0) is number
+        && data.get('lastSeenAt', 0) is number
+        && data.get('usageBuckets', {}) is map;
+    }
+
+    function hasValidNewPresenceEnvelope() {
+      return request.resource.data.keys().hasAll([
+          'name', 'role', 'status', 'lastActive', 'lastSeenAt', 'usageBuckets',
+          'ownerUid', 'userKey'
+        ])
+        && hasOnlyPresenceFields(request.resource.data)
+        && hasValidPresenceFieldTypes(request.resource.data);
+    }
+
+    function hasMatchingPresenceIdentity(document) {
+      return isSignedIn()
+        && request.auth.token.email != null
+        && document == request.auth.token.email
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.userKey == request.auth.token.email;
+    }
+
+    function keepsOrEstablishesPresenceIdentity() {
+      return resource.data.keys().hasAll(['ownerUid', 'userKey'])
+        ? resource.data.ownerUid == request.auth.uid
+          && resource.data.userKey == request.auth.token.email
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.userKey == resource.data.userKey
+        : !resource.data.keys().hasAny(['ownerUid', 'userKey']);
+    }
+
     function canViewExecutiveSection(sectionId) {
       return isSignedIn()
         && exists(/databases/$(database)/documents/executiveMilestoneConfig/timeline)
@@ -31,10 +107,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // v2.1 still writes reporting weeks directly. Keep this compatibility
-    // rule until the production client migrates to the protected callables.
     match /weeks/{weekId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn()
+        && (canReadDraftWeeks() || resource.data.isReleased == true);
+      allow write: if false;
+      allow delete: if false;
     }
 
     match /executiveMilestoneConfig/{configId} {
@@ -66,11 +143,20 @@ service cloud.firestore {
     }
 
     match /logs/{logId} {
-      allow create, read: if isSignedIn();
+      allow create: if isSignedIn() && hasValidAuditLogEnvelope();
+      allow read: if isSignedIn();
+      allow update, delete: if false;
     }
 
     match /presence/{document} {
-      allow read, write: if isSignedIn();
+      allow create: if hasMatchingPresenceIdentity(document)
+        && hasValidNewPresenceEnvelope();
+      allow update: if hasMatchingPresenceIdentity(document)
+        && hasOnlyPresenceFields(request.resource.data)
+        && hasValidPresenceFieldTypes(request.resource.data)
+        && keepsOrEstablishesPresenceIdentity();
+      allow read: if isSignedIn();
+      allow delete: if false;
     }
 
     match /presenceSessions/{sessionId} {

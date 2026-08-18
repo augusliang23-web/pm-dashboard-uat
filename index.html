@@ -3299,7 +3299,9 @@ const handleUserActivity = (isCurrentPresenceSession = () => Boolean(currentUser
       role: currentRole,
       status: 'active',
       lastActive: now,
-      lastSeenAt: now
+      lastSeenAt: now,
+      ownerUid: currentUser.uid,
+      userKey: getEmailKey(currentUser)
     }, { merge: true }).then(() => queuePresenceUsage('active')).catch(()=>{});
     trackPresenceSession('active');
   }
@@ -3313,7 +3315,9 @@ const handleUserActivity = (isCurrentPresenceSession = () => Boolean(currentUser
     setDoc(doc(db, "presence", getEmailKey(currentUser)), {
       status: 'idle',
       lastActive: now,
-      lastSeenAt: now
+      lastSeenAt: now,
+      ownerUid: currentUser.uid,
+      userKey: getEmailKey(currentUser)
     }, { merge: true }).then(() => queuePresenceUsage('idle')).catch(()=>{});
     trackPresenceSession('idle');
   }, IDLE_TIMEOUT);
@@ -3986,7 +3990,9 @@ const pingPresence = (isCurrentPresenceSession = () => Boolean(currentUser)) => 
     role: currentRole,
     status: 'active',
     lastActive: now,
-    lastSeenAt: now
+    lastSeenAt: now,
+    ownerUid: currentUser.uid,
+    userKey: getEmailKey(currentUser)
   }, { merge: true })
     .then(() => {
       if (!isCurrentPresenceSession()) return;
@@ -4087,7 +4093,9 @@ function stopPresenceSystem() {
     const stoppedEmail = getEmailKey(currentUser);
     setDoc(doc(db, "presence", getEmailKey(currentUser)), {
       lastActive: 0,
-      lastSeenAt: Date.now()
+      lastSeenAt: Date.now(),
+      ownerUid: currentUser.uid,
+      userKey: getEmailKey(currentUser)
     }, { merge: true })
       .then(() => {
         if (
@@ -4143,7 +4151,9 @@ window.addEventListener('beforeunload', () => {
   if (currentUser) {
     setDoc(doc(db, "presence", getEmailKey(currentUser)), {
       lastActive: 0,
-      lastSeenAt: Date.now()
+      lastSeenAt: Date.now(),
+      ownerUid: currentUser.uid,
+      userKey: getEmailKey(currentUser)
     }, { merge: true })
       .then(() => queuePresenceUsage('logout'));
     closePresenceSession('page-close');
