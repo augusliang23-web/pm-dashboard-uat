@@ -34,6 +34,19 @@ test('week selector renders a malicious Firestore label as literal option text',
   assert.doesNotMatch(options, /<img\b/i);
 });
 
+test('week selector renders a malicious Firestore date as literal option text', () => {
+  const renderOptions = weekSelectorTemplate();
+  const options = renderOptions([
+    { weekLabel: 'W34', weekDate: '<img src=x onerror=alert(2)>' },
+  ], rootEscHtml());
+
+  assert.equal(
+    options,
+    '<option value="0">W34 (&lt;img src=x onerror=alert(2)&gt;)</option>',
+  );
+  assert.doesNotMatch(options, /<img\b/i);
+});
+
 test('root innerHTML templates do not interpolate week metadata without escHtml', () => {
   const rawWeekMetadata = [
     ...dashboard.matchAll(/\.innerHTML\s*=\s*[^;]*?\$\{\s*[A-Za-z_$][\w$]*\.(?:weekLabel|weekDate)\s*\}[^;]*?;/gs),
