@@ -48,10 +48,27 @@ No deployment, push, remote change, Firebase configuration change, or live
 Firebase data write was performed for Phase 1. This branch is a UAT candidate
 only and must not be deployed without explicit approval.
 
-If an approved UAT deployment must be rolled back, revert the Phase 1 commits
-from the UAT branch, verify the reverted candidate, and redeploy only after
-explicit approval. Do not use this document as authority to deploy, to revert
-Production, or to merge/copy this UAT work into Production.
+If an approved UAT deployment must be rolled back, act only on the UAT branch
+`codex/phase1-security-remediation`. Create new revert commits (do **not** use
+`git reset`) for the implementation range `d94dc7b` through `d77d8b1`, in
+reverse chronological order:
+
+```sh
+git revert --no-edit d77d8b1 357edd4 01ab5fd 3e4e646 4a9f0af d94dc7b
+```
+
+This deliberately leaves the documentation commit `48120c7` separately
+addressable. Do not push the revert commits or deploy the reverted candidate
+without explicit approval. Before any separately approved UAT deployment, run:
+
+```sh
+npm run test:all
+JAVA_HOME=/private/tmp/pm-dashboard-phase1-jdk/jdk-21.0.12+8/Contents/Home npm run test:rules
+git diff --check
+```
+
+Do not use this document as authority to deploy, to revert Production, or to
+merge/copy this UAT work into Production.
 
 ## Residual and parked risks
 
