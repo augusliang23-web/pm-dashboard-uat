@@ -112,6 +112,13 @@ test('logs accept only a bounded self-attributed append-only envelope', async ()
   await assertFails(setDoc(doc(owner, 'logs/long-event'), { ...valid, eventType: 'x'.repeat(65) }));
   await assertFails(setDoc(doc(owner, 'logs/long-message'), { ...valid, message: 'x'.repeat(2001) }));
   await assertFails(setDoc(doc(owner, 'logs/bad-context'), { ...valid, context: 'not-a-map' }));
+  await assertFails(setDoc(doc(owner, 'logs/nested-context'), {
+    ...valid, context: { source: { nested: 'payload' } },
+  }));
+  await assertFails(setDoc(doc(owner, 'logs/oversized-context'), {
+    ...valid,
+    context: Object.fromEntries(Array.from({ length: 17 }, (_, index) => [`key${index}`, 'value'])),
+  }));
   await assertFails(updateDoc(doc(owner, 'logs/valid'), { message: 'rewritten' }));
   await assertFails(deleteDoc(doc(owner, 'logs/valid')));
 });
@@ -139,6 +146,12 @@ test('presence writes are restricted to the authenticated email and immutable id
   await assertFails(setDoc(doc(owner, 'presence/owner@example.com'), { ...valid, name: 'x'.repeat(129) }));
   await assertFails(setDoc(doc(owner, 'presence/owner@example.com'), { ...valid, status: { active: true } }));
   await assertFails(setDoc(doc(owner, 'presence/owner@example.com'), { ...valid, usageBuckets: [] }));
+  await assertFails(setDoc(doc(owner, 'presence/owner@example.com'), {
+    ...valid,
+    usageBuckets: Object.fromEntries(Array.from({ length: 257 }, (_, index) => [
+      `bucket-${index}`, { bucketId: `bucket-${index}` },
+    ])),
+  }));
   await assertFails(deleteDoc(doc(owner, 'presence/owner@example.com')));
 });
 

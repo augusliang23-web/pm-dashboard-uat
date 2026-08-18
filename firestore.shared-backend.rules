@@ -30,6 +30,18 @@ service cloud.firestore {
         && data.get(key, '').size() <= maximumLength;
     }
 
+    function hasValidAuditContext(context) {
+      return context is map
+        && context.keys().hasAll(['source'])
+        && context.keys().hasOnly(['source'])
+        && hasBoundedString(context, 'source', 64);
+    }
+
+    function hasBoundedUsageBuckets(data) {
+      return data.get('usageBuckets', {}) is map
+        && data.get('usageBuckets', {}).keys().size() <= 256;
+    }
+
     function hasValidAuditLogEnvelope() {
       return request.resource.data.keys().hasAll([
           'eventType', 'actorUid', 'actorEmail', 'createdAt', 'weekId',
@@ -45,7 +57,7 @@ service cloud.firestore {
         && hasBoundedString(request.resource.data, 'weekId', 128)
         && hasBoundedString(request.resource.data, 'projectCode', 128)
         && hasBoundedString(request.resource.data, 'message', 2000)
-        && request.resource.data.context is map
+        && hasValidAuditContext(request.resource.data.get('context', {}))
         && request.resource.data.actorUid == request.auth.uid
         && request.resource.data.actorEmail == request.auth.token.email
         && request.resource.data.createdAt == request.time;
@@ -67,7 +79,7 @@ service cloud.firestore {
         && data.get('status', '').size() <= 64
         && data.get('lastActive', 0) is number
         && data.get('lastSeenAt', 0) is number
-        && data.get('usageBuckets', {}) is map;
+        && hasBoundedUsageBuckets(data);
     }
 
     function hasValidNewPresenceEnvelope() {
