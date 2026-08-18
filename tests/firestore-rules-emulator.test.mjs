@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import {
   assertFails,
@@ -16,7 +17,15 @@ import {
 
 const projectId = 'demo-pm-dashboard-v22t';
 const firestorePort = Number(process.env.FIRESTORE_EMULATOR_PORT || 8080);
+const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 let environment;
+
+function rootInitialPresencePayload() {
+  const start = dashboard.indexOf('function buildInitialPresencePayload({');
+  const end = dashboard.indexOf('\n}\n\nasync function ensurePresenceDocument', start) + 2;
+  assert.notEqual(start, -1, 'root dashboard must define the first-write presence payload');
+  return new Function(`${dashboard.slice(start, end)}; return buildInitialPresencePayload;`)();
+}
 
 function auth(uid, email) {
   return environment.authenticatedContext(uid, { email }).firestore();
@@ -153,6 +162,25 @@ test('presence writes are restricted to the authenticated email and immutable id
     ])),
   }));
   await assertFails(deleteDoc(doc(owner, 'presence/owner@example.com')));
+});
+
+test('the actual first presence payload initializes a new document while malformed and cross-user writes fail', async () => {
+  const owner = auth('owner-uid', 'owner@example.com');
+  const other = auth('other-uid', 'other@example.com');
+  const initialPayload = rootInitialPresencePayload()({
+    uid: 'owner-uid', name: 'Owner', role: 'pm', userKey: 'owner@example.com', now: 1776556800000,
+  });
+
+  assert.deepEqual(initialPayload, {
+    name: 'Owner', role: 'pm', status: 'active',
+    lastActive: 1776556800000, lastSeenAt: 1776556800000,
+    usageBuckets: {}, ownerUid: 'owner-uid', userKey: 'owner@example.com',
+  });
+  await assertSucceeds(setDoc(doc(owner, 'presence/owner@example.com'), initialPayload));
+  await assertFails(setDoc(doc(other, 'presence/owner@example.com'), initialPayload));
+  await assertFails(setDoc(doc(owner, 'presence/malformed@example.com'), {
+    ...initialPayload, extra: 'forged',
+  }));
 });
 
 test('a legacy presence record may establish identity once for its matching owner', async () => {

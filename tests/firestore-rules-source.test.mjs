@@ -123,15 +123,25 @@ test('shared backend rules cannot restore direct client week writes', async () =
   assert.match(rules, /match\s+\/executiveMilestoneAudit[\s\S]*?allow write:\s*if false/);
 });
 
-test('root dashboard presence writes establish the authenticated immutable identity', async () => {
+test('root dashboard creates one complete presence document and preserves identity on later updates', async () => {
   const dashboard = await readDashboard();
-  const presenceWrites = dashboard.match(
-    /setDoc\(doc\(db, "presence", getEmailKey\(currentUser\)\), \{[\s\S]{0,240}?\}, \{ merge: true \}\)/g,
+  const initializationStart = dashboard.indexOf('function buildInitialPresencePayload({');
+  const initializationEnd = dashboard.indexOf('\nconst handleUserActivity', initializationStart);
+  const initialization = dashboard.slice(initializationStart, initializationEnd);
+  const presenceUpdates = dashboard.match(
+    /updateDoc\(doc\(db, "presence", getEmailKey\(currentUser\)\), \{[\s\S]{0,240}?\}\)/g,
   ) || [];
 
-  assert.equal(presenceWrites.length, 5);
-  for (const write of presenceWrites) {
+  assert.ok(initializationStart >= 0 && initializationEnd > initializationStart);
+  assert.match(initialization, /usageBuckets:\s*\{\}/);
+  assert.match(initialization, /await runTransaction\(db, async transaction =>/);
+  assert.match(initialization, /const existing = await transaction\.get\(presenceRef\)/);
+  assert.match(initialization, /if \(existing\.exists\(\)\) return/);
+  assert.match(initialization, /transaction\.set\(presenceRef, buildInitialPresencePayload/);
+  assert.equal(presenceUpdates.length, 5);
+  for (const write of presenceUpdates) {
     assert.match(write, /ownerUid:\s*currentUser\.uid/);
     assert.match(write, /userKey:\s*getEmailKey\(currentUser\)/);
   }
+  assert.doesNotMatch(dashboard, /setDoc\(doc\(db, "presence", getEmailKey\(currentUser\)\)/);
 });

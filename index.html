@@ -3283,6 +3283,41 @@ let presenceSessionHeartbeatInterval = null;
 let presenceActivityHandler = null;
 
 let activityThrottle = null;
+function buildInitialPresencePayload({ uid, name, role, userKey, now = Date.now() }) {
+  return {
+    name,
+    role,
+    status: 'active',
+    lastActive: now,
+    lastSeenAt: now,
+    usageBuckets: {},
+    ownerUid: uid,
+    userKey,
+  };
+}
+
+async function ensurePresenceDocument(isCurrentPresenceSession, owner = currentUser) {
+  if (!owner || !isCurrentPresenceSession()) return false;
+  const userKey = getEmailKey(owner);
+  const presenceRef = doc(db, 'presence', userKey);
+  try {
+    await runTransaction(db, async transaction => {
+      const existing = await transaction.get(presenceRef);
+      if (existing.exists()) return;
+      transaction.set(presenceRef, buildInitialPresencePayload({
+        uid: owner.uid,
+        name: getUserDisplayName(owner.email),
+        role: currentRole,
+        userKey,
+      }));
+    });
+    return isCurrentPresenceSession();
+  } catch (error) {
+    console.warn('Presence initialization failed:', error);
+    return false;
+  }
+}
+
 const handleUserActivity = (isCurrentPresenceSession = () => Boolean(currentUser)) => {
   if (!isCurrentPresenceSession()) return;
   if (activityThrottle) return;
@@ -3294,7 +3329,7 @@ const handleUserActivity = (isCurrentPresenceSession = () => Boolean(currentUser
     if(heartbeatInterval) clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(pingPresence, PRESENCE_HEARTBEAT_MS);
     const now = Date.now();
-    setDoc(doc(db, "presence", getEmailKey(currentUser)), {
+    updateDoc(doc(db, "presence", getEmailKey(currentUser)), {
       name: getUserDisplayName(currentUser.email),
       role: currentRole,
       status: 'active',
@@ -3302,7 +3337,7 @@ const handleUserActivity = (isCurrentPresenceSession = () => Boolean(currentUser
       lastSeenAt: now,
       ownerUid: currentUser.uid,
       userKey: getEmailKey(currentUser)
-    }, { merge: true }).then(() => queuePresenceUsage('active')).catch(()=>{});
+    }).then(() => queuePresenceUsage('active')).catch(()=>{});
     trackPresenceSession('active');
   }
   
@@ -3312,13 +3347,13 @@ const handleUserActivity = (isCurrentPresenceSession = () => Boolean(currentUser
     isIdle = true;
     if(heartbeatInterval) clearInterval(heartbeatInterval); 
     const now = Date.now();
-    setDoc(doc(db, "presence", getEmailKey(currentUser)), {
+    updateDoc(doc(db, "presence", getEmailKey(currentUser)), {
       status: 'idle',
       lastActive: now,
       lastSeenAt: now,
       ownerUid: currentUser.uid,
       userKey: getEmailKey(currentUser)
-    }, { merge: true }).then(() => queuePresenceUsage('idle')).catch(()=>{});
+    }).then(() => queuePresenceUsage('idle')).catch(()=>{});
     trackPresenceSession('idle');
   }, IDLE_TIMEOUT);
 };
@@ -3985,7 +4020,7 @@ window.openPresenceUsage = async () => {
 const pingPresence = (isCurrentPresenceSession = () => Boolean(currentUser)) => {
   if (!isCurrentPresenceSession() || !currentUser || isIdle) return;
   const now = Date.now();
-  setDoc(doc(db, "presence", getEmailKey(currentUser)), {
+  updateDoc(doc(db, "presence", getEmailKey(currentUser)), {
     name: getUserDisplayName(currentUser.email),
     role: currentRole,
     status: 'active',
@@ -3993,7 +4028,7 @@ const pingPresence = (isCurrentPresenceSession = () => Boolean(currentUser)) => 
     lastSeenAt: now,
     ownerUid: currentUser.uid,
     userKey: getEmailKey(currentUser)
-  }, { merge: true })
+  })
     .then(() => {
       if (!isCurrentPresenceSession()) return;
       queuePresenceUsage('active');
@@ -4021,7 +4056,7 @@ function updatePresenceUI() {
   renderOnlineUsers(onlineUsers);
 }
 
-function startPresenceSystem(authGeneration, authUser) {
+async function startPresenceSystem(authGeneration, authUser) {
   const ownerUid = authUser?.uid || '';
   const ownerEmail = getEmailKey(authUser);
   const isCurrentPresenceSession = () => isAuthInitializationCurrent(
@@ -4031,6 +4066,8 @@ function startPresenceSystem(authGeneration, authUser) {
     ownerUid,
     ownerEmail,
   );
+  if (!isCurrentPresenceSession()) return;
+  if (!await ensurePresenceDocument(isCurrentPresenceSession, authUser)) return;
   if (!isCurrentPresenceSession()) return;
   startPresenceSession();
   pingPresence(isCurrentPresenceSession);
@@ -4091,12 +4128,12 @@ function stopPresenceSystem() {
     const stoppedGeneration = authSessionGeneration;
     const stoppedUid = currentUser.uid || '';
     const stoppedEmail = getEmailKey(currentUser);
-    setDoc(doc(db, "presence", getEmailKey(currentUser)), {
+    updateDoc(doc(db, "presence", getEmailKey(currentUser)), {
       lastActive: 0,
       lastSeenAt: Date.now(),
       ownerUid: currentUser.uid,
       userKey: getEmailKey(currentUser)
-    }, { merge: true })
+    })
       .then(() => {
         if (
           authSessionGeneration === stoppedGeneration
@@ -4149,12 +4186,12 @@ function renderOnlineUsers(users) {
 
 window.addEventListener('beforeunload', () => {
   if (currentUser) {
-    setDoc(doc(db, "presence", getEmailKey(currentUser)), {
+    updateDoc(doc(db, "presence", getEmailKey(currentUser)), {
       lastActive: 0,
       lastSeenAt: Date.now(),
       ownerUid: currentUser.uid,
       userKey: getEmailKey(currentUser)
-    }, { merge: true })
+    })
       .then(() => queuePresenceUsage('logout'));
     closePresenceSession('page-close');
   }
