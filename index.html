@@ -4599,7 +4599,7 @@ function initData(authGeneration, authUser) {
 
     const sel = document.getElementById('wNavSelect');
     if (sel && allWeeks.length > 0) {
-      sel.innerHTML = allWeeks.map((w, i) => `<option value="${i}">${w.weekLabel} (${w.weekDate})</option>`).join('');
+      sel.innerHTML = allWeeks.map((w, i) => `<option value="${i}">${escHtml(w.weekLabel)} (${escHtml(w.weekDate)})</option>`).join('');
       sel.value = currentIdx;
     } else if (sel) {
       sel.innerHTML = '<option value="">No Weeks Available</option>';
