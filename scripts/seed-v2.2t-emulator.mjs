@@ -24,9 +24,9 @@ async function seedDocument(collection, id, data) {
 }
 
 const accounts = [
-  { email: 'test.admin@pm-dashboard.local', role: 'admin', isProjectManager: true },
-  { email: 'test.pm@pm-dashboard.local', role: 'pm', isProjectManager: true },
-  { email: 'test.bd@pm-dashboard.local', role: 'bd', isProjectManager: false },
+  { email: 'test.admin@pm-dashboard.local', displayName: 'Test', role: 'admin', isProjectManager: true },
+  { email: 'test.pm@pm-dashboard.local', displayName: 'Test', role: 'pm', isProjectManager: true },
+  { email: 'test.bd@pm-dashboard.local', displayName: 'Test BD', role: 'bd', isProjectManager: false },
 ];
 
 const executiveTimelineConfig = {
@@ -58,6 +58,7 @@ const liveExecutiveTimeline = {
 for (const account of accounts) {
   await seedAuth(account.email);
   await seedDocument('users', account.email, {
+    displayName: account.displayName,
     role: account.role,
     isProjectManager: account.isProjectManager,
     label: 'TEST / DO NOT DELETE',
