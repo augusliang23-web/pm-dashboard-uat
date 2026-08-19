@@ -45,6 +45,13 @@ test('the local seed includes the live Executive timeline and its configurable a
   assert.match(seed, /TEST \/ DO NOT DELETE/);
 });
 
+test('local test accounts include the display identities required by protected project writes', () => {
+  assert.match(seed, /email: 'test\.admin@pm-dashboard\.local', displayName: 'Test'/);
+  assert.match(seed, /email: 'test\.pm@pm-dashboard\.local', displayName: 'Test'/);
+  assert.match(seed, /email: 'test\.bd@pm-dashboard\.local', displayName: 'Test BD'/);
+  assert.match(seed, /displayName: account\.displayName/);
+});
+
 test('the local emulator starter bypasses the workstation PowerShell script policy', () => {
   assert.match(starter, /powershell\.exe -NoProfile -ExecutionPolicy Bypass -File/);
   assert.match(starter, /start-v2\.2t-emulator\.ps1/);

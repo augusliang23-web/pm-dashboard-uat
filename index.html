@@ -4614,7 +4614,14 @@ function initData(authGeneration, authUser) {
       const week = d.data();
       const normalizedWeek = {
         ...week,
-        projects: (week.projects || []).map(normalizeProject)
+        projects: (week.projects || []).map(project => {
+          const normalizedProject = normalizeProject(project);
+          Object.defineProperty(normalizedProject, '__revisionFingerprint', {
+            value: projectRevisionFingerprint(project),
+            enumerable: false,
+          });
+          return normalizedProject;
+        })
       };
       Object.defineProperty(normalizedWeek, '__documentId', {
         value: d.id,
@@ -10073,7 +10080,7 @@ window.openProjEdit = (code, isNew = false) => {
     role: currentRole,
     isNew,
     code,
-    revisionFingerprint: projectRevisionFingerprint(existingProject),
+    revisionFingerprint: existingProject.__revisionFingerprint || projectRevisionFingerprint(existingProject),
     originalProject: isNew ? null : p
   });
   document.getElementById('pe_details').open = isNew;
@@ -10211,8 +10218,7 @@ window.saveProjEdit = async () => {
       projectCode: pData.code,
       project: pData,
       isNew: session.isNew,
-      editorName: getUserDisplayName(session.authEmail),
-      savedAt: new Date().toISOString(),
+      ...(session.isNew ? {} : { expectedRevision: session.revisionFingerprint }),
     });
     const savedWeek = response.week;
     Object.defineProperty(savedWeek, '__documentId', { value: session.weekId, enumerable: false, configurable: true });
