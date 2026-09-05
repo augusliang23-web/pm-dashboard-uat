@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { isAuthInitializationCurrent } from '../team-2/js/auth-session.mjs';
+import { isAuthInitializationCurrent } from '../js/auth-session.mjs';
 
-const dashboard = await readFile(new URL('../team-2/index.html', import.meta.url), 'utf8');
+const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 function deferred() {
   let resolve;
@@ -63,15 +63,15 @@ test('dashboard gates every awaited auth initialization stage with generation an
   const roleCommit = source.indexOf('currentRole = getDashboardRole(userDoc)', roleAwait);
   const templateAwait = source.indexOf('await loadGanttTemplateConfig(', roleCommit);
   const templateGuard = source.indexOf('isCurrentAuthInitialization()', templateAwait);
-  const pmAwait = source.indexOf('await fetchDynamicPMList()', templateGuard);
+  const pmAwait = source.indexOf('await startProjectManagerSubscription(isCurrentAuthInitialization)', templateGuard);
   const pmGuard = source.indexOf('isCurrentAuthInitialization()', pmAwait);
-  const setupCommit = source.indexOf('PM_LIST = nextPMList', pmGuard);
-  const setupUI = source.indexOf('setupUI()', setupCommit);
+  const setupUI = source.indexOf('setupUI()', pmGuard);
+  const initData = source.indexOf('initData(authGeneration, user)', setupUI);
 
   assert.ok(roleAwait >= 0 && roleGuard > roleAwait && roleGuard < roleCommit);
   assert.ok(templateAwait > roleCommit && templateGuard > templateAwait);
   assert.ok(pmAwait > templateGuard && pmGuard > pmAwait);
-  assert.ok(setupCommit > pmGuard && setupUI > setupCommit);
+  assert.ok(setupUI > pmGuard && initData > setupUI);
 });
 
 test('template listener setup and callbacks share the current auth generation guard', () => {

@@ -2,13 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const dashboards = await Promise.all([
-  readFile(new URL('../index.html', import.meta.url), 'utf8'),
-  readFile(new URL('../team-2/index.html', import.meta.url), 'utf8'),
-]);
-const [rootDashboard] = dashboards;
+const rootDashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const dashboards = [rootDashboard];
 
-test('both dashboards retain defaults while using configuration-driven Executive governance helpers', () => {
+test('root dashboard retains defaults while using configuration-driven Executive governance helpers', () => {
   for (const dashboard of dashboards) {
     for (const label of ['IoE Product Portfolio', 'Customer Engagements', 'Investors & Strategy']) {
       assert.match(dashboard, new RegExp(label.replace('&', '&(?:amp;)?')));
@@ -19,7 +16,7 @@ test('both dashboards retain defaults while using configuration-driven Executive
   }
 });
 
-test('both dashboards load configurable Executive timeline axes and remove the old editor entry point', () => {
+test('root dashboard loads configurable Executive timeline axes and removes the old editor entry point', () => {
   for (const dashboard of dashboards) {
     assert.match(dashboard, /executive-timeline-config\.mjs/);
     assert.match(dashboard, /executiveMilestoneConfig/);
