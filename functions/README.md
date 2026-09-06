@@ -20,11 +20,13 @@ Each callable reloads the authenticated user's role inside its transaction. Rele
 2. From the repository root, run:
 
    ```powershell
-   firebase use project-manager-dashboar-a067f
-   firebase deploy --only functions:aggregatePresenceSessions,functions:addExecutiveMilestoneUpdate,functions:createExecutiveMilestoneChangeRequest,functions:decideExecutiveMilestoneChangeRequest,functions:applyDirectExecutiveMilestoneChange,functions:setExecutiveRagOverride
-   firebase deploy --only firestore:rules
-   firebase deploy --only firestore:indexes
+   firebase deploy --project pm-dashboard-uat-20260820-a7f3 --only functions:aggregatePresenceSessions,functions:addExecutiveMilestoneUpdate,functions:createExecutiveMilestoneChangeRequest,functions:decideExecutiveMilestoneChangeRequest,functions:applyDirectExecutiveMilestoneChange,functions:setExecutiveRagOverride
+   firebase deploy --project pm-dashboard-uat-20260820-a7f3 --only firestore:rules
+   firebase deploy --project pm-dashboard-uat-20260820-a7f3 --only firestore:indexes
    ```
+
+   Keep the literal `--project pm-dashboard-uat-20260820-a7f3` guard on every
+   command. Do not select a Firebase CLI alias for this UAT repository.
 
 3. In Google Cloud Firestore, create a TTL policy for collection group
    `presenceSessions` using the timestamp field `expiresAt`.
@@ -32,7 +34,7 @@ Each callable reloads the authenticated user's role inside its transaction. Rele
    ```powershell
    gcloud firestore fields ttls update expiresAt `
      --collection-group=presenceSessions `
-     --project=project-manager-dashboar-a067f `
+     --project=pm-dashboard-uat-20260820-a7f3 `
      --enable-ttl
    ```
 

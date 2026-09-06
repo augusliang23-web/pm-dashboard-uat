@@ -96,12 +96,3 @@ test('requires an explanation only when RAG changes', () => {
     { rag: 'green', statusText: 'Monthly review complete' },
   );
 });
-
-test('keeps root and Team 2 governance contracts identical', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const [root, team2] = await Promise.all([
-    readFile(new URL('../js/executive-governance.mjs', import.meta.url), 'utf8'),
-    readFile(new URL('../team-2/js/executive-governance.mjs', import.meta.url), 'utf8'),
-  ]);
-  assert.equal(team2, root);
-});

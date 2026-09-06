@@ -2,8 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const dashboard = await readFile(new URL('../team-2/index.html', import.meta.url), 'utf8');
-const productionDashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const dashboard = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const printStart = dashboard.indexOf('@media print {');
 const printCss = dashboard.slice(printStart, dashboard.indexOf('</style>', printStart));
 
@@ -48,13 +47,9 @@ test('roadmap PDF keeps the v2.0 DCDC title and table units together', () => {
 test('PDF reports start later logical sections without a trailing blank-page break', () => {
   assert.match(dashboard, /id="printReportRoot"/);
   assert.match(printCss, /body\.print-presentation-report #printReportRoot\s*\{[^}]*display:\s*block/);
-  for (const source of [dashboard, productionDashboard]) {
-    const start = source.indexOf('@media print {');
-    const css = source.slice(start, source.indexOf('</style>', start));
-    assert.match(css, /\.print-report-page\s*\{[^}]*break-after:\s*auto[^}]*page-break-after:\s*auto/);
-    assert.match(css, /\.print-report-page \+ \.print-report-page\s*\{[^}]*break-before:\s*page[^}]*page-break-before:\s*always/);
-    assert.match(css, /\.print-report-footer\s*\{[^}]*break-before:\s*avoid-page[^}]*page-break-before:\s*avoid/);
-  }
+  assert.match(printCss, /\.print-report-page\s*\{[^}]*break-after:\s*auto[^}]*page-break-after:\s*auto/);
+  assert.match(printCss, /\.print-report-page \+ \.print-report-page\s*\{[^}]*break-before:\s*page[^}]*page-break-before:\s*always/);
+  assert.match(printCss, /\.print-report-footer\s*\{[^}]*break-before:\s*avoid-page[^}]*page-break-before:\s*avoid/);
   assert.match(printCss, /\.print-report-unit\s*\{[^}]*break-inside:\s*avoid-page[^}]*page-break-inside:\s*avoid/);
 });
 

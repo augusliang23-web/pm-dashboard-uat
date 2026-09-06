@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 
-const projectId = 'project-manager-dashboar-a067f';
+const projectId = 'demo-pm-dashboard-v22t';
 process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080';
 const require = createRequire(new URL('../functions/package.json', import.meta.url));
 const { initializeApp } = require('firebase-admin/app');

@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const production = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-const testVersion = await readFile(new URL('../team-2/index.html', import.meta.url), 'utf8');
+
+test('root dashboard exposes the v2.2T release identity', () => {
+  assert.match(production, /const DASHBOARD_RELEASE = 'v2\.2T';/);
+  assert.match(production, /const DASHBOARD_BASE_COMMIT = '[0-9a-f]+';/);
+  assert.match(production, /id="dashboardVersion"/);
+  assert.match(production, /environment: 'v2\.2T'/);
+});
 
 test('v2.2T uses confirmed protected release writes', () => {
   assert.match(
@@ -36,27 +42,6 @@ test('v2.2T keeps Executive timeline cells out of the legacy strategy save path'
     production,
     /const strategyLayer = \{\s*\.\.\.\(week\.strategyLayer \|\| \{\}\),\s*projectMap\s*\}/
   );
-  assert.match(
-    testVersion,
-    /const strategyLayer = \{\s*\.\.\.\(week\.strategyLayer \|\| \{\}\),\s*projectMap\s*\}/
-  );
-});
-
-test('v2.0T uses confirmed immutable release writes', () => {
-  assert.match(
-    testVersion,
-    /import \{ confirmWeekMutation, getWriteErrorMessage \} from "\.\.\/sync-core\.js"/
-  );
-  assert.match(testVersion, /await updateDoc\(doc\(db, "weeks", id\), \{/);
-  assert.match(
-    testVersion,
-    /finally\s*\{\s*releaseWriteInProgress = false;\s*hideLoader\(\)/s
-  );
-});
-
-test('v2.0T strategy save commits a clone after confirmation', () => {
-  assert.match(testVersion, /const savedWeek = await confirmWeekMutation\(/);
-  assert.match(testVersion, /allWeeks\[currentIdx\] = savedWeek/);
 });
 
 test('Overview PDF picker wires Executive milestones before Quarterly Roadmap', () => {

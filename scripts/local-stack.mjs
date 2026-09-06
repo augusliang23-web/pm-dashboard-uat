@@ -9,7 +9,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const functionsRoot = resolve(repoRoot, 'functions');
 const tmpRoot = resolve(repoRoot, 'tmp');
 const statePath = resolve(tmpRoot, 'v22t-local-processes.json');
-const projectId = 'project-manager-dashboar-a067f';
+const projectId = 'demo-pm-dashboard-v22t';
 const ports = { auth: 9099, firestore: 8080, functions: 5001, preview: 4173 };
 const localEnv = {
   FIREBASE_AUTH_EMULATOR_HOST: '127.0.0.1:9099',
