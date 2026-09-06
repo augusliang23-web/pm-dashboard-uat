@@ -68,9 +68,9 @@ test('the starter seeds Auth and Firestore into the isolated emulator only', () 
   assert.match(starterScript, /\$env:FIRESTORE_EMULATOR_HOST\s*=\s*'127\.0\.0\.1:8080'/);
 });
 
-test('the local starter restores existing dashboard data after seeding', () => {
-  assert.match(starterScript, /sync-v2\.2t-local-data\.mjs/);
-  assert.match(starterScript, /--project', 'project-manager-dashboar-a067f'/);
+test('the local starter does not invoke the Production snapshot sync', () => {
+  assert.doesNotMatch(starterScript, /sync-v2\.2t-local-data\.mjs/);
+  assert.match(starterScript, /--project', 'demo-pm-dashboard-v22t'/);
   assert.match(localSync, /project-manager-dashboar-a067f/);
   assert.match(localSync, /const LOCAL_PROJECT_ID = SOURCE_PROJECT_ID/);
   assert.match(localSync, /v2\.2t-production-snapshot\.json/);
@@ -92,4 +92,12 @@ test('the Mac local workflow exposes one explicit command contract', () => {
   assert.match(localStop, /v22t-local-processes/);
   assert.match(localStop, /process\.kill/);
   assert.match(localHealth, /emulator-unavailable/);
+});
+
+test('every local emulator entrypoint is pinned to the demo project', () => {
+  const localEntrypoints = [localRunner, localHealth, seed, starterScript];
+  for (const source of localEntrypoints) {
+    assert.doesNotMatch(source, /project-manager-dashboar-a067f/);
+    assert.match(source, /demo-pm-dashboard-v22t/);
+  }
 });

@@ -42,6 +42,13 @@ npm run deploy -- --push  # only after explicit release approval
 
 The default deploy command never pushes. v2.1 remains a separate repository and is only changed when an explicit v2.1 sync is requested.
 
+The local emulator starter seeds only the demo project `demo-pm-dashboard-v22t`
+and does not restore a Production snapshot. `scripts/sync-v2.2t-local-data.mjs`
+is a separate, explicit Production-only snapshot import utility; it is not part
+of `npm run local:start`, `npm run local:seed`, `npm run test:local`, or UAT
+verification. The PDF service deploy script is likewise Production-only and is
+not a UAT deployment command.
+
 The root dashboard intentionally retains the legacy persistence namespaces
 `team2.portfolioScope`, `team2.overviewScope.*`, and
 `dashboardSettings/team-2-portfolio`. They are data-compatibility identifiers,

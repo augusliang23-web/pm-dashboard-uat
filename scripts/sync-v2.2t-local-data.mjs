@@ -1,3 +1,4 @@
+// Production-only snapshot export/import utility. Never call from UAT verification.
 import { createRequire } from 'node:module';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
