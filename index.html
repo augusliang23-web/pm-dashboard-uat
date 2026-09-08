@@ -2870,7 +2870,9 @@ import { normalizeWeeklySummaryForSave } from "./js/weekly-summary-contract.mjs"
 const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 const useLocalEmulator = isLocalPreview
   && new URLSearchParams(window.location.search).get('emulator') === '1';
-const app = initializeApp(FIREBASE_CONFIG);
+const app = initializeApp(useLocalEmulator
+  ? { ...FIREBASE_CONFIG, projectId: 'demo-pm-dashboard-v22t' }
+  : FIREBASE_CONFIG);
 const PROFESSIONAL_PDF_SERVICE_URL = window.PM_DASHBOARD_PDF_SERVICE_URL || '';
 const db = getFirestore(app);
 const auth = getAuth(app);
