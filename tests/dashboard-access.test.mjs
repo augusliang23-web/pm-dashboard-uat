@@ -4,8 +4,14 @@ import {
   buildProjectManagerList,
   canReadDraftWeeks,
   isProjectManagerAccount,
+  normalizeDashboardRole,
   reconcileProjectManagerFilter,
 } from '../js/dashboard-access.mjs';
+
+test('VIP remains a recognized read-only dashboard role', () => {
+  assert.equal(normalizeDashboardRole(' VIP '), 'vip');
+  assert.equal(canReadDraftWeeks('vip'), false);
+});
 
 test('only Admin and PM can read Draft weeks', () => {
   assert.equal(canReadDraftWeeks('admin'), true);

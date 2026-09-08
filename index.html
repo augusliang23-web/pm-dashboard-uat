@@ -2293,7 +2293,7 @@ details[open] .settings-summary { border-bottom-left-radius: 0; border-bottom-ri
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l3-4 3 2 4-7"/><path d="M17 7h3v3"/></svg>
       </button>
       
-      <button class="btn-icon executive-hidden" onclick="openWeekManagement()" title="Manage Weeks">
+      <button id="manageWeeksBtn" class="btn-icon executive-hidden" onclick="openWeekManagement()" title="Manage Weeks">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       </button>
 
@@ -2848,7 +2848,7 @@ import { EXECUTIVE_SECTIONS, calculateVisibleExecutiveRag, canChangeExecutiveStr
 import { DEFAULT_EXECUTIVE_TIMELINE_CONFIG, canUpdateConfiguredSection, canViewConfiguredSection, configuredQuarterLabel, configuredSectionLabel, normalizeExecutiveTimelineConfig } from "./js/executive-timeline-config.mjs";
 import { createExecutiveApi } from "./js/executive-api.mjs";
 import { isExecutiveMilestoneActionLocked, pendingExecutiveMilestoneIds } from "./js/executive-pending-lock.mjs";
-import { buildProjectManagerList, canReadDraftWeeks, reconcileProjectManagerFilter } from "./js/dashboard-access.mjs";
+import { buildProjectManagerList, canReadDraftWeeks, normalizeDashboardRole, reconcileProjectManagerFilter } from "./js/dashboard-access.mjs";
 import { createProjectDashboardApi } from "./js/project-dashboard-api.mjs";
 import { renderListHtml } from "./js/list-editor.mjs?v=raw-text-preserve-1";
 import { RESOURCE_DISCIPLINES, buildGanttCalendarAxis, buildResourceAnalytics, calculateDropIndex, createDefaultWorkstreams, createTimelineTicks, deriveRoleResourceRows, filterOverviewSummaryLines, filterProjects, filterRoleVisibleProjects, formatStatusDate, getFocusTrapIndex, getGanttProgressSegments, getOverviewProjectBadgeLabel, getOverviewProjects, getOverviewScopeStorageKey, matchOverviewSummaryProjectLine, mergeResourceEntry, normalizeOverviewMilestoneStatus, normalizeOverviewPercent, normalizeOverviewRagStatus, normalizeOverviewScope, normalizeOverviewSummaryHeading, normalizeProject, normalizeResourceEntry, normalizeRiskActionRows, normalizeWorkstream, orderProjectsByAttention, parseIsoDate, projectOwnershipMatchesIdentity, resolveProjectStatusDate, resolveWorkstreamTemplateConfig, summarizeTeamEffort, validateResourceInput, validateWorkstreamTemplateConfig, validateWorkstreams } from "./js/portfolio-core.mjs";
@@ -3478,7 +3478,7 @@ function getDashboardRole(userDoc) {
   if (!userDoc.exists()) {
     throw new Error('missing-dashboard-role');
   }
-  const role = normalizeExecutiveRole(userDoc.data().role);
+  const role = normalizeDashboardRole(userDoc.data().role);
   if (!role) throw new Error('missing-dashboard-role');
   return role;
 }
@@ -4551,6 +4551,7 @@ function setupUI() {
   rBadge.className = 'role-badge';
   document.querySelectorAll('.executive-hidden').forEach(el => el.style.display = '');
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+  document.getElementById('manageWeeksBtn').style.display = canReadDraftWeeks(currentRole) ? '' : 'none';
   document.getElementById('presenceUsageBtn').style.display = 'none';
   document.getElementById('executiveApprovalInboxBtn').style.display = 'none';
   
