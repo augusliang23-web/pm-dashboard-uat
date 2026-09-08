@@ -1,4 +1,4 @@
-const VALID_ROLES = new Set(['admin', 'pm', 'sales', 'bd', 'engineering', 'product', 'executive']);
+const VALID_ROLES = new Set(['admin', 'pm', 'vip', 'sales', 'bd', 'engineering', 'product', 'executive']);
 
 export function normalizeDashboardRole(role) {
   const value = String(role || '').trim().toLowerCase();
