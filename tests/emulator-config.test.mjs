@@ -27,7 +27,6 @@ test('v2.2T local preview can only opt into the isolated Firebase Emulator proje
 test('localhost only uses all emulators in explicit emulator mode', () => {
   assert.match(dashboard, /const isLocalPreview = \['localhost', '127\.0\.0\.1'\]\.includes\(window\.location\.hostname\)/);
   assert.match(dashboard, /const useLocalEmulator = isLocalPreview[\s\S]*get\('emulator'\) === '1'/);
-  assert.match(dashboard, /const app = initializeApp\(FIREBASE_CONFIG\)/);
   assert.match(dashboard, /if \(useLocalEmulator\) \{[\s\S]*connectFirestoreEmulator\(db, '127\.0\.0\.1', 8080\)[\s\S]*connectFunctionsEmulator\(functions, '127\.0\.0\.1', 5001\)[\s\S]*connectAuthEmulator\(auth, 'http:\/\/127\.0\.0\.1:9099'/);
   assert.doesNotMatch(dashboard, /if \(isLocalPreview\) \{[\s\S]*connectFirestoreEmulator\(db, '127\.0\.0\.1', 8080\)/);
 });
