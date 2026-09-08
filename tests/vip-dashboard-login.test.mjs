@@ -27,6 +27,11 @@ test('root dashboard admits VIP as VIP without granting Executive identity', () 
   assert.equal(normalizeExecutiveRole('vip'), '');
 });
 
+test('root dashboard cache-busts the role module when VIP access changes', () => {
+  const moduleUrl = dashboard.match(/from "(\.\/js\/dashboard-access\.mjs[^\"]*)"/)?.[1];
+  assert.equal(moduleUrl, './js/dashboard-access.mjs?v=vip-readonly-1');
+});
+
 test('root dashboard still rejects unknown and missing roles', () => {
   assert.throws(() => getDashboardRole(userDoc('unknown')), /missing-dashboard-role/);
   assert.throws(() => getDashboardRole({exists: () => false}), /missing-dashboard-role/);
